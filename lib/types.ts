@@ -62,6 +62,9 @@ export type Teacher = {
   education: { degree: string; institution: string; year: number }[]
   reviews: ReviewItem[]
   availability: string[]
+  /** Daily working-hours window (e.g. "09:00"–"17:00") the booking calendar generates real time slots from. Optional so legacy demo teachers without it fall back to a default range. */
+  availabilityStart?: string
+  availabilityEnd?: string
   verified: boolean
   featured: boolean
   responseTime: string
@@ -85,6 +88,8 @@ export type TeacherApplicationInput = {
   skills: string[]
   languages: string[]
   availability: string[]
+  availabilityStart: string
+  availabilityEnd: string
 }
 
 export type Testimonial = {
@@ -104,18 +109,40 @@ export type FaqItem = {
   answer: string
 }
 
+/**
+ * Lifecycle: `pending` (booked, awaiting teacher confirmation) →
+ * `upcoming` (teacher confirmed) → `completed` (call ended — this is
+ * when payment actually moves from student to teacher, see
+ * services/wallet.service.ts transferLessonPayment) or `cancelled`
+ * (teacher rejected the booking, or approved a cancel request).
+ */
+export type LessonStatus = 'pending' | 'upcoming' | 'completed' | 'cancelled'
+
+/** A student- or teacher-initiated request to cancel or reschedule an already-confirmed lesson — sits on the lesson until the *other* party accepts/rejects it via a real notification. */
+export type LessonChangeRequest = {
+  type: 'cancel' | 'reschedule'
+  requestedBy: 'student' | 'teacher'
+  newDate?: string
+  newTime?: string
+  note?: string
+}
+
 export type Lesson = {
   id: string
+  teacherId: string
+  studentId: string
   teacherName: string
+  studentName: string
   teacherInitials: string
   teacherColor: string
   specialty: string
   date: string
   time: string
   duration: number
-  status: 'upcoming' | 'completed' | 'cancelled'
+  status: LessonStatus
   price: number
   topic: string
+  pendingChange?: LessonChangeRequest
 }
 
 export type StudentStats = {
@@ -129,6 +156,7 @@ export type StudentStats = {
   progressByCategory: { category: string; progress: number; color: string }[]
 }
 
+/** Rating/earnings summary shown on the teacher dashboard header + sidebar. The lesson list itself is fetched separately (see getTeacherLessons) since it's real per-teacher Firestore data, not part of this demo/rating bundle. */
 export type TeacherDashboardData = {
   name: string
   initials: string
@@ -142,22 +170,6 @@ export type TeacherDashboardData = {
   lessonsThisMonth: number
   completionRate: number
   responseRate: number
-  upcomingLessons: {
-    id: string
-    studentName: string
-    topic: string
-    date: string
-    time: string
-    duration: number
-    price: number
-  }[]
-  pendingRequests: {
-    id: string
-    studentName: string
-    topic: string
-    requestedDate: string
-    price: number
-  }[]
   earningsChart: { month: string; amount: number }[]
 }
 

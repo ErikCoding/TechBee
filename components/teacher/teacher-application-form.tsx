@@ -39,6 +39,8 @@ export function TeacherApplicationForm() {
   const [skills, setSkills] = useState('')
   const [languages, setLanguages] = useState('Polski')
   const [availability, setAvailability] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
+  const [availabilityStart, setAvailabilityStart] = useState('09:00')
+  const [availabilityEnd, setAvailabilityEnd] = useState('17:00')
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -59,6 +61,8 @@ export function TeacherApplicationForm() {
         setSkills(app.skills.join(', '))
         setLanguages(app.languages.join(', '))
         setAvailability(app.availability)
+        setAvailabilityStart(app.availabilityStart ?? '09:00')
+        setAvailabilityEnd(app.availabilityEnd ?? '17:00')
       } else if (cats[0]) {
         setCategoryId(cats[0].id)
       }
@@ -86,6 +90,8 @@ export function TeacherApplicationForm() {
         skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
         languages: languages.split(',').map((s) => s.trim()).filter(Boolean),
         availability,
+        availabilityStart,
+        availabilityEnd,
       })
       setSubmitted(true)
     } finally {
@@ -198,6 +204,21 @@ export function TeacherApplicationForm() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-medium text-foreground">Godziny pracy w te dni</p>
+        <div className="flex items-center gap-3">
+          <div className="flex flex-1 flex-col gap-1.5">
+            <label htmlFor="availabilityStart" className="text-[11px] text-muted-foreground">Od</label>
+            <Input id="availabilityStart" type="time" required value={availabilityStart} onChange={(e) => setAvailabilityStart(e.target.value)} />
+          </div>
+          <div className="flex flex-1 flex-col gap-1.5">
+            <label htmlFor="availabilityEnd" className="text-[11px] text-muted-foreground">Do</label>
+            <Input id="availabilityEnd" type="time" required value={availabilityEnd} onChange={(e) => setAvailabilityEnd(e.target.value)} />
+          </div>
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">Uczniowie będą mogli rezerwować godzinne terminy w tym przedziale, w wybrane dni.</p>
       </div>
 
       <Button type="submit" disabled={submitting} className="mt-1 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">

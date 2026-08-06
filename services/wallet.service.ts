@@ -1,5 +1,4 @@
 import { addDoc, collection, doc, getDoc, getDocs, increment, orderBy, query, setDoc, updateDoc, where } from 'firebase/firestore'
-import { walletStatsData, walletTransactionsData } from '@/data/wallet.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { formatChatTime } from '@/lib/utils'
 import type { Transaction, WalletStats } from '@/lib/types'
@@ -20,6 +19,7 @@ import type { Transaction, WalletStats } from '@/lib/types'
 // ─────────────────────────────────────────────────────────────
 
 const STARTER_BALANCE = 1000
+const ZERO_STATS: WalletStats = { balance: 0, pending: 0, totalSpent: 0, totalTopups: 0 }
 const MOCK_WALLETS_KEY = 'techbee.wallet.stats'
 const MOCK_TX_KEY = 'techbee.wallet.transactions'
 
@@ -34,7 +34,7 @@ function todayLabel() {
 // ── Mock (localStorage) ──────────────────────────────────────
 
 function readMockStats(userId: string): WalletStats {
-  if (!isBrowser()) return walletStatsData
+  if (!isBrowser()) return ZERO_STATS
   try {
     const all = JSON.parse(window.localStorage.getItem(MOCK_WALLETS_KEY) ?? '{}') as Record<string, WalletStats>
     if (!all[userId]) {
@@ -43,7 +43,7 @@ function readMockStats(userId: string): WalletStats {
     }
     return all[userId]
   } catch {
-    return walletStatsData
+    return ZERO_STATS
   }
 }
 
@@ -92,14 +92,13 @@ function applyMockDelta(userId: string, tx: Transaction) {
 }
 
 function getWalletStatsMock(userId?: string): WalletStats {
-  if (!userId) return walletStatsData
+  if (!userId) return ZERO_STATS
   return readMockStats(userId)
 }
 
 function getWalletTransactionsMock(userId?: string): Transaction[] {
-  if (!userId) return walletTransactionsData
-  const local = readMockTransactions(userId)
-  return local.length > 0 ? local : walletTransactionsData
+  if (!userId) return []
+  return readMockTransactions(userId)
 }
 
 function topUpMock(userId: string, amount: number) {
@@ -110,14 +109,15 @@ function withdrawMock(userId: string, amount: number) {
   applyMockDelta(userId, { id: `tx-${Date.now()}`, type: 'debit', description: 'Wypłata środków (symulacja)', amount: -amount, date: todayLabel(), status: 'completed' })
 }
 
-function transferLessonPaymentMock(studentId: string, teacherLabel: string, amount: number, topic: string) {
+function transferLessonPaymentMock(studentId: string, teacherId: string, teacherLabel: string, amount: number, topic: string) {
   applyMockDelta(studentId, { id: `tx-${Date.now()}-s`, type: 'debit', description: `Lekcja: ${teacherLabel} — ${topic}`, amount: -amount, date: todayLabel(), status: 'completed' })
+  applyMockDelta(teacherId, { id: `tx-${Date.now()}-t`, type: 'credit', description: `Zapłata za lekcję — ${topic}`, amount, date: todayLabel(), status: 'completed' })
 }
 
 // ── Firebase ──────────────────────────────────────────────────
 
 async function ensureWalletDoc(userId: string): Promise<WalletStats> {
-  if (!db) return walletStatsData
+  if (!db) return ZERO_STATS
   const ref = doc(db, collections.wallets, userId)
   const snap = await getDoc(ref)
   if (snap.exists()) return snap.data() as WalletStats
@@ -127,12 +127,14 @@ async function ensureWalletDoc(userId: string): Promise<WalletStats> {
 }
 
 async function getWalletStatsFirebase(userId?: string): Promise<WalletStats> {
-  if (!db || !userId) return walletStatsData
+  // No userId (SSR baseline) → zeros, not a fake demo balance — the real
+  // number loads client-side once the signed-in user is known.
+  if (!db || !userId) return ZERO_STATS
   return ensureWalletDoc(userId)
 }
 
 async function getWalletTransactionsFirebase(userId?: string): Promise<Transaction[]> {
-  if (!db || !userId) return walletTransactionsData
+  if (!db || !userId) return []
   const snap = await getDocs(query(collection(db, collections.walletTransactions), where('userId', '==', userId), orderBy('createdAt', 'desc')))
   return snap.docs.map((d) => {
     const data = d.data() as { type: Transaction['type']; description: string; amount: number; status: Transaction['status']; createdAt: number }
@@ -204,7 +206,7 @@ export async function transferLessonPayment(studentId: string, teacherId: string
     if (isFirebaseConfigured) {
       await transferLessonPaymentFirebase(studentId, teacherId, amount, teacherLabel, topic)
     } else {
-      transferLessonPaymentMock(studentId, teacherLabel, amount, topic)
+      transferLessonPaymentMock(studentId, teacherId, teacherLabel, amount, topic)
     }
   } catch {
     // ignore — see doc comment

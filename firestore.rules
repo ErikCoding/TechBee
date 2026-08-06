@@ -105,6 +105,13 @@ service cloud.firestore {
     // can read lesson records. Tighten this once teacher accounts
     // store their catalog id so `resource.data.teacherId ==
     // <that field>` can be checked directly.
+    // A lesson moves through pending → upcoming → completed/cancelled, and
+    // can carry a `pendingChange` (cancel/reschedule request). Both the
+    // student and the teacher need to be able to update it — the student to
+    // create it or request a change, the teacher to accept/reject a
+    // booking, accept/reject a change request, or mark it completed
+    // (whoever ends the call first). Same catalog-id-vs-real-uid caveat as
+    // the read rule above applies to `isTeacher()` here too.
     match /lessons/{id} {
       allow read: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
@@ -113,7 +120,7 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
       allow update: if isSignedIn() && (
-        resource.data.studentId == request.auth.uid || isAdmin()
+        resource.data.studentId == request.auth.uid || isTeacher() || isAdmin()
       );
       allow delete: if isAdmin();
     }

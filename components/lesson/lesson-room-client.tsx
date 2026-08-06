@@ -6,7 +6,8 @@ import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Send, X } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth-context'
-import { cn } from '@/lib/utils'
+import { completeLesson } from '@/services/lessons.service'
+import { cn, dashboardPathForRole } from '@/lib/utils'
 
 interface Props {
   lessonId: string
@@ -66,7 +67,12 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
   function handleEndCall() {
     setCallState('ended')
     if (timerRef.current) clearInterval(timerRef.current)
-    setTimeout(() => router.push('/dashboard/student'), 1200)
+    // Ending the call is what actually completes the lesson — this is the
+    // one moment the simulated payment moves from student to teacher (see
+    // services/lessons.service.ts completeLesson). Best-effort: a failed
+    // write here shouldn't trap the person in the call room.
+    completeLesson(lessonId).catch(() => {})
+    setTimeout(() => router.push(dashboardPathForRole(user?.role)), 1200)
   }
 
   function sendMessage() {

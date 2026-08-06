@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { Button } from '@/components/ui/button'
-import { getTeacherDashboard } from '@/services/lessons.service'
+import { getTeacherDashboard, getTeacherLessons } from '@/services/lessons.service'
 import { getNotifications } from '@/services/notifications.service'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { TeacherIdentity } from '@/components/auth/teacher-identity'
@@ -15,7 +15,7 @@ import { TeacherPerformancePanel } from '@/components/dashboard/teacher-performa
 import { NotificationsPanel } from '@/components/dashboard/notifications-panel'
 
 export default async function TeacherDashboardPage() {
-  const [t, notifications] = await Promise.all([getTeacherDashboard(), getNotifications()])
+  const [t, lessons, notifications] = await Promise.all([getTeacherDashboard(), getTeacherLessons(), getNotifications()])
   const maxEarnings = Math.max(...t.earningsChart.map((e) => e.amount))
 
   return (
@@ -75,7 +75,7 @@ export default async function TeacherDashboardPage() {
                 </div>
               </section>
 
-              <TeacherLessonsSection initialUpcoming={t.upcomingLessons} initialPending={t.pendingRequests} />
+              <TeacherLessonsSection initialLessons={lessons} />
             </div>
 
             {/* Right: sidebar */}

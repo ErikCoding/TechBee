@@ -86,12 +86,13 @@ export function WalletClient({ initialStats, initialTransactions }: Props) {
         const ok = await withdrawFromWallet(user.id, Math.round(value))
         if (!ok) {
           setError('Niewystarczające środki na koncie.')
-          setSubmitting(false)
           return
         }
       }
       await refresh(user.id)
       setModal(null)
+    } catch {
+      setError('Nie udało się zapisać operacji. Spróbuj ponownie.')
     } finally {
       setSubmitting(false)
     }

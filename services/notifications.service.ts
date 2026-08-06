@@ -47,7 +47,12 @@ export async function createNotification(input: CreateNotificationInput): Promis
 }
 
 async function getNotificationsFirebase(userId?: string): Promise<Notification[]> {
-  if (!db || !userId) return notificationsData
+  // No userId (SSR, before the real signed-in user is known) → empty, not
+  // the old demo dataset. Showing fake "Marek Kowalski" notifications for a
+  // moment before the real (possibly genuinely empty) list replaces them
+  // was exactly the "zapychacze" (filler) the notifications panel used to
+  // flash on every load.
+  if (!db || !userId) return []
   const snap = await getDocs(query(collection(db, collections.notifications), where('userId', '==', userId), orderBy('createdAt', 'desc')))
   return snap.docs.map((d) => {
     const data = d.data() as { type: NotificationType; title: string; description: string; read: boolean; createdAt: number }
@@ -63,7 +68,7 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
 }
 
 export async function getNotifications(userId?: string): Promise<Notification[]> {
-  return isFirebaseConfigured ? getNotificationsFirebase(userId) : notificationsData
+  return isFirebaseConfigured ? getNotificationsFirebase(userId) : (userId ? [] : notificationsData)
 }
 
 export async function getUnreadNotificationsCount(userId?: string): Promise<number> {

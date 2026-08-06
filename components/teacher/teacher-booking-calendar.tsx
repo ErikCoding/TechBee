@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { buildAvailability } from '@/lib/availability'
 import { useAuth } from '@/lib/auth-context'
 import { createBooking } from '@/services/lessons.service'
-import { getWalletStats } from '@/services/wallet.service'
 import { cn } from '@/lib/utils'
 import type { Teacher } from '@/lib/types'
 
@@ -25,7 +24,10 @@ const DURATIONS = [
 export function TeacherBookingCalendar({ teacher }: Props) {
   const { user } = useAuth()
   const router = useRouter()
-  const days = useMemo(() => buildAvailability(teacher.availability), [teacher.availability])
+  const days = useMemo(
+    () => buildAvailability(teacher.availability, { start: teacher.availabilityStart ?? '09:00', end: teacher.availabilityEnd ?? '17:00' }),
+    [teacher.availability, teacher.availabilityStart, teacher.availabilityEnd],
+  )
 
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
@@ -33,21 +35,20 @@ export function TeacherBookingCalendar({ teacher }: Props) {
   const [topic, setTopic] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [bookedLessonId, setBookedLessonId] = useState<string | null>(null)
-  const [insufficientFunds, setInsufficientFunds] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const selectedDay = days[selectedDayIndex]
   const price = Math.round((teacher.hourlyRate / 60) * duration)
 
+  // Note: nothing is charged yet — this only sends a *request*. Money only
+  // moves from the student's wallet to the teacher's once the lesson is
+  // actually completed (see services/lessons.service.ts completeLesson),
+  // so there's no balance check to do here.
   async function handleConfirm() {
     if (!user || !selectedDay || !selectedSlot || !topic.trim()) return
     setSubmitting(true)
-    setInsufficientFunds(false)
+    setError(null)
     try {
-      const wallet = await getWalletStats(user.id)
-      if (wallet.balance < price) {
-        setInsufficientFunds(true)
-        return
-      }
       const lesson = await createBooking({
         teacherId: teacher.id,
         teacherName: teacher.name,
@@ -63,6 +64,8 @@ export function TeacherBookingCalendar({ teacher }: Props) {
         topic: topic.trim(),
       })
       setBookedLessonId(lesson.id)
+    } catch {
+      setError('Nie udało się wysłać prośby o rezerwację. Spróbuj ponownie.')
     } finally {
       setSubmitting(false)
     }
@@ -80,9 +83,12 @@ export function TeacherBookingCalendar({ teacher }: Props) {
     return (
       <div className="animate-fade-in-up rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center">
         <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" aria-hidden="true" />
-        <h2 className="mt-3 text-lg font-semibold text-foreground">Lekcja zarezerwowana!</h2>
+        <h2 className="mt-3 text-lg font-semibold text-foreground">Prośba o rezerwację wysłana!</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {selectedDay.dayLabel} o {selectedSlot} z {teacher.name} · {duration} min · {price} zł
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Lekcja pojawi się w Twoim panelu, gdy {teacher.name} potwierdzi termin.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
           <Button onClick={() => router.push('/dashboard/student')} className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
@@ -182,17 +188,16 @@ export function TeacherBookingCalendar({ teacher }: Props) {
         />
       </div>
 
-      {insufficientFunds && (
+      {error && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Niewystarczające środki w portfelu na tę lekcję ({price} zł).{' '}
-          <Link href="/wallet" className="font-semibold underline underline-offset-2">Doładuj portfel</Link>, aby dokończyć rezerwację.
+          {error}
         </div>
       )}
 
       {/* Summary + confirm */}
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">Do zapłaty (z portfela BeeCoins)</p>
+          <p className="text-sm text-muted-foreground">Cena lekcji (pobrana z portfela po jej odbyciu)</p>
           <p className="text-2xl font-bold text-foreground">{price} zł</p>
         </div>
         <Button
@@ -201,7 +206,7 @@ export function TeacherBookingCalendar({ teacher }: Props) {
           className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold transition-transform hover:-translate-y-0.5 disabled:hover:translate-y-0"
         >
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Potwierdź rezerwację
+          Wyślij prośbę o rezerwację
         </Button>
       </div>
 

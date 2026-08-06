@@ -70,6 +70,8 @@ function buildTeacherFromApplication(
     education: existing?.education ?? [],
     reviews: existing?.reviews ?? [],
     availability: input.availability,
+    availabilityStart: input.availabilityStart,
+    availabilityEnd: input.availabilityEnd,
     verified: false,
     featured: false,
     responseTime: existing?.responseTime ?? '< 24 godz.',
