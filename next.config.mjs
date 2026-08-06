@@ -3,6 +3,13 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // firebase-admin (used by app/api/livekit/token/route.ts) pulls in
+  // jwks-rsa → jose, which mixes ESM and CommonJS in a way Turbopack's
+  // bundler can't reconcile when bundled into the serverless function —
+  // it fails at runtime with `ERR_REQUIRE_ESM`. Listing it here tells
+  // Next.js to leave it as a plain external `require()` at runtime
+  // instead of bundling it, which Node itself resolves correctly.
+  serverExternalPackages: ['firebase-admin'],
   images: {
     unoptimized: true,
   },
