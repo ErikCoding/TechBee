@@ -22,7 +22,13 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          // camera/microphone/display-capture must stay allowed for `self` —
+          // the lesson video room (LiveKit) calls getUserMedia/getDisplayMedia
+          // from this same origin. Blocking them here (as `camera=()` etc. did
+          // before) makes every browser reject those calls outright, even with
+          // the user's OS/browser permission granted — silently breaking the
+          // whole video-lesson feature in production.
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), display-capture=(self), geolocation=()' },
         ],
       },
     ]
