@@ -50,15 +50,15 @@ export function TeacherLessonsSection({ initialUpcoming, initialPending }: Props
           {upcoming.map((lesson) => (
             <div
               key={lesson.id}
-              className="flex items-center justify-between rounded-xl border border-border p-4 transition-colors hover:bg-muted/40"
+              className="flex flex-col gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground">
                   {lesson.studentName} · {lesson.date} o {lesson.time} · {lesson.duration} min
                 </p>
               </div>
-              <div className="ml-4 flex items-center gap-2">
+              <div className="flex shrink-0 items-center justify-between gap-2 sm:ml-4 sm:justify-end">
                 <span className="text-sm font-bold text-[#F4B400]">{lesson.price} zł</span>
                 <Link href={`/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.studentName)}&topic=${encodeURIComponent(lesson.topic)}`}>
                   <Button size="sm" className="h-7 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] text-xs font-semibold">
@@ -84,19 +84,19 @@ export function TeacherLessonsSection({ initialUpcoming, initialPending }: Props
           {pending.map((req) => (
             <div
               key={req.id}
-              className="flex items-center justify-between rounded-xl border border-border p-4 transition-colors hover:bg-muted/40"
+              className="flex flex-col gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{req.topic}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground">
                   {req.studentName} · Termin: {req.requestedDate}
                 </p>
               </div>
-              <div className="ml-4 flex items-center gap-2">
-                <Button size="sm" variant="outline" className="h-7 text-xs">
+              <div className="flex shrink-0 items-center gap-2 sm:ml-4">
+                <Button size="sm" variant="outline" className="h-7 flex-1 text-xs sm:flex-none">
                   Odrzuć
                 </Button>
-                <Button size="sm" className="h-7 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] text-xs font-semibold">
+                <Button size="sm" className="h-7 flex-1 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] text-xs font-semibold sm:flex-none">
                   Akceptuj
                 </Button>
               </div>

@@ -25,9 +25,9 @@ export default async function TeacherDashboardPage() {
         <RequireAuth role="teacher">
         <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
           {/* Header */}
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <TeacherIdentity fallbackName={t.name} fallbackInitials={t.initials} fallbackAvatarColor={t.avatarColor} />
-            <div className="mt-3 flex items-center gap-2 sm:mt-0">
+            <div className="flex flex-wrap items-center gap-2">
               <TeacherRatingBadge initialRating={t.rating} initialReviewCount={t.reviewCount} />
               <Link href="/dashboard/teacher/apply">
                 <Button variant="outline" size="sm">Edytuj profil</Button>
@@ -46,27 +46,32 @@ export default async function TeacherDashboardPage() {
               {/* Earnings chart (CSS bar chart) */}
               <section className="rounded-2xl border border-border bg-card p-6">
                 <h2 className="font-semibold text-foreground">Miesięczne zarobki</h2>
-                <div className="mt-6 flex items-end gap-3" role="img" aria-label="Wykres słupkowy miesięcznych zarobków">
-                  {t.earningsChart.map((entry) => {
-                    const heightPct = (entry.amount / maxEarnings) * 100
-                    return (
-                      <div key={entry.month} className="flex flex-1 flex-col items-center gap-2">
-                        <span className="text-[10px] font-semibold text-muted-foreground">
-                          {(entry.amount / 1000).toFixed(1)}k zł
-                        </span>
-                        <div className="relative w-full rounded-t-lg bg-muted" style={{ height: '100px' }}>
-                          <div
-                            className="absolute bottom-0 w-full origin-bottom rounded-t-lg transition-all duration-700 ease-out"
-                            style={{
-                              height: `${heightPct}%`,
-                              background: entry.month === 'Lip' ? '#F4B400' : '#E4E4E7',
-                            }}
-                          />
+                {/* overflow-x-auto + a min width per bar: on narrow phones 6
+                    squeezed flex-1 columns clipped their labels — now it
+                    scrolls horizontally instead of crushing the numbers. */}
+                <div className="mt-6 overflow-x-auto">
+                  <div className="flex items-end gap-3" role="img" aria-label="Wykres słupkowy miesięcznych zarobków">
+                    {t.earningsChart.map((entry) => {
+                      const heightPct = (entry.amount / maxEarnings) * 100
+                      return (
+                        <div key={entry.month} className="flex w-11 shrink-0 flex-1 flex-col items-center gap-2">
+                          <span className="text-[10px] font-semibold text-muted-foreground">
+                            {(entry.amount / 1000).toFixed(1)}k zł
+                          </span>
+                          <div className="relative w-full rounded-t-lg bg-muted" style={{ height: '100px' }}>
+                            <div
+                              className="absolute bottom-0 w-full origin-bottom rounded-t-lg transition-all duration-700 ease-out"
+                              style={{
+                                height: `${heightPct}%`,
+                                background: entry.month === 'Lip' ? '#F4B400' : '#E4E4E7',
+                              }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">{entry.month}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground">{entry.month}</span>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
               </section>
 

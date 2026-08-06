@@ -20,17 +20,17 @@ export function TeacherIdentity({ fallbackName, fallbackInitials, fallbackAvatar
   const avatarColor = user?.role === 'teacher' ? user.avatarColor : fallbackAvatarColor
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <div
-        className="flex h-12 w-12 items-center justify-center rounded-xl text-base font-bold text-white"
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-bold text-white"
         style={{ backgroundColor: avatarColor }}
         aria-hidden="true"
       >
         {initials}
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-sm text-muted-foreground">Panel nauczyciela</p>
-        <h1 className="text-xl font-bold text-foreground">{name}</h1>
+        <h1 className="truncate text-xl font-bold text-foreground">{name}</h1>
       </div>
     </div>
   )

@@ -1,21 +1,24 @@
 import Link from 'next/link'
-import { Wallet, Star, ChevronRight } from 'lucide-react'
+import { Star, ChevronRight } from 'lucide-react'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { Button } from '@/components/ui/button'
 import { getStudentLessons, getStudentStats } from '@/services/lessons.service'
 import { getNotifications } from '@/services/notifications.service'
+import { getWalletStats } from '@/services/wallet.service'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { GreetingName } from '@/components/auth/greeting-name'
 import { StudentLessonsSection } from '@/components/dashboard/student-lessons-section'
 import { StudentStatsCards } from '@/components/dashboard/student-stats-client'
 import { NotificationsPanel } from '@/components/dashboard/notifications-panel'
+import { WalletBalanceLink } from '@/components/dashboard/wallet-balance-link'
 
 export default async function StudentDashboardPage() {
-  const [studentLessons, studentStats, notifications] = await Promise.all([
+  const [studentLessons, studentStats, notifications, walletStats] = await Promise.all([
     getStudentLessons(),
     getStudentStats(),
     getNotifications(),
+    getWalletStats(),
   ])
 
   return (
@@ -50,11 +53,7 @@ export default async function StudentDashboardPage() {
             <div className="flex flex-col gap-4">
               {/* Wallet & BeePoints */}
               <div className="grid grid-cols-2 gap-3">
-                <Link href="/wallet" className="flex flex-col gap-1.5 rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-[#F4B400]/40 hover:shadow-sm">
-                  <Wallet className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                  <p className="text-lg font-bold text-foreground">{studentStats.techCoins} zł</p>
-                  <p className="text-xs text-muted-foreground">Saldo portfela</p>
-                </Link>
+                <WalletBalanceLink initialBalance={walletStats.balance} />
                 <Link href="/beepoints" className="flex flex-col gap-1.5 rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-[#F4B400]/40 hover:shadow-sm">
                   <Star className="h-5 w-5 fill-[#F4B400] stroke-none" aria-hidden="true" />
                   <p className="text-lg font-bold text-foreground">{studentStats.beePoints.toLocaleString('pl-PL')}</p>

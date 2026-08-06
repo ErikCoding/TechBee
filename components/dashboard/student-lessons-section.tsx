@@ -66,22 +66,24 @@ export function StudentLessonsSection({ initialLessons }: Props) {
             {upcomingLessons.map((lesson) => (
               <div
                 key={lesson.id}
-                className="flex items-center gap-4 rounded-xl border border-border p-4 transition-colors hover:bg-muted/40"
+                className="flex flex-col gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:gap-4"
               >
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
-                  style={{ backgroundColor: lesson.teacherColor }}
-                  aria-hidden="true"
-                >
-                  {lesson.teacherInitials}
+                <div className="flex min-w-0 items-center gap-3">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+                    style={{ backgroundColor: lesson.teacherColor }}
+                    aria-hidden="true"
+                  >
+                    {lesson.teacherInitials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      z {lesson.teacherName} · {lesson.date} o {lesson.time} · {lesson.duration} min
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
-                  <p className="text-xs text-muted-foreground">
-                    z {lesson.teacherName} · {lesson.date} o {lesson.time} · {lesson.duration} min
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
                   <span className="text-xs font-semibold text-foreground">{lesson.price} zł</span>
                   <Link href={`/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.teacherName)}&topic=${encodeURIComponent(lesson.topic)}`}>
                     <Button size="sm" className="h-7 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] text-xs font-semibold">
@@ -105,22 +107,24 @@ export function StudentLessonsSection({ initialLessons }: Props) {
             return (
               <div
                 key={lesson.id}
-                className="flex items-center gap-4 rounded-xl border border-border p-4 transition-colors hover:bg-muted/40"
+                className="flex flex-col gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:gap-4"
               >
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
-                  style={{ backgroundColor: lesson.teacherColor }}
-                  aria-hidden="true"
-                >
-                  {lesson.teacherInitials}
+                <div className="flex min-w-0 items-center gap-3">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+                    style={{ backgroundColor: lesson.teacherColor }}
+                    aria-hidden="true"
+                  >
+                    {lesson.teacherInitials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {lesson.teacherName} · {lesson.date}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {lesson.teacherName} · {lesson.date}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
                   <span className={cn('flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium', status.className)}>
                     <StatusIcon className="h-3 w-3" aria-hidden="true" />
                     {status.label}

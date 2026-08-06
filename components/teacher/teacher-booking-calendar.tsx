@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { buildAvailability } from '@/lib/availability'
 import { useAuth } from '@/lib/auth-context'
 import { createBooking } from '@/services/lessons.service'
+import { getWalletStats } from '@/services/wallet.service'
 import { cn } from '@/lib/utils'
 import type { Teacher } from '@/lib/types'
 
@@ -32,6 +33,7 @@ export function TeacherBookingCalendar({ teacher }: Props) {
   const [topic, setTopic] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [bookedLessonId, setBookedLessonId] = useState<string | null>(null)
+  const [insufficientFunds, setInsufficientFunds] = useState(false)
 
   const selectedDay = days[selectedDayIndex]
   const price = Math.round((teacher.hourlyRate / 60) * duration)
@@ -39,7 +41,13 @@ export function TeacherBookingCalendar({ teacher }: Props) {
   async function handleConfirm() {
     if (!user || !selectedDay || !selectedSlot || !topic.trim()) return
     setSubmitting(true)
+    setInsufficientFunds(false)
     try {
+      const wallet = await getWalletStats(user.id)
+      if (wallet.balance < price) {
+        setInsufficientFunds(true)
+        return
+      }
       const lesson = await createBooking({
         teacherId: teacher.id,
         teacherName: teacher.name,
@@ -173,6 +181,13 @@ export function TeacherBookingCalendar({ teacher }: Props) {
           rows={3}
         />
       </div>
+
+      {insufficientFunds && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          Niewystarczające środki w portfelu na tę lekcję ({price} zł).{' '}
+          <Link href="/wallet" className="font-semibold underline underline-offset-2">Doładuj portfel</Link>, aby dokończyć rezerwację.
+        </div>
+      )}
 
       {/* Summary + confirm */}
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">

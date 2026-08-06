@@ -4,6 +4,7 @@ import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getTeacherApplication } from '@/services/teachers.service'
 import { createNotification } from '@/services/notifications.service'
+import { transferLessonPayment } from '@/services/wallet.service'
 import type { Lesson, LessonBookingInput, StudentStats, TeacherDashboardData } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ function resolveTeacherCatalogId(teacherName?: string): string {
 
 // ── Mock (localStorage) ──────────────────────────────────────
 
-function createBookingMock(input: LessonBookingInput): Lesson {
+async function createBookingMock(input: LessonBookingInput): Promise<Lesson> {
   const lesson: Lesson = {
     id: `local-${Date.now()}`,
     teacherName: input.teacherName,
@@ -84,6 +85,8 @@ function createBookingMock(input: LessonBookingInput): Lesson {
     teacherRecord,
     ...readLocal<typeof teacherRecord>(teacherBookingsKey(input.teacherId)),
   ])
+
+  await transferLessonPayment(input.studentId, input.teacherId, input.price, input.teacherName, input.topic)
 
   return lesson
 }
@@ -138,6 +141,10 @@ async function createBookingFirebase(input: LessonBookingInput): Promise<Lesson>
     title: 'Nowa rezerwacja lekcji',
     description: `${input.studentName} zarezerwował(a) lekcję „${input.topic}" — ${input.date} o ${input.time}.`,
   })
+
+  // Moves the price from the student's wallet to the teacher's — the
+  // simulated payment transfer.
+  await transferLessonPayment(input.studentId, input.teacherId, input.price, input.teacherName, input.topic)
 
   return {
     id: ref.id,

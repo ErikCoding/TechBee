@@ -136,10 +136,16 @@ export function ChatClient() {
   if (!me) return null
 
   return (
+    // `min-h-0` on this grid and on both column children below is required:
+    // grid/flex items default to `min-height: auto`, which lets them grow
+    // to fit their content instead of being capped by this container's
+    // fixed height — without it, a long message thread silently pushes the
+    // send-message bar out past the bottom (clipped by `overflow-hidden`)
+    // instead of the messages list scrolling internally.
     <div className="grid h-[calc(100vh-220px)] min-h-[520px] grid-cols-1 overflow-hidden rounded-2xl border border-border bg-card md:grid-cols-[320px_1fr]">
       {/* ── Conversation list ── */}
-      <div className={cn('flex flex-col border-border md:border-r', mobileShowThread && 'hidden md:flex')}>
-        <div className="border-b border-border p-3">
+      <div className={cn('flex min-h-0 flex-col border-border md:border-r', mobileShowThread && 'hidden md:flex')}>
+        <div className="shrink-0 border-b border-border p-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
@@ -151,7 +157,7 @@ export function ChatClient() {
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredConversations.map((c) => (
             <button
               key={c.id}
@@ -197,10 +203,10 @@ export function ChatClient() {
       </div>
 
       {/* ── Thread ── */}
-      <div className={cn('flex flex-col', !mobileShowThread && 'hidden md:flex')}>
+      <div className={cn('flex min-h-0 flex-col', !mobileShowThread && 'hidden md:flex')}>
         {active ? (
           <>
-            <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+            <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
               <button
                 type="button"
                 onClick={() => setMobileShowThread(false)}
@@ -224,7 +230,7 @@ export function ChatClient() {
               </div>
             </div>
 
-            <div ref={scrollRef} onScroll={handleThreadScroll} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            <div ref={scrollRef} onScroll={handleThreadScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {messages.length === 0 && (
                 <p className="pt-8 text-center text-sm text-muted-foreground">Napisz pierwszą wiadomość, aby rozpocząć rozmowę.</p>
               )}
@@ -255,7 +261,7 @@ export function ChatClient() {
 
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend() }}
-              className="flex items-center gap-2 border-t border-border p-3"
+              className="flex shrink-0 items-center gap-2 border-t border-border p-3"
             >
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleAttach} />
               <Button

@@ -142,13 +142,22 @@ service cloud.firestore {
     // Scoped to the owning user; balances should ultimately only be
     // mutated by a trusted backend (Cloud Function) once real money
     // is involved — this rule is a placeholder for the demo phase.
+    // Wallet top-up/withdrawal/lesson-payment-transfer is an intentional
+    // simulation (no real payment processor) — but a *working* one, so
+    // balances genuinely change. Booking a lesson moves the price from the
+    // student's wallet to the teacher's, which means a student's client
+    // needs to write to the teacher's wallet doc too — there's no trusted
+    // backend to broker that yet, so any signed-in user can write here.
+    // Tighten this (route writes through a Cloud Function) before this
+    // involves real money.
     match /wallets/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
     match /walletTransactions/{id} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
     match /beepoints/{userId} {
       allow read: if isOwner(userId) || isAdmin();
