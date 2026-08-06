@@ -1,5 +1,8 @@
+
 onlyBuiltDependencies:
   - '@firebase/util'
   - msw
   - protobufjs
   - sharp
+
+
