@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Env — never commit real secrets/config
+.env
+.env.local
+.env.*.local
+
+# Misc
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts

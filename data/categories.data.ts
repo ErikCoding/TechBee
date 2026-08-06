@@ -1,0 +1,78 @@
+import type { Category } from '@/lib/types'
+
+// Mock data — will be swapped for a Firestore `categories` collection.
+// Keep IDs stable: they're used as query params and foreign keys on Teacher.categoryId.
+export const categoriesData: Category[] = [
+  {
+    id: 'plc',
+    name: 'Programowanie PLC',
+    icon: 'Cpu',
+    description: 'Siemens, Allen-Bradley, Mitsubishi',
+    teacherCount: 48,
+    lessonCount: 1240,
+    colorClass: 'bg-blue-500/10 text-blue-500 dark:text-blue-400',
+  },
+  {
+    id: 'cnc',
+    name: 'Obróbka CNC',
+    icon: 'Settings2',
+    description: 'G-code, CAM, frezowanie i toczenie',
+    teacherCount: 35,
+    lessonCount: 890,
+    colorClass: 'bg-orange-500/10 text-orange-500 dark:text-orange-400',
+  },
+  {
+    id: 'cad',
+    name: 'Projektowanie CAD',
+    icon: 'LayoutPanelLeft',
+    description: 'SolidWorks, AutoCAD, Fusion 360',
+    teacherCount: 62,
+    lessonCount: 1870,
+    colorClass: 'bg-violet-500/10 text-violet-500 dark:text-violet-400',
+  },
+  {
+    id: 'robotics',
+    name: 'Robotyka przemysłowa',
+    icon: 'Bot',
+    description: 'KUKA, ABB, Fanuc, coboty',
+    teacherCount: 29,
+    lessonCount: 720,
+    colorClass: 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400',
+  },
+  {
+    id: 'automation',
+    name: 'Automatyka przemysłowa',
+    icon: 'CircuitBoard',
+    description: 'Systemy sterowania, czujniki, siłowniki',
+    teacherCount: 41,
+    lessonCount: 1050,
+    colorClass: 'bg-cyan-500/10 text-cyan-500 dark:text-cyan-400',
+  },
+  {
+    id: 'scada',
+    name: 'HMI i SCADA',
+    icon: 'Monitor',
+    description: 'Ignition, WinCC, FactoryTalk',
+    teacherCount: 24,
+    lessonCount: 590,
+    colorClass: 'bg-rose-500/10 text-rose-500 dark:text-rose-400',
+  },
+  {
+    id: 'electrical',
+    name: 'Elektrotechnika',
+    icon: 'Zap',
+    description: 'Systemy zasilania, napędy, okablowanie',
+    teacherCount: 55,
+    lessonCount: 1430,
+    colorClass: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+  },
+  {
+    id: 'hydraulics',
+    name: 'Hydraulika i pneumatyka',
+    icon: 'Droplets',
+    description: 'Układy hydrauliczne, pneumatyczne i obwody',
+    teacherCount: 18,
+    lessonCount: 440,
+    colorClass: 'bg-teal-500/10 text-teal-500 dark:text-teal-400',
+  },
+]
