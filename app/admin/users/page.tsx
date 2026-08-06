@@ -1,5 +1,5 @@
 import { getAdminUsers } from '@/services/admin.service'
-import { AdminUsersTable } from '@/components/admin/admin-users-table'
+import { AdminUsersPageClient } from '@/components/admin/admin-users-page-client'
 
 export default async function AdminUsersPage() {
   const users = await getAdminUsers()
@@ -10,7 +10,7 @@ export default async function AdminUsersPage() {
         <h1 className="text-lg font-semibold text-foreground">Użytkownicy</h1>
         <p className="text-sm text-muted-foreground">Wszystkie konta na platformie.</p>
       </div>
-      <AdminUsersTable users={users} />
+      <AdminUsersPageClient initialUsers={users} />
     </div>
   )
 }

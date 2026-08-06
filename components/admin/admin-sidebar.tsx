@@ -2,18 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, ShieldCheck, Settings, ArrowLeft, GraduationCap } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { BeeLogo } from '@/components/shared/bee-logo'
+import { adminNavItems } from '@/components/admin/admin-nav-items'
 import { cn } from '@/lib/utils'
 
-const navItems = [
-  { label: 'Przegląd', href: '/admin', icon: LayoutDashboard },
-  { label: 'Giełda i nauczyciele', href: '/admin/teachers', icon: GraduationCap },
-  { label: 'Weryfikacje', href: '/admin/verifications', icon: ShieldCheck },
-  { label: 'Użytkownicy', href: '/admin/users', icon: Users },
-  { label: 'Ustawienia', href: '/admin/settings', icon: Settings },
-]
-
+/** Desktop-only fixed nav column — on mobile this is replaced by AdminMobileNav (a slide-over drawer), since there's no room for a permanent 240px column on a phone screen. */
 export function AdminSidebar() {
   const pathname = usePathname()
 
@@ -24,7 +18,7 @@ export function AdminSidebar() {
         <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Panel administratora</p>
       </div>
       <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="Nawigacja panelu administratora">
-        {navItems.map((item) => {
+        {adminNavItems.map((item) => {
           const Icon = item.icon
           const isActive = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href)
           return (

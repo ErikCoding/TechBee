@@ -189,7 +189,11 @@ async function registerFirebase(input: RegisterInput): Promise<AuthUser> {
     avatarColor: avatarColorFor(email),
   }
   await Promise.all([
-    setDoc(doc(db, collections.users, credential.user.uid), profile),
+    // `createdAt` isn't part of the public AuthUser shape (nothing in the
+    // app needs it on the client user object) but it's written to the doc
+    // so the admin panel can show real "joined" dates and weekly-signup
+    // counts instead of static demo numbers.
+    setDoc(doc(db, collections.users, credential.user.uid), { ...profile, createdAt: Date.now() }),
     updateProfile(credential.user, { displayName: profile.name }),
   ])
   return { id: credential.user.uid, ...profile }

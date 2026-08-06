@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { getOrCreateConversation, markConversationRead, sendMessage, subscribeToConversations, subscribeToMessages, toParticipant } from '@/services/chat.service'
-import { cn } from '@/lib/utils'
+import { cn, formatChatTime } from '@/lib/utils'
 import type { ChatConversation, ChatMessage, ChatParticipant } from '@/lib/types'
 
 const attachmentIconMap: Record<NonNullable<ChatMessage['attachment']>['kind'], React.ElementType> = {
@@ -29,7 +29,13 @@ export function ChatClient() {
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
   const [mobileShowThread, setMobileShowThread] = useState(Boolean(preselect))
+  const [, forceTimeTick] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const nearBottomRef = useRef(true)
+  const lastActiveIdRef = useRef<string | null>(null)
+  const prevMessageCountRef = useRef(0)
 
   const me: ChatParticipant | null = user ? toParticipant(user) : null
 
@@ -48,10 +54,51 @@ export function ChatClient() {
       return
     }
     const unsubscribe = subscribeToMessages(activeId, setMessages)
-    if (me) markConversationRead(activeId, me.id)
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId])
+
+  // Marks the open thread as read — both when it's first opened and whenever a
+  // new message lands in it while it's still open, so the unread badge never
+  // shows a stale count for a conversation you're actively looking at.
+  useEffect(() => {
+    if (!activeId || !me) return
+    markConversationRead(activeId, me.id)
+  }, [activeId, messages.length, me?.id])
+
+  // Re-render every 30s so relative timestamps ("teraz" → "2 min temu" → clock
+  // time) stay accurate without needing a new message to trigger an update.
+  useEffect(() => {
+    const interval = setInterval(() => forceTimeTick((n) => n + 1), 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Auto-scroll to the newest message — instantly when switching threads,
+  // smoothly when a new message arrives while you're already near the
+  // bottom (or it's your own message). If you've scrolled up to read
+  // history, new messages from the other person won't yank you back down.
+  useEffect(() => {
+    if (messages.length === 0) return
+    const threadChanged = lastActiveIdRef.current !== activeId
+    const grew = messages.length > prevMessageCountRef.current
+    lastActiveIdRef.current = activeId
+    prevMessageCountRef.current = messages.length
+
+    const lastMessage = messages[messages.length - 1]
+    const isMine = lastMessage.senderId === me?.id
+
+    if (threadChanged) {
+      bottomRef.current?.scrollIntoView({ block: 'end' })
+      nearBottomRef.current = true
+    } else if (grew && (nearBottomRef.current || isMine)) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [messages, activeId, me?.id])
+
+  function handleThreadScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+  }
 
   const active = conversations.find((c) => c.id === activeId) ?? null
 
@@ -125,7 +172,7 @@ export function ChatClient() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold text-foreground">{c.participant.name}</p>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{c.lastMessageTime}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{formatChatTime(c.lastMessageAt)}</span>
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{c.participant.specialty ?? (c.participant.role === 'teacher' ? 'Nauczyciel' : 'Uczeń')}</p>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{c.lastMessage || 'Rozpocznij rozmowę…'}</p>
@@ -177,7 +224,7 @@ export function ChatClient() {
               </div>
             </div>
 
-            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            <div ref={scrollRef} onScroll={handleThreadScroll} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {messages.length === 0 && (
                 <p className="pt-8 text-center text-sm text-muted-foreground">Napisz pierwszą wiadomość, aby rozpocząć rozmowę.</p>
               )}
@@ -198,11 +245,12 @@ export function ChatClient() {
                           <Download className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
                         </div>
                       )}
-                      <p className={cn('mt-1 text-[10px]', mine ? 'text-[#0A0A0A]/60' : 'text-muted-foreground')}>{m.time}</p>
+                      <p className={cn('mt-1 text-[10px]', mine ? 'text-[#0A0A0A]/60' : 'text-muted-foreground')}>{formatChatTime(m.createdAt)}</p>
                     </div>
                   </div>
                 )
               })}
+              <div ref={bottomRef} />
             </div>
 
             <form

@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/lib/auth-context'
+import { ChatNavBadge } from '@/components/chat/chat-nav-badge'
 import { cn, dashboardPathForRole, roleLabelPl } from '@/lib/utils'
 
 const navLinks = [
@@ -101,6 +102,8 @@ export function Navbar() {
           {status === 'loading' ? (
             <div className="h-8 w-24 animate-pulse rounded-lg bg-muted" aria-hidden="true" />
           ) : status === 'authenticated' && user ? (
+            <>
+            <ChatNavBadge />
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition-colors hover:bg-muted">
                 <div
@@ -138,6 +141,7 @@ export function Navbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </>
           ) : (
             <>
               <Link href="/login">
@@ -152,14 +156,17 @@ export function Navbar() {
           )}
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          className="flex items-center justify-center rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden"
-          aria-label={mobileOpen ? 'Zamknij menu' : 'Otwórz menu'}
-          onClick={() => setMobileOpen(!mobileOpen)}
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        {/* Mobile actions: messages badge always visible + hamburger */}
+        <div className="flex items-center gap-1 md:hidden">
+          <ChatNavBadge />
+          <button
+            className="flex items-center justify-center rounded-lg p-2 text-muted-foreground hover:bg-muted"
+            aria-label={mobileOpen ? 'Zamknij menu' : 'Otwórz menu'}
+            onClick={() => setMobileOpen(!mobileOpen)}
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}

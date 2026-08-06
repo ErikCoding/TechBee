@@ -160,8 +160,13 @@ service cloud.firestore {
     }
     match /notifications/{id} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // Any signed-in user can create a notification — not just for
+      // themselves. This is what lets a student's booking action create a
+      // notification for the teacher, and an admin's approve/reject action
+      // create one for the applicant, without needing a trusted backend.
+      allow create: if isSignedIn();
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow write: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Deny everything else by default.

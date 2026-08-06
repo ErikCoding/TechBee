@@ -1,17 +1,81 @@
+import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore'
 import { notificationsData } from '@/data/notifications.data'
-import type { Notification } from '@/lib/types'
+import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { formatChatTime } from '@/lib/utils'
+import type { Notification, NotificationType } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
-// Data-access layer for notifications. Firebase version will likely
-// combine a Firestore `notifications/{uid}` subcollection with
-// realtime `onSnapshot` for live badges, plus FCM for push delivery.
+// Data-access layer for notifications.
+//
+// Real notifications are written by other services when something
+// notification-worthy happens for a *different* user than whoever's
+// currently signed in — a student booking a lesson notifies the
+// teacher, an admin approving/rejecting an application notifies the
+// applicant (see createBookingFirebase in lessons.service.ts and
+// reviewApplicationFirebase in teachers.service.ts). `read`/`date`
+// are only known here at read time — the `date` label is computed
+// from `createdAt` the same way chat timestamps are.
 // ─────────────────────────────────────────────────────────────
 
-export async function getNotifications(_userId?: string): Promise<Notification[]> {
-  // TODO(firebase): const snap = await getDocs(query(collection(db, 'notifications', userId, 'items'), orderBy('date', 'desc')))
-  return notificationsData
+export interface CreateNotificationInput {
+  userId: string
+  type: NotificationType
+  title: string
+  description: string
 }
 
-export async function getUnreadNotificationsCount(_userId?: string): Promise<number> {
-  return notificationsData.filter((n) => !n.read).length
+async function createNotificationFirebase(input: CreateNotificationInput): Promise<void> {
+  if (!db) return
+  await addDoc(collection(db, collections.notifications), {
+    userId: input.userId,
+    type: input.type,
+    title: input.title,
+    description: input.description,
+    read: false,
+    createdAt: Date.now(),
+  })
+}
+
+/** Best-effort — a failed notification write should never block the action that triggered it (booking a lesson, reviewing an application). */
+export async function createNotification(input: CreateNotificationInput): Promise<void> {
+  if (!isFirebaseConfigured) return
+  try {
+    await createNotificationFirebase(input)
+  } catch {
+    // ignore — notifications are a nice-to-have, not critical path
+  }
+}
+
+async function getNotificationsFirebase(userId?: string): Promise<Notification[]> {
+  if (!db || !userId) return notificationsData
+  const snap = await getDocs(query(collection(db, collections.notifications), where('userId', '==', userId), orderBy('createdAt', 'desc')))
+  return snap.docs.map((d) => {
+    const data = d.data() as { type: NotificationType; title: string; description: string; read: boolean; createdAt: number }
+    return {
+      id: d.id,
+      type: data.type,
+      title: data.title,
+      description: data.description,
+      date: formatChatTime(data.createdAt),
+      read: data.read,
+    } satisfies Notification
+  })
+}
+
+export async function getNotifications(userId?: string): Promise<Notification[]> {
+  return isFirebaseConfigured ? getNotificationsFirebase(userId) : notificationsData
+}
+
+export async function getUnreadNotificationsCount(userId?: string): Promise<number> {
+  const list = await getNotifications(userId)
+  return list.filter((n) => !n.read).length
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  if (!isFirebaseConfigured || !db) return
+  try {
+    await updateDoc(doc(db, collections.notifications, id), { read: true })
+  } catch {
+    // ignore
+  }
 }

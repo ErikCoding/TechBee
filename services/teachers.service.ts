@@ -1,6 +1,7 @@
 import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
 import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { createNotification } from '@/services/notifications.service'
 import type { ReviewItem, Teacher, TeacherApplicationInput } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -162,6 +163,15 @@ async function getApplicationsFirebase(status: Teacher['status']): Promise<Teach
 async function reviewApplicationFirebase(id: string, decision: 'approved' | 'rejected'): Promise<void> {
   if (!db) return
   await updateDoc(doc(db, collections.teachers, id), decision === 'approved' ? { status: 'approved', verified: true } : { status: 'rejected' })
+  // `id` is the applicant's own Firestore doc id, which is their real auth uid.
+  createNotification({
+    userId: id,
+    type: 'system',
+    title: decision === 'approved' ? 'Zgłoszenie zaakceptowane!' : 'Zgłoszenie odrzucone',
+    description: decision === 'approved'
+      ? 'Twój profil nauczyciela został zweryfikowany i jest teraz widoczny w giełdzie.'
+      : 'Twoje zgłoszenie zostało odrzucone. Popraw dane w panelu i wyślij je ponownie.',
+  })
 }
 
 async function allTeachersForAdminFirebase(): Promise<Teacher[]> {
