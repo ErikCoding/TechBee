@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, getDocs, increment, orderBy, query, setDoc, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, increment, query, setDoc, updateDoc, where } from 'firebase/firestore'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { formatChatTime } from '@/lib/utils'
 import type { Transaction, WalletStats } from '@/lib/types'
@@ -135,11 +135,19 @@ async function getWalletStatsFirebase(userId?: string): Promise<WalletStats> {
 
 async function getWalletTransactionsFirebase(userId?: string): Promise<Transaction[]> {
   if (!db || !userId) return []
-  const snap = await getDocs(query(collection(db, collections.walletTransactions), where('userId', '==', userId), orderBy('createdAt', 'desc')))
-  return snap.docs.map((d) => {
-    const data = d.data() as { type: Transaction['type']; description: string; amount: number; status: Transaction['status']; createdAt: number }
-    return { id: d.id, type: data.type, description: data.description, amount: data.amount, date: formatChatTime(data.createdAt), status: data.status } satisfies Transaction
-  })
+  // No `orderBy` here on purpose — `where(userId) + orderBy(createdAt)`
+  // needs a composite index Firestore won't create automatically (it just
+  // throws "query requires an index" until someone manually creates one in
+  // the console). Sorting the small per-user result set in JS avoids that
+  // entirely.
+  const snap = await getDocs(query(collection(db, collections.walletTransactions), where('userId', '==', userId)))
+  return snap.docs
+    .map((d) => {
+      const data = d.data() as { type: Transaction['type']; description: string; amount: number; status: Transaction['status']; createdAt: number }
+      return { id: d.id, type: data.type, description: data.description, amount: data.amount, date: formatChatTime(data.createdAt), status: data.status, _createdAt: data.createdAt }
+    })
+    .sort((a, b) => b._createdAt - a._createdAt)
+    .map(({ _createdAt, ...tx }) => tx)
 }
 
 async function recordTransactionFirebase(userId: string, tx: { type: Transaction['type']; description: string; amount: number }) {

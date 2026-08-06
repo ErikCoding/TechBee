@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import { notificationsData } from '@/data/notifications.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { formatChatTime } from '@/lib/utils'
@@ -53,18 +53,27 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
   // was exactly the "zapychacze" (filler) the notifications panel used to
   // flash on every load.
   if (!db || !userId) return []
-  const snap = await getDocs(query(collection(db, collections.notifications), where('userId', '==', userId), orderBy('createdAt', 'desc')))
-  return snap.docs.map((d) => {
-    const data = d.data() as { type: NotificationType; title: string; description: string; read: boolean; createdAt: number }
-    return {
-      id: d.id,
-      type: data.type,
-      title: data.title,
-      description: data.description,
-      date: formatChatTime(data.createdAt),
-      read: data.read,
-    } satisfies Notification
-  })
+  // No `orderBy` here on purpose, same reason as walletTransactions below —
+  // `where(userId) + orderBy(createdAt)` needs a composite index Firestore
+  // doesn't create automatically, which made every notification read throw
+  // ("query requires an index") until someone manually created one. Sorting
+  // the small per-user result set in JS avoids that entirely.
+  const snap = await getDocs(query(collection(db, collections.notifications), where('userId', '==', userId)))
+  return snap.docs
+    .map((d) => {
+      const data = d.data() as { type: NotificationType; title: string; description: string; read: boolean; createdAt: number }
+      return {
+        id: d.id,
+        type: data.type,
+        title: data.title,
+        description: data.description,
+        date: formatChatTime(data.createdAt),
+        read: data.read,
+        _createdAt: data.createdAt,
+      }
+    })
+    .sort((a, b) => b._createdAt - a._createdAt)
+    .map(({ _createdAt, ...n }) => n satisfies Notification)
 }
 
 export async function getNotifications(userId?: string): Promise<Notification[]> {

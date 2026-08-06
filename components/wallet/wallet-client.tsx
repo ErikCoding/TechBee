@@ -44,20 +44,27 @@ export function WalletClient({ initialStats, initialTransactions }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Fetched independently (not Promise.all'd together) so that if one query
+  // fails, it doesn't also block the other's state update from applying —
+  // that's what made the balance look stuck at 0 on this page: the
+  // transactions query was throwing (missing Firestore index, now fixed),
+  // which silently killed the whole Promise.all chain including the
+  // balance update.
   async function refresh(userId: string) {
-    const [freshStats, freshTx] = await Promise.all([getWalletStats(userId), getWalletTransactions(userId)])
-    setStats(freshStats)
-    setTransactions(freshTx)
+    await Promise.allSettled([
+      getWalletStats(userId).then(setStats),
+      getWalletTransactions(userId).then(setTransactions),
+    ])
   }
 
   useEffect(() => {
     if (!user) return
     let cancelled = false
-    Promise.all([getWalletStats(user.id), getWalletTransactions(user.id)]).then(([freshStats, freshTx]) => {
-      if (!cancelled) {
-        setStats(freshStats)
-        setTransactions(freshTx)
-      }
+    getWalletStats(user.id).then((fresh) => {
+      if (!cancelled) setStats(fresh)
+    })
+    getWalletTransactions(user.id).then((fresh) => {
+      if (!cancelled) setTransactions(fresh)
     })
     return () => {
       cancelled = true
