@@ -34,13 +34,27 @@ function parseServiceAccount(): ServiceAccount | null {
 export const isFirebaseAdminConfigured = Boolean(parseServiceAccount())
 
 let adminApp: App | null = null
+let initFailed = false
 
 function getAdminApp(): App | null {
   if (adminApp) return adminApp
+  if (initFailed) return null
   const serviceAccount = parseServiceAccount()
   if (!serviceAccount) return null
-  adminApp = getApps().length ? getApps()[0] : initializeApp({ credential: cert(serviceAccount) })
-  return adminApp
+  try {
+    adminApp = getApps().length ? getApps()[0] : initializeApp({ credential: cert(serviceAccount) })
+    return adminApp
+  } catch (err) {
+    // A malformed FIREBASE_SERVICE_ACCOUNT_KEY (e.g. mangled newlines from
+    // pasting into a hosting provider's env var UI) must not crash the
+    // whole route that uses this — see app/api/livekit/token/route.ts,
+    // which falls back to trusting the client identity when this returns
+    // null, same as when the key isn't set at all. Logged so it's visible
+    // in server logs instead of silently degrading forever.
+    console.error('[firebase-admin] Failed to initialize with FIREBASE_SERVICE_ACCOUNT_KEY:', err)
+    initFailed = true
+    return null
+  }
 }
 
 export function getAdminAuth(): Auth | null {

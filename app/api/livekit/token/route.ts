@@ -65,29 +65,35 @@ export async function POST(request: Request) {
   if (isFirebaseAdminConfigured) {
     const adminAuth = getAdminAuth()
     const adminDb = getAdminDb()
-    if (!adminAuth || !adminDb) {
-      return NextResponse.json({ error: 'Błąd konfiguracji serwera.' }, { status: 500 })
-    }
-    if (!idToken) {
-      return NextResponse.json({ error: 'Brak autoryzacji.' }, { status: 401 })
-    }
-    try {
-      const decoded = await adminAuth.verifyIdToken(idToken)
-      const lessonSnap = await adminDb.collection(collections.lessons).doc(lessonId).get()
-      if (!lessonSnap.exists) {
-        return NextResponse.json({ error: 'Lekcja nie istnieje.' }, { status: 404 })
+    // getAdminAuth()/getAdminDb() return null when the SDK itself failed to
+    // initialize (e.g. a malformed FIREBASE_SERVICE_ACCOUNT_KEY — a config
+    // problem, not the caller's fault) — that's an infra hiccup, not an
+    // authorization decision, so it degrades to the "not configured" path
+    // below instead of hard-failing the whole video-lesson feature. It's
+    // logged server-side in lib/firebase-admin.ts so it's still visible.
+    if (adminAuth && adminDb) {
+      if (!idToken) {
+        return NextResponse.json({ error: 'Brak autoryzacji.' }, { status: 401 })
       }
-      const lesson = lessonSnap.data() as { teacherId?: string; studentId?: string; teacherName?: string; studentName?: string }
-      const isTeacher = decoded.uid === lesson.teacherId
-      const isStudent = decoded.uid === lesson.studentId
-      if (!isTeacher && !isStudent) {
-        return NextResponse.json({ error: 'Nie masz dostępu do tej lekcji.' }, { status: 403 })
+      try {
+        const decoded = await adminAuth.verifyIdToken(idToken)
+        const lessonSnap = await adminDb.collection(collections.lessons).doc(lessonId).get()
+        if (!lessonSnap.exists) {
+          return NextResponse.json({ error: 'Lekcja nie istnieje.' }, { status: 404 })
+        }
+        const lesson = lessonSnap.data() as { teacherId?: string; studentId?: string; teacherName?: string; studentName?: string }
+        const isTeacher = decoded.uid === lesson.teacherId
+        const isStudent = decoded.uid === lesson.studentId
+        if (!isTeacher && !isStudent) {
+          return NextResponse.json({ error: 'Nie masz dostępu do tej lekcji.' }, { status: 403 })
+        }
+        // Real, server-verified identity overrides whatever the client sent.
+        identity = decoded.uid
+        name = (isTeacher ? lesson.teacherName : lesson.studentName) ?? name
+      } catch (err) {
+        console.error('[livekit/token] ID token verification failed:', err)
+        return NextResponse.json({ error: 'Nieprawidłowy token uwierzytelniania.' }, { status: 401 })
       }
-      // Real, server-verified identity overrides whatever the client sent.
-      identity = decoded.uid
-      name = (isTeacher ? lesson.teacherName : lesson.studentName) ?? name
-    } catch {
-      return NextResponse.json({ error: 'Nieprawidłowy token uwierzytelniania.' }, { status: 401 })
     }
   }
 
@@ -95,18 +101,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Brak danych uczestnika.' }, { status: 400 })
   }
 
-  const token = new AccessToken(apiKey, apiSecret, {
-    identity,
-    name,
-    ttl: '3h',
-  })
-  token.addGrant({
-    room: lessonRoomName(lessonId),
-    roomJoin: true,
-    canPublish: true,
-    canSubscribe: true,
-    canPublishData: true,
-  })
+  try {
+    const token = new AccessToken(apiKey, apiSecret, {
+      identity,
+      name,
+      ttl: '3h',
+    })
+    token.addGrant({
+      room: lessonRoomName(lessonId),
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    })
 
-  return NextResponse.json({ token: await token.toJwt(), url: livekitUrl })
+    return NextResponse.json({ token: await token.toJwt(), url: livekitUrl })
+  } catch (err) {
+    console.error('[livekit/token] Failed to mint LiveKit token:', err)
+    return NextResponse.json({ error: 'Nie udało się utworzyć tokenu do pokoju.' }, { status: 500 })
+  }
 }
