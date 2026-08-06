@@ -24,6 +24,15 @@ export function isTeacherApproved(t: Teacher): boolean {
   return (t.status ?? 'approved') === 'approved'
 }
 
+export interface SubmitReviewInput {
+  teacherId: string
+  author: string
+  authorInitials: string
+  authorColor: string
+  rating: number
+  comment: string
+}
+
 const APPLICATIONS_KEY = 'techbee.teachers.applications'
 
 function isBrowser() {
@@ -85,7 +94,7 @@ function buildTeacherFromApplication(
 // ── Mock (localStorage) ──────────────────────────────────────
 
 async function allTeachersMock(): Promise<Teacher[]> {
-  return [...teachersData, ...readApplicationsMock()].filter(isTeacherApproved)
+  return [...teachersData, ...readApplicationsMock()].filter(isTeacherApproved).map(applyReviewOverridesMock)
 }
 
 function submitApplicationMock(authUser: { id: string; name: string; initials: string; avatarColor: string }, input: TeacherApplicationInput): Teacher {
@@ -126,6 +135,49 @@ function setFeaturedMock(id: string, featured: boolean) {
 
 function deleteTeacherMock(id: string) {
   writeApplicationsMock(readApplicationsMock().filter((t) => t.id !== id))
+}
+
+// Static demo teachers (teachersData) aren't backed by any mutable store, so
+// reviews added against them (or against a real application) are kept in
+// their own small per-teacher key and merged in at read time — this lets
+// rating/reviewCount stay real and moving in mock mode too, not just when
+// Firebase is configured.
+function reviewOverridesKey(teacherId: string) {
+  return `techbee.teachers.reviews.${teacherId}`
+}
+
+function readReviewOverridesMock(teacherId: string): ReviewItem[] {
+  if (!isBrowser()) return []
+  try {
+    return JSON.parse(window.localStorage.getItem(reviewOverridesKey(teacherId)) ?? '[]') as ReviewItem[]
+  } catch {
+    return []
+  }
+}
+
+function applyReviewOverridesMock(teacher: Teacher): Teacher {
+  const overrides = readReviewOverridesMock(teacher.id)
+  if (overrides.length === 0) return teacher
+  const reviews = [...overrides, ...teacher.reviews]
+  const reviewCount = reviews.length
+  const rating = Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount) * 10) / 10
+  return { ...teacher, reviews, reviewCount, rating }
+}
+
+function submitReviewMock(input: SubmitReviewInput): void {
+  if (!isBrowser()) return
+  const review: ReviewItem = {
+    id: `rev-${Date.now()}`,
+    author: input.author,
+    authorInitials: input.authorInitials,
+    authorColor: input.authorColor,
+    rating: input.rating,
+    date: new Date().toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
+    comment: input.comment,
+  }
+  const key = reviewOverridesKey(input.teacherId)
+  const existing = readReviewOverridesMock(input.teacherId)
+  window.localStorage.setItem(key, JSON.stringify([review, ...existing]))
 }
 
 // ── Firebase ──────────────────────────────────────────────────
@@ -193,6 +245,35 @@ async function deleteTeacherFirebase(id: string) {
   await deleteDoc(doc(db, collections.teachers, id))
 }
 
+/**
+ * Appends a review and recomputes rating/reviewCount from scratch —
+ * read-modify-write rather than an atomic increment, since the average
+ * has to be derived from the full review list. `firestore.rules` allows
+ * any signed-in user to update a teacher doc as long as only these three
+ * fields change (see the `teachers/{teacherId}` update rule), which is
+ * what lets a *student* write a review onto a *teacher's* profile doc.
+ */
+async function submitReviewFirebase(input: SubmitReviewInput): Promise<void> {
+  if (!db) return
+  const ref = doc(db, collections.teachers, input.teacherId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const teacher = snap.data() as Teacher
+  const review: ReviewItem = {
+    id: `rev-${Date.now()}`,
+    author: input.author,
+    authorInitials: input.authorInitials,
+    authorColor: input.authorColor,
+    rating: input.rating,
+    date: new Date().toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
+    comment: input.comment,
+  }
+  const reviews = [review, ...(teacher.reviews ?? [])]
+  const reviewCount = reviews.length
+  const rating = Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount) * 10) / 10
+  await updateDoc(ref, { reviews, rating, reviewCount })
+}
+
 // ── Public API ────────────────────────────────────────────────
 
 export async function getTeachers(): Promise<Teacher[]> {
@@ -210,7 +291,8 @@ export async function getTeacherById(id: string): Promise<Teacher | undefined> {
     }
     return undefined
   }
-  return [...teachersData, ...readApplicationsMock()].find((t) => t.id === id)
+  const found = [...teachersData, ...readApplicationsMock()].find((t) => t.id === id)
+  return found ? applyReviewOverridesMock(found) : undefined
 }
 
 export async function getFeaturedTeachers(): Promise<Teacher[]> {
@@ -266,4 +348,13 @@ export async function setTeacherFeatured(id: string, featured: boolean): Promise
 /** Admin-only: permanently remove a teacher profile from the giełda. */
 export async function deleteTeacherProfile(id: string): Promise<void> {
   return isFirebaseConfigured ? deleteTeacherFirebase(id) : deleteTeacherMock(id)
+}
+
+/** A student rates/reviews a teacher after a completed lesson — appends a real review and recomputes rating/reviewCount. See submitLessonReview in lessons.service.ts, which also marks the lesson as reviewed so the prompt doesn't show twice. */
+export async function submitTeacherReview(input: SubmitReviewInput): Promise<void> {
+  if (isFirebaseConfigured) {
+    await submitReviewFirebase(input)
+  } else {
+    submitReviewMock(input)
+  }
 }

@@ -32,7 +32,7 @@ export function TeacherApplicationStatus() {
           <ClipboardList className="mt-0.5 h-5 w-5 shrink-0 text-[#B45309] dark:text-[#FBBF24]" aria-hidden="true" />
           <div>
             <p className="text-sm font-semibold text-[#78350F] dark:text-[#FBBF24]">Jeszcze nie widnisz w giełdzie nauczycieli</p>
-            <p className="mt-0.5 text-xs text-[#92400E] dark:text-[#FCD34D]">Uzupełnij profil, wyślij go do weryfikacji, a po akceptacji administratora uczniowie znajdą Cię w wyszukiwarce.</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-[#92400E] dark:text-[#FCD34D]">Uzupełnij profil, wyślij go do weryfikacji, a po akceptacji administratora uczniowie znajdą Cię w wyszukiwarce.</p>
           </div>
         </div>
         <Link href="/dashboard/teacher/apply" className="shrink-0">
@@ -49,7 +49,7 @@ export function TeacherApplicationStatus() {
           <Clock className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" aria-hidden="true" />
           <div>
             <p className="text-sm font-semibold text-foreground">Profil czeka na weryfikację</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">Administrator sprawdza Twoje zgłoszenie. Pojawisz się w giełdzie zaraz po akceptacji.</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">Administrator sprawdza Twoje zgłoszenie. Pojawisz się w giełdzie zaraz po akceptacji.</p>
           </div>
         </div>
         <Link href="/dashboard/teacher/apply" className="shrink-0">
@@ -66,7 +66,7 @@ export function TeacherApplicationStatus() {
           <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
           <div>
             <p className="text-sm font-semibold text-foreground">Zgłoszenie zostało odrzucone</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">Popraw dane profilu i wyślij je ponownie do weryfikacji.</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">Popraw dane profilu i wyślij je ponownie do weryfikacji.</p>
           </div>
         </div>
         <Link href="/dashboard/teacher/apply" className="shrink-0">
@@ -82,7 +82,7 @@ export function TeacherApplicationStatus() {
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" aria-hidden="true" />
         <div>
           <p className="text-sm font-semibold text-foreground">Twój profil jest widoczny w giełdzie</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Zweryfikowany profil — uczniowie mogą Cię teraz znaleźć i zarezerwować lekcję.</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">Zweryfikowany profil — uczniowie mogą Cię teraz znaleźć i zarezerwować lekcję.</p>
         </div>
       </div>
       <Link href={`/teacher/${application.id}`} className="shrink-0">

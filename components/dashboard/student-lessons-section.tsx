@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, CheckCircle2, XCircle, Circle, Clock3, RefreshCw } from 'lucide-react'
+import { CalendarDays, CheckCircle2, XCircle, Circle, Clock3, RefreshCw, Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { getStudentLessons } from '@/services/lessons.service'
 import { LessonChangeModal } from '@/components/dashboard/lesson-change-modal'
+import { LessonReviewModal } from '@/components/dashboard/lesson-review-modal'
 import { cn } from '@/lib/utils'
 import type { Lesson } from '@/lib/types'
 
@@ -35,6 +36,7 @@ export function StudentLessonsSection({ initialLessons }: Props) {
   const { user } = useAuth()
   const [lessons, setLessons] = useState(initialLessons)
   const [changeModalFor, setChangeModalFor] = useState<Lesson | null>(null)
+  const [reviewModalFor, setReviewModalFor] = useState<Lesson | null>(null)
 
   async function refresh() {
     if (!user) return
@@ -170,12 +172,18 @@ export function StudentLessonsSection({ initialLessons }: Props) {
                     </p>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 sm:justify-end">
                   <span className={cn('flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium', status.className)}>
                     <StatusIcon className="h-3 w-3" aria-hidden="true" />
                     {status.label}
                   </span>
                   <span className="text-xs text-muted-foreground">{lesson.price} zł</span>
+                  {lesson.status === 'completed' && !lesson.reviewed && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewModalFor(lesson)}>
+                      <Star className="mr-1 h-3 w-3" aria-hidden="true" />
+                      Oceń lekcję
+                    </Button>
+                  )}
                 </div>
               </div>
             )
@@ -193,6 +201,17 @@ export function StudentLessonsSection({ initialLessons }: Props) {
           onClose={() => setChangeModalFor(null)}
           onRequested={() => {
             setChangeModalFor(null)
+            refresh()
+          }}
+        />
+      )}
+
+      {reviewModalFor && (
+        <LessonReviewModal
+          lesson={reviewModalFor}
+          onClose={() => setReviewModalFor(null)}
+          onSubmitted={() => {
+            setReviewModalFor(null)
             refresh()
           }}
         />

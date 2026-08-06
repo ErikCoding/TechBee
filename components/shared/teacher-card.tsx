@@ -15,7 +15,7 @@ export function TeacherCard({ teacher, className, featured }: TeacherCardProps) 
   return (
     <article
       className={cn(
-        'group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#F4B400]/30',
+        'group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#F4B400]/30',
         featured && 'ring-1 ring-[#F4B400]/40',
         className,
       )}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { TeacherCard } from '@/components/shared/teacher-card'
 import { CategoryCard } from '@/components/shared/category-card'
 import { Input } from '@/components/ui/input'
@@ -28,7 +28,6 @@ export function MarketplaceClient({ teachers, categories, initialQuery = '', ini
   const [query, setQuery] = useState(initialQuery)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialCategory ?? null)
   const [sortBy, setSortBy] = useState('featured')
-  const [showFilters, setShowFilters] = useState(false)
 
   const filtered = useMemo(() => {
     let result = [...teachers]
@@ -67,16 +66,16 @@ export function MarketplaceClient({ teachers, categories, initialQuery = '', ini
     <>
       {/* Page header */}
       <div className="border-b border-border bg-card">
-        <div className="mx-auto max-w-7xl px-4 py-10 md:px-8">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+        <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
             Znajdź eksperta technicznego
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {teachers.length} zweryfikowanych specjalistów w {categories.length} dziedzinach przemysłowych
           </p>
 
-          {/* Search + filter bar */}
-          <div className="mt-5 flex gap-3">
+          {/* Search + sort */}
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <Input
@@ -87,39 +86,22 @@ export function MarketplaceClient({ teachers, categories, initialQuery = '', ini
                 aria-label="Szukaj nauczycieli"
               />
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(showFilters && 'border-[#F4B400] text-[#F4B400]')}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              aria-label="Sortuj wyniki"
+              className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground sm:w-56"
             >
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              Filtry
-            </Button>
-          </div>
-
-          {/* Sort pills */}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {sortOptions.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setSortBy(opt.value)}
-                className={cn(
-                  'rounded-full border px-3.5 py-1 text-xs font-medium transition-colors',
-                  sortBy === opt.value
-                    ? 'border-[#F4B400] bg-[#FEF3C7] text-[#78350F] dark:bg-[#3B2800] dark:text-[#FBBF24]'
-                    : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
+              {sortOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
-        {/* Category chips */}
+        {/* Category chips — primary way to narrow results */}
         <div className="mb-6 flex flex-wrap gap-2">
           <button
             type="button"

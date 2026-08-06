@@ -79,7 +79,14 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
       ) || isAdmin(); // admin also covers the "seed demo data" button, which writes arbitrary catalog ids
 
-      allow update: if (isOwner(teacherId) && request.resource.data.status == 'pending') || isAdmin();
+      // A student can also update a teacher doc after a completed lesson to
+      // leave a review — but only touching `reviews`/`rating`/`reviewCount`,
+      // nothing else (see submitLessonReview in lessons.service.ts). This is
+      // a simulation-phase compromise (no trusted backend to broker it
+      // instead), same as the wallet-write rule below.
+      allow update: if (isOwner(teacherId) && request.resource.data.status == 'pending')
+        || isAdmin()
+        || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviews', 'rating', 'reviewCount']));
 
       allow delete: if isAdmin();
     }

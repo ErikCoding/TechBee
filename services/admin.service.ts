@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import { adminStatsData, adminUsersData } from '@/data/admin.data'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getPendingTeacherApplications } from '@/services/teachers.service'
@@ -8,10 +8,11 @@ import type { AdminStats, AdminUserRow } from '@/lib/types'
 // Data-access layer for the admin panel.
 //
 // User counts/lists are real Firestore aggregates (`users` +
-// `teachers` collections). Money figures (monthly revenue, revenue
-// chart) stay demo data for now — there's no real payment
-// processing yet, only the wallet/BeePoints mock, per the explicit
-// scoping the platform is being built against.
+// `teachers` collections). Revenue figures are computed from real
+// completed `lessons` docs (`price` + `completedAt`) — the same
+// event that actually moves simulated money from student to teacher
+// wallets (see completeLesson in lessons.service.ts) — instead of
+// demo data, now that this is a genuine payment event.
 //
 // These are called once, unauthenticated, from the /admin server
 // components during SSR (no Firebase Auth session exists on the
@@ -23,17 +24,61 @@ import type { AdminStats, AdminUserRow } from '@/lib/types'
 // ─────────────────────────────────────────────────────────────
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+const MONTH_LABELS_PL = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru']
 
 type StoredUserProfile = {
   role?: 'student' | 'teacher' | 'admin'
   createdAt?: number
 }
 
+type CompletedLessonRow = {
+  price?: number
+  completedAt?: number
+}
+
+function isSameMonth(ts: number, ref: Date): boolean {
+  const d = new Date(ts)
+  return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth()
+}
+
+/** Real platform revenue figures from completed-lesson payments — admin can read every lesson doc per firestore.rules. */
+function computePlatformRevenue(lessons: CompletedLessonRow[]) {
+  const now = new Date()
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+
+  const monthlyRevenue = lessons
+    .filter((l) => l.completedAt && isSameMonth(l.completedAt, now))
+    .reduce((sum, l) => sum + (l.price ?? 0), 0)
+
+  const lastMonthRevenue = lessons
+    .filter((l) => l.completedAt && isSameMonth(l.completedAt, lastMonth))
+    .reduce((sum, l) => sum + (l.price ?? 0), 0)
+
+  const revenueChange = lastMonthRevenue > 0
+    ? Math.round(((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 1000) / 10
+    : (monthlyRevenue > 0 ? 100 : 0)
+
+  const revenueChart = Array.from({ length: 6 }, (_, i) => {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    const amount = lessons
+      .filter((l) => l.completedAt && isSameMonth(l.completedAt, monthDate))
+      .reduce((sum, l) => sum + (l.price ?? 0), 0)
+    return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount }
+  })
+
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const activeLessonsToday = lessons.filter((l) => l.completedAt && l.completedAt >= todayStart.getTime()).length
+
+  return { monthlyRevenue, revenueChange, revenueChart, activeLessonsToday }
+}
+
 async function getAdminStatsFirebase(): Promise<AdminStats> {
   if (!db || !auth?.currentUser) return adminStatsData
-  const [usersSnap, pendingApplications] = await Promise.all([
+  const [usersSnap, pendingApplications, completedLessonsSnap] = await Promise.all([
     getDocs(collection(db, collections.users)),
     getPendingTeacherApplications(),
+    getDocs(query(collection(db, collections.lessons), where('status', '==', 'completed'))),
   ])
 
   const users = usersSnap.docs.map((d) => d.data() as StoredUserProfile)
@@ -43,13 +88,11 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
   const weekAgo = Date.now() - WEEK_MS
   const newSignupsThisWeek = users.filter((u) => (u.createdAt ?? 0) >= weekAgo).length
 
+  const revenue = computePlatformRevenue(completedLessonsSnap.docs.map((d) => d.data() as CompletedLessonRow))
+
   return {
-    // Keeps the demo money figures (monthlyRevenue, revenueChange,
-    // revenueChart) and activeLessonsToday — there's no real payment
-    // processing yet, and lesson slots are only ever booked starting
-    // tomorrow (see lib/availability.ts), so a real same-day count would
-    // always read zero rather than being meaningfully "live".
     ...adminStatsData,
+    ...revenue,
     totalUsers,
     totalTeachers,
     totalStudents,

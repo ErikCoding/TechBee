@@ -143,6 +143,11 @@ export type Lesson = {
   price: number
   topic: string
   pendingChange?: LessonChangeRequest
+  /** Real timestamps (unlike `date`/`time`, which are display-only strings) — what monthly earnings/lesson-count stats actually filter on. */
+  createdAt?: number
+  completedAt?: number
+  /** Set once the student has left a review for this completed lesson — hides the "Oceń lekcję" prompt afterwards. */
+  reviewed?: boolean
 }
 
 export type StudentStats = {

@@ -2,7 +2,7 @@ import { addDoc, collection, doc, getDoc, getDocs, query, updateDoc, where } fro
 import { studentLessonsData, studentStatsData, teacherDashboardDataMock, teacherLessonsData } from '@/data/lessons.data'
 import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
-import { getTeacherApplication } from '@/services/teachers.service'
+import { getTeacherApplication, submitTeacherReview } from '@/services/teachers.service'
 import { createNotification } from '@/services/notifications.service'
 import { transferLessonPayment } from '@/services/wallet.service'
 import type { Lesson, LessonBookingInput, LessonChangeRequest, StudentStats, TeacherDashboardData } from '@/lib/types'
@@ -98,6 +98,7 @@ async function createBookingMock(input: LessonBookingInput): Promise<Lesson> {
     status: 'pending',
     price: input.price,
     topic: input.topic,
+    createdAt: Date.now(),
   }
   writeLocal(studentBookingsKey(input.studentId), [lesson, ...readLocal<Lesson>(studentBookingsKey(input.studentId))])
   writeLocal(teacherBookingsKey(input.teacherId), [lesson, ...readLocal<Lesson>(teacherBookingsKey(input.teacherId))])
@@ -135,6 +136,9 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     price: data.price as number,
     topic: data.topic as string,
     pendingChange: data.pendingChange as LessonChangeRequest | undefined,
+    createdAt: data.createdAt as number | undefined,
+    completedAt: data.completedAt as number | undefined,
+    reviewed: data.reviewed as boolean | undefined,
   }
 }
 
@@ -231,20 +235,66 @@ export async function getStudentStats(userId?: string): Promise<StudentStats> {
   return { ...studentStatsData, totalLessons, hoursLearned, teachersWorkedWith }
 }
 
+const MONTH_LABELS_PL = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru']
+
+/**
+ * Real earnings/activity figures computed straight from the teacher's own
+ * lesson docs — no demo baseline involved. `totalEarnings`/`monthlyEarnings`
+ * are money actually moved via the simulated wallet transfer at completion
+ * (`completedAt`-scoped); `lessonsThisMonth`/`studentsThisMonth` reflect real
+ * booking activity this month (`createdAt`-scoped, cancelled bookings
+ * excluded) since those describe demand, not just completed calls.
+ */
+function computeTeacherEarnings(lessons: Lesson[]) {
+  const completed = lessons.filter((l) => l.status === 'completed' && l.completedAt)
+  const totalEarnings = completed.reduce((sum, l) => sum + l.price, 0)
+
+  const now = new Date()
+  const isSameMonth = (ts: number, ref: Date) => {
+    const d = new Date(ts)
+    return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth()
+  }
+
+  const monthlyEarnings = completed
+    .filter((l) => isSameMonth(l.completedAt!, now))
+    .reduce((sum, l) => sum + l.price, 0)
+
+  const activeThisMonth = lessons.filter((l) => l.status !== 'cancelled' && l.createdAt && isSameMonth(l.createdAt, now))
+  const lessonsThisMonth = activeThisMonth.length
+  const studentsThisMonth = new Set(activeThisMonth.map((l) => l.studentId)).size
+
+  const earningsChart = Array.from({ length: 6 }, (_, i) => {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    const amount = completed
+      .filter((l) => isSameMonth(l.completedAt!, monthDate))
+      .reduce((sum, l) => sum + l.price, 0)
+    return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount }
+  })
+
+  return { totalEarnings, monthlyEarnings, lessonsThisMonth, studentsThisMonth, earningsChart }
+}
+
 /** Rating/earnings summary only — the lesson list is fetched separately via getTeacherLessons. */
 export async function getTeacherDashboard(teacherName?: string, userId?: string): Promise<TeacherDashboardData> {
   if (!isFirebaseConfigured || !userId) return teacherDashboardDataMock
   // Real rating/reviewCount/completionRate come from the teacher's own
   // Firestore application doc — the shared mock dataset's numbers belong to
-  // a fictional "Marek Kowalski" character. Earnings figures stay demo —
-  // there's no real payment processing, only the simulated wallet transfer.
+  // a fictional "Marek Kowalski" character. Earnings/activity figures are
+  // computed from the teacher's real lesson docs (see computeTeacherEarnings)
+  // — honest zeros for a brand-new teacher instead of demo filler.
   const application = await getTeacherApplication(userId)
-  if (!application) return teacherDashboardDataMock
+  const lessons = await getTeacherLessonsFirebase(userId)
+  const earnings = computeTeacherEarnings(lessons)
   return {
-    ...teacherDashboardDataMock,
-    rating: application.rating,
-    reviewCount: application.reviewCount,
-    completionRate: application.completionRate,
+    name: application?.name ?? teacherDashboardDataMock.name,
+    initials: application?.initials ?? teacherDashboardDataMock.initials,
+    avatarColor: application?.avatarColor ?? teacherDashboardDataMock.avatarColor,
+    specialty: application?.specialty ?? teacherDashboardDataMock.specialty,
+    rating: application?.rating ?? 0,
+    reviewCount: application?.reviewCount ?? 0,
+    completionRate: application?.completionRate ?? 0,
+    responseRate: application ? teacherDashboardDataMock.responseRate : 0,
+    ...earnings,
   }
 }
 
@@ -340,10 +390,11 @@ export async function completeLesson(lessonId: string): Promise<void> {
   const lesson = await getLessonById(lessonId)
   if (!lesson || lesson.status === 'completed' || lesson.status === 'cancelled') return
 
+  const completedAt = Date.now()
   if (isFirebaseConfigured && db) {
-    await updateDoc(doc(db, collections.lessons, lessonId), { status: 'completed' })
+    await updateDoc(doc(db, collections.lessons, lessonId), { status: 'completed', completedAt })
   } else {
-    updateLocalLesson(lessonId, { status: 'completed' })
+    updateLocalLesson(lessonId, { status: 'completed', completedAt })
   }
 
   await transferLessonPayment(lesson.studentId, lesson.teacherId, lesson.price, lesson.teacherName, lesson.topic)
@@ -359,5 +410,44 @@ export async function completeLesson(lessonId: string): Promise<void> {
     type: 'payment',
     title: 'Lekcja zakończona — płatność pobrana',
     description: `Z portfela pobrano ${lesson.price} zł za lekcję „${lesson.topic}" z ${lesson.teacherName}.`,
+  })
+}
+
+/**
+ * The student leaves a rating + review for a completed lesson — a light
+ * "as-verification" signal that they actually took the lesson, per the
+ * request. Appends a real review to the teacher's profile (recomputing
+ * their rating/reviewCount) and marks the lesson `reviewed` so the "Oceń
+ * lekcję" prompt doesn't show again. No-ops if the lesson isn't completed
+ * yet or was already reviewed.
+ */
+export async function submitLessonReview(
+  lesson: Lesson,
+  rating: number,
+  comment: string,
+  author: { name: string; initials: string; avatarColor: string },
+): Promise<void> {
+  if (lesson.status !== 'completed' || lesson.reviewed) return
+
+  await submitTeacherReview({
+    teacherId: lesson.teacherId,
+    author: author.name,
+    authorInitials: author.initials,
+    authorColor: author.avatarColor,
+    rating,
+    comment,
+  })
+
+  if (isFirebaseConfigured && db) {
+    await updateDoc(doc(db, collections.lessons, lesson.id), { reviewed: true })
+  } else {
+    updateLocalLesson(lesson.id, { reviewed: true })
+  }
+
+  createNotification({
+    userId: lesson.teacherId,
+    type: 'review',
+    title: 'Nowa opinia od ucznia',
+    description: `${author.name} zostawił(a) opinię (${rating}/5) po lekcji „${lesson.topic}".`,
   })
 }
