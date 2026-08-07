@@ -20,3 +20,10 @@ ui-debug.log
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+# Package manager — this project is pinned to npm (see package.json
+# "packageManager"). A stray pnpm-lock.yaml/pnpm-workspace.yaml in the repo
+# makes Vercel try to install with pnpm instead, which conflicts with that
+# pin and fails the build outright.
+pnpm-lock.yaml
+pnpm-workspace.yaml
