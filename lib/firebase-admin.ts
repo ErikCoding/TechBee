@@ -1,68 +1,25 @@
 // ─────────────────────────────────────────────────────────────
-// Firebase Admin bootstrap — SERVER-ONLY (do not import from any
-// 'use client' file or client-invoked service).
+// DEPRECATED — no longer used anywhere in this project.
 //
-// Used exclusively by app/api/livekit/token/route.ts to verify a
-// caller's Firebase ID token and check it against a lesson doc's
-// teacherId/studentId before minting a LiveKit room token — real,
-// server-side authorization instead of trusting whatever identity
-// the client claims to be.
+// This used to wrap the `firebase-admin` package for server-side
+// verification in app/api/livekit/token/route.ts. Removed because
+// `firebase-admin`'s `auth` submodule depends on `jwks-rsa@4.1.0`,
+// which unconditionally `require()`s `jose@6` — a pure-ESM package.
+// That combination throws `ERR_REQUIRE_ESM` when bundled for a
+// Vercel serverless function (it only "worked" in `next dev`, which
+// loads modules differently). It's a real, unpatched bug in
+// jwks-rsa's latest release as of this writing, not something fixable
+// from this project by pinning versions.
 //
-// Optional by design, same posture as isFirebaseConfigured in
-// lib/firebase.ts: until FIREBASE_SERVICE_ACCOUNT_KEY is set, every
-// export here is a no-op/null and the token route falls back to
-// trusting the client-supplied identity — so the app keeps working
-// locally before this is wired up, and switches over automatically
-// the moment a service account key is present.
+// The token route now verifies callers with two plain REST calls to
+// Google's own APIs instead (Identity Toolkit + the Firestore REST
+// API) — see the top-of-file comment in
+// app/api/livekit/token/route.ts for details. No admin SDK, no
+// service-account key required.
+//
+// Kept as an empty file (rather than deleted) purely because this
+// sandbox's filesystem mount can't always unlink files — it is not
+// imported by anything and has no effect on the app.
 // ─────────────────────────────────────────────────────────────
 
-import { cert, getApps, initializeApp, type App, type ServiceAccount } from 'firebase-admin/app'
-import { getAuth, type Auth } from 'firebase-admin/auth'
-import { getFirestore, type Firestore } from 'firebase-admin/firestore'
-
-function parseServiceAccount(): ServiceAccount | null {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as ServiceAccount
-  } catch {
-    return null
-  }
-}
-
-/** True once a valid-looking service account key is present. */
-export const isFirebaseAdminConfigured = Boolean(parseServiceAccount())
-
-let adminApp: App | null = null
-let initFailed = false
-
-function getAdminApp(): App | null {
-  if (adminApp) return adminApp
-  if (initFailed) return null
-  const serviceAccount = parseServiceAccount()
-  if (!serviceAccount) return null
-  try {
-    adminApp = getApps().length ? getApps()[0] : initializeApp({ credential: cert(serviceAccount) })
-    return adminApp
-  } catch (err) {
-    // A malformed FIREBASE_SERVICE_ACCOUNT_KEY (e.g. mangled newlines from
-    // pasting into a hosting provider's env var UI) must not crash the
-    // whole route that uses this — see app/api/livekit/token/route.ts,
-    // which falls back to trusting the client identity when this returns
-    // null, same as when the key isn't set at all. Logged so it's visible
-    // in server logs instead of silently degrading forever.
-    console.error('[firebase-admin] Failed to initialize with FIREBASE_SERVICE_ACCOUNT_KEY:', err)
-    initFailed = true
-    return null
-  }
-}
-
-export function getAdminAuth(): Auth | null {
-  const app = getAdminApp()
-  return app ? getAuth(app) : null
-}
-
-export function getAdminDb(): Firestore | null {
-  const app = getAdminApp()
-  return app ? getFirestore(app) : null
-}
+export {}

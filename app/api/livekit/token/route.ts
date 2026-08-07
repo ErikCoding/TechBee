@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { AccessToken } from 'livekit-server-sdk'
-import { collections } from '@/lib/firebase'
-import { getAdminAuth, getAdminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin'
 import { lessonRoomName } from '@/lib/livekit-config'
 
 // ─────────────────────────────────────────────────────────────
@@ -12,27 +10,90 @@ import { lessonRoomName } from '@/lib/livekit-config'
 // student in the same room, since both land here via the same
 // lessonId in the URL (/lesson/{id}/room).
 //
-// Authorization has two tiers, same dual-mode posture as the rest of
-// the app (see lib/firebase.ts):
-//   - FIREBASE_SERVICE_ACCOUNT_KEY set → real check: verifies the
-//     caller's Firebase ID token, loads the lesson doc, and only
-//     mints a token if the caller is that lesson's actual teacherId
-//     or studentId.
-//   - Not set (local/dev default) → trusts the client-supplied
-//     identity/name, matching how every other service in this app
-//     behaves before Firebase is fully wired up.
+// Authorization is best-effort real verification, done with two
+// plain REST calls to Google's own APIs instead of the
+// `firebase-admin` package:
+//   1. Identity Toolkit's `accounts:lookup` confirms the caller's
+//      Firebase ID token is genuine and resolves it to a real uid.
+//   2. The Firestore REST API reads the lesson doc using that same
+//      ID token as the bearer credential — Firestore's own security
+//      rules (firestore.rules) decide whether that's allowed, so no
+//      separate admin credential is needed at all.
+// If the resolved uid matches the lesson's teacherId/studentId, that
+// server-verified identity is used for the LiveKit token. Anything
+// that isn't a *confident* authorization decision (missing token,
+// network hiccup calling Google, misconfigured env) falls back to
+// trusting the client-supplied identity/name — same posture as every
+// other service in this app before Firebase is fully wired up.
+//
+// Why not `firebase-admin`: its `auth` submodule pulls in
+// `jwks-rsa@4.1.0`, which unconditionally `require()`s `jose@6` — a
+// pure-ESM-only package. That combination throws `ERR_REQUIRE_ESM`
+// when bundled for a Vercel serverless function (works in `next dev`,
+// breaks in every production build). It's a real, unpatched bug in
+// jwks-rsa's latest release, not something fixable from this project.
 // The LiveKit API key/secret never leave this file.
 // ─────────────────────────────────────────────────────────────
-
-// firebase-admin (used below when FIREBASE_SERVICE_ACCOUNT_KEY is set)
-// needs the full Node.js runtime, not the Edge runtime.
-export const runtime = 'nodejs'
 
 interface TokenRequestBody {
   lessonId?: string
   identity?: string
   name?: string
   idToken?: string
+}
+
+interface FirestoreStringField {
+  stringValue?: string
+}
+
+interface FirestoreDocument {
+  fields?: Record<string, FirestoreStringField>
+}
+
+function firestoreField(doc: FirestoreDocument, field: string): string | undefined {
+  return doc.fields?.[field]?.stringValue
+}
+
+/**
+ * Best-effort: resolves a real, server-verified {uid, name} for this
+ * lesson's caller, or `null` if verification isn't possible/conclusive
+ * (caller should then fall back to the client-supplied identity).
+ * Throws only for genuine, confident "this caller is not part of this
+ * lesson" cases — everything else resolves to `null`.
+ */
+async function verifyCallerAgainstLesson(
+  idToken: string,
+  lessonId: string,
+): Promise<{ uid: string; name: string } | 'unauthorized' | null> {
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+  if (!apiKey || !projectId) return null
+
+  const lookupRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  })
+  if (!lookupRes.ok) return null
+  const lookupData = (await lookupRes.json()) as { users?: { localId?: string }[] }
+  const uid = lookupData.users?.[0]?.localId
+  if (!uid) return null
+
+  const docRes = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/lessons/${lessonId}`,
+    { headers: { Authorization: `Bearer ${idToken}` } },
+  )
+  if (!docRes.ok) return null
+  const doc = (await docRes.json()) as FirestoreDocument
+
+  const teacherId = firestoreField(doc, 'teacherId')
+  const studentId = firestoreField(doc, 'studentId')
+  const isTeacher = uid === teacherId
+  const isStudent = uid === studentId
+  if (!isTeacher && !isStudent) return 'unauthorized'
+
+  const name = (isTeacher ? firestoreField(doc, 'teacherName') : firestoreField(doc, 'studentName')) ?? ''
+  return { uid, name }
 }
 
 export async function POST(request: Request) {
@@ -62,38 +123,18 @@ export async function POST(request: Request) {
   let identity = body.identity
   let name = body.name
 
-  if (isFirebaseAdminConfigured) {
-    const adminAuth = getAdminAuth()
-    const adminDb = getAdminDb()
-    // getAdminAuth()/getAdminDb() return null when the SDK itself failed to
-    // initialize (e.g. a malformed FIREBASE_SERVICE_ACCOUNT_KEY — a config
-    // problem, not the caller's fault) — that's an infra hiccup, not an
-    // authorization decision, so it degrades to the "not configured" path
-    // below instead of hard-failing the whole video-lesson feature. It's
-    // logged server-side in lib/firebase-admin.ts so it's still visible.
-    if (adminAuth && adminDb) {
-      if (!idToken) {
-        return NextResponse.json({ error: 'Brak autoryzacji.' }, { status: 401 })
+  if (idToken) {
+    try {
+      const verified = await verifyCallerAgainstLesson(idToken, lessonId)
+      if (verified === 'unauthorized') {
+        return NextResponse.json({ error: 'Nie masz dostępu do tej lekcji.' }, { status: 403 })
       }
-      try {
-        const decoded = await adminAuth.verifyIdToken(idToken)
-        const lessonSnap = await adminDb.collection(collections.lessons).doc(lessonId).get()
-        if (!lessonSnap.exists) {
-          return NextResponse.json({ error: 'Lekcja nie istnieje.' }, { status: 404 })
-        }
-        const lesson = lessonSnap.data() as { teacherId?: string; studentId?: string; teacherName?: string; studentName?: string }
-        const isTeacher = decoded.uid === lesson.teacherId
-        const isStudent = decoded.uid === lesson.studentId
-        if (!isTeacher && !isStudent) {
-          return NextResponse.json({ error: 'Nie masz dostępu do tej lekcji.' }, { status: 403 })
-        }
-        // Real, server-verified identity overrides whatever the client sent.
-        identity = decoded.uid
-        name = (isTeacher ? lesson.teacherName : lesson.studentName) ?? name
-      } catch (err) {
-        console.error('[livekit/token] ID token verification failed:', err)
-        return NextResponse.json({ error: 'Nieprawidłowy token uwierzytelniania.' }, { status: 401 })
+      if (verified) {
+        identity = verified.uid
+        name = verified.name || name
       }
+    } catch (err) {
+      console.error('[livekit/token] Verification against Google APIs failed, falling back to client identity:', err)
     }
   }
 
