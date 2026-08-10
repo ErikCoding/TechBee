@@ -8,10 +8,12 @@ import { getTeacherById, isTeacherApproved } from '@/services/teachers.service'
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ bookingForId?: string; bookingForName?: string }>
 }
 
-export default async function BookLessonPage({ params }: Props) {
+export default async function BookLessonPage({ params, searchParams }: Props) {
   const { id } = await params
+  const { bookingForId, bookingForName } = await searchParams
   const teacher = await getTeacherById(id)
   if (!teacher || !isTeacherApproved(teacher)) notFound()
 
@@ -19,7 +21,7 @@ export default async function BookLessonPage({ params }: Props) {
     <>
       <Navbar />
       <main id="main-content" className="bg-background">
-        <RequireAuth role="student">
+        <RequireAuth role={['student', 'parent']}>
           <div className="mx-auto max-w-2xl px-4 py-8 md:px-8">
             <BackButton fallbackHref={`/teacher/${teacher.id}`} />
             <div className="flex items-center gap-3">
@@ -31,13 +33,15 @@ export default async function BookLessonPage({ params }: Props) {
                 {teacher.initials}
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">Zarezerwuj lekcję z {teacher.name}</h1>
+                <h1 className="text-xl font-bold text-foreground">
+                  {bookingForName ? `Zarezerwuj lekcję dla ${bookingForName}` : `Zarezerwuj lekcję z ${teacher.name}`}
+                </h1>
                 <p className="text-sm text-muted-foreground">{teacher.specialty} · {teacher.hourlyRate} zł/godz.</p>
               </div>
             </div>
 
             <div className="mt-6">
-              <TeacherBookingCalendar teacher={teacher} />
+              <TeacherBookingCalendar teacher={teacher} bookingFor={bookingForId && bookingForName ? { id: bookingForId, name: bookingForName } : undefined} />
             </div>
           </div>
         </RequireAuth>

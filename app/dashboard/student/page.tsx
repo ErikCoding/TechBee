@@ -12,6 +12,7 @@ import { StudentLessonsSection } from '@/components/dashboard/student-lessons-se
 import { StudentStatsCards } from '@/components/dashboard/student-stats-client'
 import { NotificationsPanel } from '@/components/dashboard/notifications-panel'
 import { WalletBalanceLink } from '@/components/dashboard/wallet-balance-link'
+import { StudentLinkCodeWidget } from '@/components/dashboard/student-link-code-widget'
 
 export default async function StudentDashboardPage() {
   const [studentLessons, studentStats, notifications, walletStats] = await Promise.all([
@@ -63,6 +64,9 @@ export default async function StudentDashboardPage() {
 
               {/* Notifications */}
               <NotificationsPanel initialNotifications={notifications} />
+
+              {/* Parent account linking */}
+              <StudentLinkCodeWidget />
 
               {/* Quick links */}
               <div className="rounded-2xl border border-border bg-card p-5">

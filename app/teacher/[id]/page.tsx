@@ -13,6 +13,7 @@ import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ bookingForId?: string; bookingForName?: string }>
 }
 
 export async function generateStaticParams() {
@@ -20,10 +21,12 @@ export async function generateStaticParams() {
   return ids.map((id) => ({ id }))
 }
 
-export default async function TeacherProfilePage({ params }: Props) {
+export default async function TeacherProfilePage({ params, searchParams }: Props) {
   const { id } = await params
+  const { bookingForId, bookingForName } = await searchParams
   const teacher = await getTeacherById(id)
   if (!teacher || !isTeacherApproved(teacher)) notFound()
+  const bookingFor = bookingForId && bookingForName ? { id: bookingForId, name: bookingForName } : undefined
 
   return (
     <>
@@ -196,6 +199,7 @@ export default async function TeacherProfilePage({ params }: Props) {
                     teacherInitials={teacher.initials}
                     teacherAvatarColor={teacher.avatarColor}
                     specialty={teacher.specialty}
+                    bookingFor={bookingFor}
                   />
 
                   <div className="mt-5 flex flex-col gap-2 text-xs text-muted-foreground">

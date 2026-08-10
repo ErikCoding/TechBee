@@ -6,10 +6,10 @@
 // Firestore instead of local mock data.
 // ─────────────────────────────────────────────────────────────
 
-export type UserRole = 'student' | 'teacher' | 'admin'
+export type UserRole = 'student' | 'teacher' | 'admin' | 'parent'
 
 /** Roles a visitor can pick at /register — admin accounts are provisioned separately, not self-served. */
-export type PublicUserRole = 'student' | 'teacher'
+export type PublicUserRole = 'student' | 'teacher' | 'parent'
 
 export type AuthUser = {
   id: string
@@ -110,11 +110,13 @@ export type FaqItem = {
 }
 
 /**
- * Lifecycle: `pending` (booked, awaiting teacher confirmation) →
- * `upcoming` (teacher confirmed) → `completed` (call ended — this is
- * when payment actually moves from student to teacher, see
- * services/wallet.service.ts transferLessonPayment) or `cancelled`
- * (teacher rejected the booking, or approved a cancel request).
+ * Lifecycle: `pending` (booked, escrow charge already held from the
+ * payer's wallet — see holdLessonPayment in wallet.service.ts —
+ * awaiting teacher confirmation) → `upcoming` (teacher confirmed) →
+ * `completed` (call ended — the teacher still owes a report at this
+ * point; payment stays held until the report is confirmed, see
+ * LessonReport below) or `cancelled` (teacher rejected the booking,
+ * or approved a cancel request — held funds are refunded).
  */
 export type LessonStatus = 'pending' | 'upcoming' | 'completed' | 'cancelled'
 
@@ -125,6 +127,31 @@ export type LessonChangeRequest = {
   newDate?: string
   newTime?: string
   note?: string
+}
+
+/** The tutor's required last step after a lesson — submitting one starts the 24h confirmation window that ultimately releases the held payment (see Lesson.confirmingPartyId below). */
+export type LessonReport = {
+  topic: string
+  progressRating: number
+  engagementRating: number
+  homework?: string
+  tutorNote?: string
+  nextTopic?: string
+}
+
+export type LessonDisputeReason = 'tutor_no_show' | 'not_as_described' | 'quality_issue' | 'other'
+
+/** Raised instead of confirming a report — parks the lesson's held payment until an admin resolves it. */
+export type LessonDispute = {
+  reason: LessonDisputeReason
+  note: string
+  raisedBy: 'student' | 'parent'
+  raisedByUserId: string
+  raisedAt: number
+  status: 'open' | 'resolved_teacher' | 'resolved_payer'
+  resolutionNote?: string
+  resolvedAt?: number
+  resolvedByAdminId?: string
 }
 
 export type Lesson = {
@@ -148,6 +175,22 @@ export type Lesson = {
   completedAt?: number
   /** Set once the student has left a review for this completed lesson — hides the "Oceń lekcję" prompt afterwards. */
   reviewed?: boolean
+
+  // ── Escrow / report / confirmation (parent-account model) ──
+  /** Who is financially responsible for this lesson — usually the student, but a linked parent can book/pay on the student's behalf instead. Defaults to the student when absent (legacy lessons booked before this existed). */
+  payerId?: string
+  payerRole?: 'student' | 'parent'
+  /** Firestore walletTransactions doc id of the held (pending) charge — lets the exact hold be finalized or refunded later without searching. */
+  holdTransactionId?: string
+  /** True once the held payment has actually moved to the teacher — on report confirmation, 24h auto-confirmation, or a dispute resolved in the teacher's favor. */
+  paymentReleased?: boolean
+  report?: LessonReport
+  reportSubmittedAt?: number
+  /** Whoever has confirmation authority for this lesson's report — the student's linked parent if one existed at the moment the report was submitted, otherwise the student themselves (see services/family-link.service.ts). Frozen at report-submission time so a parent linking later doesn't retroactively change who was responsible. */
+  confirmingPartyId?: string
+  confirmingPartyRole?: 'student' | 'parent'
+  reportConfirmedAt?: number
+  dispute?: LessonDispute
 }
 
 export type StudentStats = {
@@ -257,7 +300,7 @@ export type AdminUserRow = {
   initials: string
   avatarColor: string
   email: string
-  role: 'student' | 'teacher' | 'admin'
+  role: UserRole
   status: 'active' | 'pending' | 'suspended'
   joined: string
   lessons: number
@@ -305,4 +348,28 @@ export type LessonBookingInput = {
   duration: number
   price: number
   topic: string
+  /** Who's actually paying — omit for a student booking themselves; pass the parent's identity when a linked parent books/pays on the student's behalf (see components/parent/book-for-student-button.tsx). */
+  payer?: { id: string; role: 'student' | 'parent' }
+}
+
+/** A short-lived, single-use code a student generates so a parent can link their own account as a supervising guardian (see services/family-link.service.ts). */
+export type StudentLinkCode = {
+  code: string
+  studentId: string
+  studentName: string
+  createdAt: number
+  expiresAt: number
+  usedByParentId?: string
+  usedAt?: number
+}
+
+/** One linked student's summary, shown on the parent dashboard. */
+export type LinkedStudentSummary = {
+  id: string
+  name: string
+  initials: string
+  avatarColor: string
+  walletBalance: number
+  upcomingLessonsCount: number
+  pendingConfirmationsCount: number
 }

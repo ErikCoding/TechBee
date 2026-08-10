@@ -59,4 +59,5 @@ export const collections = {
   conversations: 'conversations',
   messages: 'messages',
   reviews: 'reviews',
+  linkCodes: 'linkCodes',
 } as const

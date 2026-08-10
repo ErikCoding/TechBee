@@ -3,24 +3,26 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, UserPlus, AlertCircle, GraduationCap, Wrench } from 'lucide-react'
+import { Loader2, UserPlus, AlertCircle, GraduationCap, Wrench, Users } from 'lucide-react'
 import { AuthShell } from '@/components/auth/auth-shell'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
-import { cn } from '@/lib/utils'
+import { cn, dashboardPathForRole } from '@/lib/utils'
 import type { PublicUserRole } from '@/lib/types'
 
 const roleOptions: { value: PublicUserRole; label: string; description: string; icon: React.ElementType }[] = [
   { value: 'student', label: 'Jestem uczniem', description: 'Chcę uczyć się od ekspertów', icon: GraduationCap },
   { value: 'teacher', label: 'Jestem nauczycielem', description: 'Chcę uczyć i zarabiać', icon: Wrench },
+  { value: 'parent', label: 'Jestem rodzicem', description: 'Chcę nadzorować naukę dziecka', icon: Users },
 ]
 
 export function RegisterForm() {
   const { register } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialRole: PublicUserRole = searchParams.get('role') === 'teacher' ? 'teacher' : 'student'
+  const roleParam = searchParams.get('role')
+  const initialRole: PublicUserRole = roleParam === 'teacher' || roleParam === 'parent' ? roleParam : 'student'
 
   const [role, setRole] = useState<PublicUserRole>(initialRole)
   const [name, setName] = useState('')
@@ -39,7 +41,7 @@ export function RegisterForm() {
     setLoading(true)
     try {
       const user = await register({ name, email, password, role })
-      router.push(user.role === 'teacher' ? '/dashboard/teacher' : '/dashboard/student')
+      router.push(dashboardPathForRole(user.role))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nie udało się utworzyć konta.')
       setLoading(false)
@@ -63,7 +65,7 @@ export function RegisterForm() {
         {/* Account type */}
         <div>
           <p className="mb-2 text-xs font-medium text-foreground">Typ konta</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {roleOptions.map((opt) => {
               const Icon = opt.icon
               const active = role === opt.value

@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ClipboardList } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { getTeacherLessons, respondToBookingRequest, respondToLessonChange } from '@/services/lessons.service'
+import { LessonReportModal } from '@/components/dashboard/lesson-report-modal'
 import type { Lesson } from '@/lib/types'
 
 interface Props {
@@ -25,6 +26,7 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
   const { user } = useAuth()
   const [lessons, setLessons] = useState(initialLessons)
   const [actingOn, setActingOn] = useState<string | null>(null)
+  const [reportModalFor, setReportModalFor] = useState<Lesson | null>(null)
 
   async function refresh() {
     if (!user) return
@@ -46,6 +48,7 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
   const bookingRequests = lessons.filter((l) => l.status === 'pending')
   const changeRequests = lessons.filter((l) => l.status === 'upcoming' && l.pendingChange)
   const upcoming = lessons.filter((l) => l.status === 'upcoming' && !l.pendingChange)
+  const needsReport = lessons.filter((l) => l.status === 'completed' && !l.report)
 
   async function handleBookingDecision(lesson: Lesson, decision: 'accepted' | 'rejected') {
     setActingOn(lesson.id)
@@ -156,6 +159,33 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
         </section>
       )}
 
+      {/* Completed lessons awaiting a report — the required last step, see LessonReportModal */}
+      {needsReport.length > 0 && (
+        <section className="rounded-2xl border border-yellow-500/30 bg-yellow-500/5 p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-foreground">Lekcje do zaraportowania</h2>
+            <Badge className="bg-yellow-500 text-[#0A0A0A]">{needsReport.length}</Badge>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Uzupełnij raport, aby zwolnić płatność za te lekcje.</p>
+          <div className="mt-4 flex flex-col gap-3">
+            {needsReport.map((lesson) => (
+              <div key={lesson.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {lesson.studentName} · {lesson.date} · {lesson.price} zł
+                  </p>
+                </div>
+                <Button size="sm" className="h-7 shrink-0 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] text-xs font-semibold" onClick={() => setReportModalFor(lesson)}>
+                  <ClipboardList className="mr-1 h-3 w-3" aria-hidden="true" />
+                  Dodaj raport
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Upcoming lessons */}
       <section className="rounded-2xl border border-border bg-card p-6">
         <div className="flex items-center justify-between">
@@ -189,6 +219,17 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
           )}
         </div>
       </section>
+
+      {reportModalFor && (
+        <LessonReportModal
+          lesson={reportModalFor}
+          onClose={() => setReportModalFor(null)}
+          onSubmitted={() => {
+            setReportModalFor(null)
+            refresh()
+          }}
+        />
+      )}
     </>
   )
 }

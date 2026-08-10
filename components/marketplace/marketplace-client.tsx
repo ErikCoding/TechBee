@@ -22,9 +22,11 @@ interface MarketplaceClientProps {
   categories: Category[]
   initialQuery?: string
   initialCategory?: string
+  /** Set when a parent arrived here from their dashboard's "Zarezerwuj lekcję" button for a linked student — carried through to each teacher's profile link so the booking flow knows who it's for. */
+  bookingFor?: { id: string; name: string }
 }
 
-export function MarketplaceClient({ teachers, categories, initialQuery = '', initialCategory }: MarketplaceClientProps) {
+export function MarketplaceClient({ teachers, categories, initialQuery = '', initialCategory, bookingFor }: MarketplaceClientProps) {
   const [query, setQuery] = useState(initialQuery)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialCategory ?? null)
   const [sortBy, setSortBy] = useState('featured')
@@ -73,6 +75,12 @@ export function MarketplaceClient({ teachers, categories, initialQuery = '', ini
           <p className="mt-1 text-sm text-muted-foreground">
             {teachers.length} zweryfikowanych specjalistów w {categories.length} dziedzinach przemysłowych
           </p>
+
+          {bookingFor && (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#F4B400]/40 bg-[#FEF3C7] px-3 py-1.5 text-xs font-medium text-[#78350F] dark:bg-[#3B2800] dark:text-[#FBBF24]">
+              Rezerwujesz lekcję dla: {bookingFor.name}
+            </div>
+          )}
 
           {/* Search + sort */}
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -168,7 +176,7 @@ export function MarketplaceClient({ teachers, categories, initialQuery = '', ini
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((teacher, i) => (
               <div key={teacher.id} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}>
-                <TeacherCard teacher={teacher} featured={teacher.featured} />
+                <TeacherCard teacher={teacher} featured={teacher.featured} bookingFor={bookingFor} />
               </div>
             ))}
           </div>

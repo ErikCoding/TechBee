@@ -9,9 +9,14 @@ interface TeacherCardProps {
   teacher: Teacher
   className?: string
   featured?: boolean
+  /** Carried through from the marketplace when a parent is browsing to book for a linked student — appended to the profile link so the whole flow (profile → booking) stays scoped to that student. */
+  bookingFor?: { id: string; name: string }
 }
 
-export function TeacherCard({ teacher, className, featured }: TeacherCardProps) {
+export function TeacherCard({ teacher, className, featured, bookingFor }: TeacherCardProps) {
+  const profileHref = bookingFor
+    ? `/teacher/${teacher.id}?bookingForId=${bookingFor.id}&bookingForName=${encodeURIComponent(bookingFor.name)}`
+    : `/teacher/${teacher.id}`
   return (
     <article
       className={cn(
@@ -100,7 +105,7 @@ export function TeacherCard({ teacher, className, featured }: TeacherCardProps) 
             {teacher.hourlyRate} zł
             <span className="text-xs font-normal text-muted-foreground">/godz.</span>
           </span>
-          <Link href={`/teacher/${teacher.id}`}>
+          <Link href={profileHref}>
             <Button
               size="sm"
               className="h-8 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold text-xs"

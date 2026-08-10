@@ -114,6 +114,46 @@ function transferLessonPaymentMock(studentId: string, teacherId: string, teacher
   applyMockDelta(teacherId, { id: `tx-${Date.now()}-t`, type: 'credit', description: `Zapłata za lekcję — ${topic}`, amount, date: todayLabel(), status: 'completed' })
 }
 
+function updateMockTransactionStatus(userId: string, txId: string, status: Transaction['status']) {
+  if (!isBrowser()) return
+  try {
+    const all = JSON.parse(window.localStorage.getItem(MOCK_TX_KEY) ?? '{}') as Record<string, Transaction[]>
+    const list = all[userId] ?? []
+    const idx = list.findIndex((t) => t.id === txId)
+    if (idx === -1) return
+    list[idx] = { ...list[idx], status }
+    all[userId] = list
+    window.localStorage.setItem(MOCK_TX_KEY, JSON.stringify(all))
+  } catch {
+    // ignore
+  }
+}
+
+/** Places an escrow hold: debits the payer's spendable balance right away and parks the amount in `pending`. Returns the hold's transaction id. */
+function holdLessonPaymentMock(payerId: string, amount: number, topic: string): string {
+  const txId = `tx-${Date.now()}-hold`
+  const stats = readMockStats(payerId)
+  writeMockStats(payerId, { ...stats, balance: stats.balance - amount, pending: stats.pending + amount })
+  pushMockTransaction(payerId, { id: txId, type: 'debit', description: `Środki zablokowane — ${topic}`, amount: -amount, date: todayLabel(), status: 'pending' })
+  return txId
+}
+
+/** Finalizes a hold: moves it out of the payer's `pending` into real spend, and credits the teacher. */
+function releaseLessonPaymentMock(payerId: string, teacherId: string, teacherLabel: string, amount: number, topic: string, holdTransactionId?: string) {
+  const stats = readMockStats(payerId)
+  writeMockStats(payerId, { ...stats, pending: Math.max(0, stats.pending - amount), totalSpent: stats.totalSpent + amount })
+  if (holdTransactionId) updateMockTransactionStatus(payerId, holdTransactionId, 'completed')
+  applyMockDelta(teacherId, { id: `tx-${Date.now()}-t`, type: 'credit', description: `Zapłata za lekcję: ${teacherLabel} — ${topic}`, amount, date: todayLabel(), status: 'completed' })
+}
+
+/** Reverses a hold: gives the payer their money back. */
+function refundLessonPaymentMock(payerId: string, amount: number, topic: string, holdTransactionId?: string) {
+  const stats = readMockStats(payerId)
+  writeMockStats(payerId, { ...stats, balance: stats.balance + amount, pending: Math.max(0, stats.pending - amount) })
+  if (holdTransactionId) updateMockTransactionStatus(payerId, holdTransactionId, 'failed')
+  pushMockTransaction(payerId, { id: `tx-${Date.now()}-refund`, type: 'refund', description: `Zwrot — ${topic}`, amount, date: todayLabel(), status: 'completed' })
+}
+
 // ── Firebase ──────────────────────────────────────────────────
 
 async function ensureWalletDoc(userId: string): Promise<WalletStats> {
@@ -184,6 +224,51 @@ async function transferLessonPaymentFirebase(studentId: string, teacherId: strin
   await recordTransactionFirebase(teacherId, { type: 'credit', description: `Zapłata za lekcję — ${topic}`, amount })
 }
 
+/** Places an escrow hold: debits the payer's spendable balance right away and parks the amount in `pending`. Returns the hold's transaction id. */
+async function holdLessonPaymentFirebase(payerId: string, amount: number, topic: string): Promise<string> {
+  if (!db) return ''
+  await ensureWalletDoc(payerId)
+  const txRef = await addDoc(collection(db, collections.walletTransactions), {
+    userId: payerId,
+    type: 'debit' as const,
+    description: `Środki zablokowane — ${topic}`,
+    amount: -amount,
+    status: 'pending' as const,
+    createdAt: Date.now(),
+  })
+  await updateDoc(doc(db, collections.wallets, payerId), { balance: increment(-amount), pending: increment(amount) })
+  return txRef.id
+}
+
+/** Finalizes a hold: moves it out of the payer's `pending` into real spend, and credits the teacher. */
+async function releaseLessonPaymentFirebase(payerId: string, teacherId: string, teacherLabel: string, amount: number, topic: string, holdTransactionId?: string) {
+  if (!db) return
+  await ensureWalletDoc(payerId)
+  await updateDoc(doc(db, collections.wallets, payerId), { pending: increment(-amount), totalSpent: increment(amount) })
+  if (holdTransactionId) {
+    await updateDoc(doc(db, collections.walletTransactions, holdTransactionId), { status: 'completed' })
+  }
+  await recordTransactionFirebase(teacherId, { type: 'credit', description: `Zapłata za lekcję: ${teacherLabel} — ${topic}`, amount })
+}
+
+/** Reverses a hold: gives the payer their money back. */
+async function refundLessonPaymentFirebase(payerId: string, amount: number, topic: string, holdTransactionId?: string) {
+  if (!db) return
+  await ensureWalletDoc(payerId)
+  await updateDoc(doc(db, collections.wallets, payerId), { balance: increment(amount), pending: increment(-amount) })
+  if (holdTransactionId) {
+    await updateDoc(doc(db, collections.walletTransactions, holdTransactionId), { status: 'failed' })
+  }
+  await addDoc(collection(db, collections.walletTransactions), {
+    userId: payerId,
+    type: 'refund' as const,
+    description: `Zwrot — ${topic}`,
+    amount,
+    status: 'completed' as const,
+    createdAt: Date.now(),
+  })
+}
+
 // ── Public API ────────────────────────────────────────────────
 
 export async function getWalletStats(userId?: string): Promise<WalletStats> {
@@ -218,5 +303,63 @@ export async function transferLessonPayment(studentId: string, teacherId: string
     }
   } catch {
     // ignore — see doc comment
+  }
+}
+
+// ── Escrow (parent-account model) ────────────────────────────
+//
+// A lesson booking's price is held from the payer (student or their
+// linked parent) the moment it's booked, then only actually moves to
+// the teacher once the post-lesson report is confirmed — see
+// services/lessons.service.ts for the booking/report/confirm flow
+// that calls these three functions.
+
+/**
+ * Attempts to place an escrow hold for a lesson booking — debits the
+ * payer's spendable `balance` immediately and moves it into `pending`.
+ * Returns the hold's transaction id on success, or `null` if the payer
+ * doesn't have enough balance to cover it (the caller should refuse
+ * the booking in that case, not create a lesson with no funds behind it).
+ */
+export async function holdLessonPayment(payerId: string, amount: number, topic: string): Promise<string | null> {
+  if (amount <= 0) return null
+  const stats = await getWalletStats(payerId)
+  if (stats.balance < amount) return null
+  return isFirebaseConfigured ? holdLessonPaymentFirebase(payerId, amount, topic) : holdLessonPaymentMock(payerId, amount, topic)
+}
+
+/**
+ * Finalizes a held payment — called once a lesson's report is confirmed
+ * (by the payer or via 24h auto-confirmation), or a dispute resolves in
+ * the teacher's favor. Moves the held amount from the payer's `pending`
+ * into the teacher's spendable balance. Best-effort: a failed release
+ * shouldn't crash the confirm flow (mirrors transferLessonPayment above).
+ */
+export async function releaseLessonPayment(payerId: string, teacherId: string, teacherLabel: string, amount: number, topic: string, holdTransactionId?: string): Promise<void> {
+  try {
+    if (isFirebaseConfigured) {
+      await releaseLessonPaymentFirebase(payerId, teacherId, teacherLabel, amount, topic, holdTransactionId)
+    } else {
+      releaseLessonPaymentMock(payerId, teacherId, teacherLabel, amount, topic, holdTransactionId)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Reverses a held payment — used when a booking is rejected/cancelled
+ * before completion, or a dispute resolves in the payer's favor. Moves
+ * the held amount back to the payer's spendable balance.
+ */
+export async function refundLessonPayment(payerId: string, amount: number, topic: string, holdTransactionId?: string): Promise<void> {
+  try {
+    if (isFirebaseConfigured) {
+      await refundLessonPaymentFirebase(payerId, amount, topic, holdTransactionId)
+    } else {
+      refundLessonPaymentMock(payerId, amount, topic, holdTransactionId)
+    }
+  } catch {
+    // ignore
   }
 }

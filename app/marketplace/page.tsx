@@ -5,7 +5,7 @@ import { getTeachers } from '@/services/teachers.service'
 import { getCategories } from '@/services/categories.service'
 
 interface MarketplacePageProps {
-  searchParams: Promise<{ q?: string; category?: string }>
+  searchParams: Promise<{ q?: string; category?: string; bookingForId?: string; bookingForName?: string }>
 }
 
 export default async function MarketplacePage({ searchParams }: MarketplacePageProps) {
@@ -24,6 +24,7 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
           categories={categories}
           initialQuery={params.q ?? ''}
           initialCategory={params.category}
+          bookingFor={params.bookingForId && params.bookingForName ? { id: params.bookingForId, name: params.bookingForName } : undefined}
         />
       </main>
       <Footer />

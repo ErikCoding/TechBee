@@ -225,6 +225,13 @@ export async function logoutUser(): Promise<void> {
   if (isBrowser()) window.localStorage.removeItem(SESSION_KEY)
 }
 
+/** Looks up any user's public profile by id — used by services/family-link.service.ts to show a linked parent/student's name+avatar without duplicating the auth storage logic here. */
+export async function getUserProfileById(userId: string): Promise<AuthUser | null> {
+  if (isFirebaseConfigured) return fetchFirebaseProfile(userId)
+  const user = readUsers().find((u) => u.id === userId)
+  return user ? toPublicUser(user) : null
+}
+
 /**
  * Subscribes to auth state. In Firebase mode this is a live listener
  * (`onAuthStateChanged`); in mock mode it reads localStorage once and

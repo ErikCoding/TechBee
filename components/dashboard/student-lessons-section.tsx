@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context'
 import { getStudentLessons } from '@/services/lessons.service'
 import { LessonChangeModal } from '@/components/dashboard/lesson-change-modal'
 import { LessonReviewModal } from '@/components/dashboard/lesson-review-modal'
+import { LessonReportReviewCard } from '@/components/dashboard/lesson-report-review-card'
 import { cn } from '@/lib/utils'
 import type { Lesson } from '@/lib/types'
 
@@ -58,6 +59,9 @@ export function StudentLessonsSection({ initialLessons }: Props) {
   const pendingRequests = lessons.filter((l) => l.status === 'pending')
   const upcomingLessons = lessons.filter((l) => l.status === 'upcoming')
   const pastLessons = lessons.filter((l) => l.status === 'completed' || l.status === 'cancelled')
+  const reportsToConfirm = user
+    ? lessons.filter((l) => l.report && !l.reportConfirmedAt && !l.dispute && l.confirmingPartyId === user.id)
+    : []
 
   return (
     <>
@@ -78,6 +82,21 @@ export function StudentLessonsSection({ initialLessons }: Props) {
                   </p>
                 </div>
               </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Reports awaiting your confirmation — releases the held payment (see LessonReportReviewCard) */}
+      {reportsToConfirm.length > 0 && user && (
+        <section className="rounded-2xl border border-yellow-500/30 bg-yellow-500/5 p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-foreground">Raporty do potwierdzenia</h2>
+            <Badge className="bg-yellow-500 text-[#0A0A0A]">{reportsToConfirm.length}</Badge>
+          </div>
+          <div className="mt-4 flex flex-col gap-3">
+            {reportsToConfirm.map((lesson) => (
+              <LessonReportReviewCard key={lesson.id} lesson={lesson} confirmedByUserId={user.id} onResolved={refresh} />
             ))}
           </div>
         </section>
@@ -178,6 +197,9 @@ export function StudentLessonsSection({ initialLessons }: Props) {
                     {status.label}
                   </span>
                   <span className="text-xs text-muted-foreground">{lesson.price} zł</span>
+                  {lesson.dispute?.status === 'open' && (
+                    <span className="rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">Spór w toku</span>
+                  )}
                   {lesson.status === 'completed' && !lesson.reviewed && (
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewModalFor(lesson)}>
                       <Star className="mr-1 h-3 w-3" aria-hidden="true" />

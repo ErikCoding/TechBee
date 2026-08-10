@@ -8,14 +8,15 @@ import type { UserRole } from '@/lib/types'
 
 interface RequireAuthProps {
   children: React.ReactNode
-  /** If set, only this role may view the page — everyone else is sent to their own dashboard. */
-  role?: UserRole
+  /** If set, only user(s) with this role (or one of these roles) may view the page — everyone else is sent to their own dashboard. */
+  role?: UserRole | UserRole[]
 }
 
 const dashboardFor: Record<UserRole, string> = {
   student: '/dashboard/student',
   teacher: '/dashboard/teacher',
   admin: '/admin',
+  parent: '/dashboard/parent',
 }
 
 /**
@@ -30,7 +31,8 @@ export function RequireAuth({ children, role }: RequireAuthProps) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const wrongRole = status === 'authenticated' && role && user?.role !== role
+  const allowedRoles = role ? (Array.isArray(role) ? role : [role]) : null
+  const wrongRole = status === 'authenticated' && allowedRoles !== null && !!user && !allowedRoles.includes(user.role)
 
   useEffect(() => {
     if (status === 'unauthenticated') {

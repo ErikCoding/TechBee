@@ -9,11 +9,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { buildAvailability } from '@/lib/availability'
 import { useAuth } from '@/lib/auth-context'
 import { createBooking } from '@/services/lessons.service'
-import { cn } from '@/lib/utils'
+import { cn, dashboardPathForRole } from '@/lib/utils'
 import type { Teacher } from '@/lib/types'
 
 interface Props {
   teacher: Teacher
+  /** Set when a parent is booking on behalf of a linked student (see app/teacher/[id]/book/page.tsx) — the student is charged the lesson, the parent pays for it. */
+  bookingFor?: { id: string; name: string }
 }
 
 const DURATIONS = [
@@ -21,7 +23,7 @@ const DURATIONS = [
   { minutes: 90, label: '90 min' },
 ]
 
-export function TeacherBookingCalendar({ teacher }: Props) {
+export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
   const { user } = useAuth()
   const router = useRouter()
   const days = useMemo(
@@ -40,10 +42,14 @@ export function TeacherBookingCalendar({ teacher }: Props) {
   const selectedDay = days[selectedDayIndex]
   const price = Math.round((teacher.hourlyRate / 60) * duration)
 
-  // Note: nothing is charged yet — this only sends a *request*. Money only
-  // moves from the student's wallet to the teacher's once the lesson is
-  // actually completed (see services/lessons.service.ts completeLesson),
-  // so there's no balance check to do here.
+  // Note: the price is charged (held in escrow) from the payer's wallet —
+  // the student themselves, or the parent booking on their behalf (see
+  // bookingFor above) — the moment this request is sent (see
+  // holdLessonPayment in wallet.service.ts). If they don't have enough
+  // balance, createBooking throws and the request never gets sent. It's
+  // refunded automatically if the teacher rejects it, and released to the
+  // teacher only once the post-lesson report is confirmed (see
+  // services/lessons.service.ts).
   async function handleConfirm() {
     if (!user || !selectedDay || !selectedSlot || !topic.trim()) return
     setSubmitting(true)
@@ -55,17 +61,18 @@ export function TeacherBookingCalendar({ teacher }: Props) {
         teacherInitials: teacher.initials,
         teacherColor: teacher.avatarColor,
         specialty: teacher.specialty,
-        studentId: user.id,
-        studentName: user.name,
+        studentId: bookingFor?.id ?? user.id,
+        studentName: bookingFor?.name ?? user.name,
         date: selectedDay.dayLabel,
         time: selectedSlot,
         duration,
         price,
         topic: topic.trim(),
+        payer: bookingFor ? { id: user.id, role: 'parent' } : undefined,
       })
       setBookedLessonId(lesson.id)
-    } catch {
-      setError('Nie udało się wysłać prośby o rezerwację. Spróbuj ponownie.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się wysłać prośby o rezerwację. Spróbuj ponownie.')
     } finally {
       setSubmitting(false)
     }
@@ -86,13 +93,14 @@ export function TeacherBookingCalendar({ teacher }: Props) {
         <h2 className="mt-3 text-lg font-semibold text-foreground">Prośba o rezerwację wysłana!</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {selectedDay.dayLabel} o {selectedSlot} z {teacher.name} · {duration} min · {price} zł
+          {bookingFor ? ` · dla ${bookingFor.name}` : ''}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Lekcja pojawi się w Twoim panelu, gdy {teacher.name} potwierdzi termin.
+          {bookingFor ? `Środki zostały zablokowane w Twoim portfelu. Lekcja` : 'Lekcja'} pojawi się w panelu, gdy {teacher.name} potwierdzi termin.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-          <Button onClick={() => router.push('/dashboard/student')} className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
-            Przejdź do panelu ucznia
+          <Button onClick={() => router.push(dashboardPathForRole(user?.role))} className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+            Przejdź do panelu
           </Button>
           <Link href={`/teacher/${teacher.id}`}>
             <Button variant="outline">Wróć do profilu nauczyciela</Button>
@@ -197,7 +205,7 @@ export function TeacherBookingCalendar({ teacher }: Props) {
       {/* Summary + confirm */}
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">Cena lekcji (pobrana z portfela po jej odbyciu)</p>
+          <p className="text-sm text-muted-foreground">Cena lekcji (zablokowana w portfelu do potwierdzenia raportu)</p>
           <p className="text-2xl font-bold text-foreground">{price} zł</p>
         </div>
         <Button

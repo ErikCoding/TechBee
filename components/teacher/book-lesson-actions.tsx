@@ -14,18 +14,21 @@ interface BookLessonActionsProps {
   teacherInitials: string
   teacherAvatarColor: string
   specialty: string
+  /** Set when a parent arrived via the marketplace booking-for-a-student flow — carried through to the booking page. */
+  bookingFor?: { id: string; name: string }
 }
 
 /** Booking/messaging require an account — browsing a teacher's profile does not. */
-export function BookLessonActions({ teacherId, teacherName, teacherInitials, teacherAvatarColor, specialty }: BookLessonActionsProps) {
+export function BookLessonActions({ teacherId, teacherName, teacherInitials, teacherAvatarColor, specialty, bookingFor }: BookLessonActionsProps) {
   const { status, user } = useAuth()
   const router = useRouter()
   const [messaging, setMessaging] = useState(false)
   const redirect = encodeURIComponent(`/teacher/${teacherId}`)
+  const bookingQuery = bookingFor ? `?bookingForId=${bookingFor.id}&bookingForName=${encodeURIComponent(bookingFor.name)}` : ''
 
   function goToBooking() {
     if (status === 'authenticated') {
-      router.push(`/teacher/${teacherId}/book`)
+      router.push(`/teacher/${teacherId}/book${bookingQuery}`)
     } else {
       router.push(`/login?redirect=${redirect}`)
     }

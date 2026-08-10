@@ -15,6 +15,7 @@ const roleLabels: Record<AdminUserRow['role'], string> = {
   student: 'Uczeń',
   teacher: 'Nauczyciel',
   admin: 'Administrator',
+  parent: 'Rodzic',
 }
 
 const statusConfig: Record<AdminUserRow['status'], { label: string; className: string }> = {

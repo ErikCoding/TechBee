@@ -10,6 +10,7 @@ export function cn(...inputs: ClassValue[]) {
 export function dashboardPathForRole(role: UserRole | undefined): string {
   if (role === 'teacher') return '/dashboard/teacher'
   if (role === 'admin') return '/admin'
+  if (role === 'parent') return '/dashboard/parent'
   return '/dashboard/student'
 }
 
@@ -17,6 +18,7 @@ export function dashboardPathForRole(role: UserRole | undefined): string {
 export function roleLabelPl(role: UserRole | undefined): string {
   if (role === 'teacher') return 'Konto nauczyciela'
   if (role === 'admin') return 'Konto administratora'
+  if (role === 'parent') return 'Konto rodzica'
   return 'Konto ucznia'
 }
 
