@@ -277,10 +277,37 @@ async function autoConfirmOverdueReports(lessons: Lesson[]): Promise<Lesson[]> {
 }
 
 /** Writes a partial update to a lesson doc in whichever mode is active — `null` clears a field in Firestore (see respondToLessonChange for why). */
+/**
+ * Firestore's `updateDoc` throws ("Unsupported field value: undefined")
+ * the moment ANY value in the patch — even nested inside an object, like
+ * `report.homework` when the teacher left it blank — is `undefined`.
+ * `report`/`dispute` are built with optional fields set to `undefined`
+ * when empty (see LessonReportModal), so every report submission was
+ * silently failing in Firebase mode (mock/localStorage mode never hit
+ * this, since JSON.stringify drops undefined keys, which is why the bug
+ * wasn't obvious there). Recursively dropping undefined keys before the
+ * write — instead of requiring every call site to remember to omit them
+ * — fixes this class of bug for good.
+ */
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefinedDeep(v)) as unknown as T
+  }
+  if (value !== null && typeof value === 'object' && !(value instanceof Date)) {
+    const result: Record<string, unknown> = {}
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === undefined) continue
+      result[key] = stripUndefinedDeep(v)
+    }
+    return result as T
+  }
+  return value
+}
+
 async function updateLessonDoc(id: string, patch: Record<string, unknown>): Promise<void> {
   if (isFirebaseConfigured && db) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Firestore's updateDoc field-path typing can't express an arbitrary partial patch object; see the same cast pattern above in respondToLessonChange's predecessor.
-    await updateDoc(doc(db, collections.lessons, id), patch as any)
+    await updateDoc(doc(db, collections.lessons, id), stripUndefinedDeep(patch) as any)
   } else {
     updateLocalLesson(id, patch as Partial<Lesson>)
   }
