@@ -10,6 +10,8 @@ import { useAuth } from '@/lib/auth-context'
 import { getLinkedStudents, redeemLinkCode } from '@/services/family-link.service'
 import { getStudentLessons } from '@/services/lessons.service'
 import { LessonReportReviewCard } from '@/components/dashboard/lesson-report-review-card'
+import { ReportStatusBadge } from '@/components/dashboard/report-status-badge'
+import { ShowMoreButton, COLLAPSED_ROWS } from '@/components/dashboard/collapsible-list-controls'
 import type { LinkedStudentSummary, Lesson } from '@/lib/types'
 
 /**
@@ -24,6 +26,8 @@ export function ParentLinkedStudents() {
   const { user } = useAuth()
   const [students, setStudents] = useState<LinkedStudentSummary[] | null>(null)
   const [reportsToConfirm, setReportsToConfirm] = useState<Lesson[]>([])
+  const [allReports, setAllReports] = useState<Lesson[]>([])
+  const [reportsExpanded, setReportsExpanded] = useState(false)
   const [code, setCode] = useState('')
   const [redeeming, setRedeeming] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,19 +35,24 @@ export function ParentLinkedStudents() {
   const loadStudents = useCallback(async () => {
     if (!user) return
     const base = await getLinkedStudents(user.id)
-    const allReports: Lesson[] = []
+    const pendingReports: Lesson[] = []
+    const reportedLessons: Lesson[] = []
     const enriched = await Promise.all(
       base.map(async (s) => {
         const lessons = await getStudentLessons(s.id)
         const upcomingLessonsCount = lessons.filter((l) => l.status === 'upcoming').length
         const pending = lessons.filter((l) => l.report && !l.reportConfirmedAt && !l.dispute && l.confirmingPartyId === user.id)
-        allReports.push(...pending)
+        pendingReports.push(...pending)
+        reportedLessons.push(...lessons.filter((l) => l.status === 'completed' && l.report))
         return { ...s, upcomingLessonsCount, pendingConfirmationsCount: pending.length }
       }),
     )
     setStudents(enriched)
-    setReportsToConfirm(allReports)
+    setReportsToConfirm(pendingReports)
+    setAllReports(reportedLessons.sort((a, b) => (b.reportSubmittedAt ?? 0) - (a.reportSubmittedAt ?? 0)))
   }, [user])
+
+  const visibleReports = reportsExpanded ? allReports : allReports.slice(0, COLLAPSED_ROWS)
 
   useEffect(() => {
     loadStudents()
@@ -86,6 +95,43 @@ export function ParentLinkedStudents() {
                 contextLabel={`dla ${lesson.studentName}, z ${lesson.teacherName}`}
               />
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Full report history across every linked student — not just ones awaiting confirmation */}
+      {allReports.length > 0 && (
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-foreground">Raporty z lekcji dziecka</h2>
+            <Badge variant="secondary">{allReports.length}</Badge>
+          </div>
+          <div className="mt-4 flex flex-col gap-3">
+            {visibleReports.map((lesson) => (
+              <div key={lesson.id} className="flex flex-col gap-2 rounded-xl border border-border p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {lesson.studentName} · z {lesson.teacherName} · {lesson.date}
+                    </p>
+                  </div>
+                  <ReportStatusBadge lesson={lesson} />
+                </div>
+                {lesson.report && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span>Postęp: {lesson.report.progressRating}/5</span>
+                    <span>Zaangażowanie: {lesson.report.engagementRating}/5</span>
+                    {lesson.report.tutorNote && <span className="w-full">Notatka: {lesson.report.tutorNote}</span>}
+                  </div>
+                )}
+              </div>
+            ))}
+            <ShowMoreButton
+              expanded={reportsExpanded}
+              hiddenCount={allReports.length - COLLAPSED_ROWS}
+              onToggle={() => setReportsExpanded((v) => !v)}
+            />
           </div>
         </section>
       )}

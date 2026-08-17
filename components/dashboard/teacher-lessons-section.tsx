@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, ClipboardList } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { getTeacherLessons, respondToBookingRequest, respondToLessonChange } from '@/services/lessons.service'
 import { LessonReportModal } from '@/components/dashboard/lesson-report-modal'
+import { ReportStatusBadge } from '@/components/dashboard/report-status-badge'
+import { ShowMoreButton, COLLAPSED_ROWS } from '@/components/dashboard/collapsible-list-controls'
 import type { Lesson } from '@/lib/types'
 
 interface Props {
@@ -27,6 +29,8 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
   const [lessons, setLessons] = useState(initialLessons)
   const [actingOn, setActingOn] = useState<string | null>(null)
   const [reportModalFor, setReportModalFor] = useState<Lesson | null>(null)
+  const [needsReportExpanded, setNeedsReportExpanded] = useState(false)
+  const [reportedExpanded, setReportedExpanded] = useState(false)
 
   async function refresh() {
     if (!user) return
@@ -48,7 +52,18 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
   const bookingRequests = lessons.filter((l) => l.status === 'pending')
   const changeRequests = lessons.filter((l) => l.status === 'upcoming' && l.pendingChange)
   const upcoming = lessons.filter((l) => l.status === 'upcoming' && !l.pendingChange)
-  const needsReport = lessons.filter((l) => l.status === 'completed' && !l.report)
+
+  // Newest-first, most-relevant-on-top for both reporting sections below.
+  const needsReport = useMemo(
+    () => lessons.filter((l) => l.status === 'completed' && !l.report).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
+    [lessons],
+  )
+  const reported = useMemo(
+    () => lessons.filter((l) => l.status === 'completed' && l.report).sort((a, b) => (b.reportSubmittedAt ?? 0) - (a.reportSubmittedAt ?? 0)),
+    [lessons],
+  )
+  const visibleNeedsReport = needsReportExpanded ? needsReport : needsReport.slice(0, COLLAPSED_ROWS)
+  const visibleReported = reportedExpanded ? reported : reported.slice(0, COLLAPSED_ROWS)
 
   async function handleBookingDecision(lesson: Lesson, decision: 'accepted' | 'rejected') {
     setActingOn(lesson.id)
@@ -168,7 +183,7 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
           </div>
           <p className="mt-1 text-xs text-muted-foreground">Uzupełnij raport, aby zwolnić płatność za te lekcje.</p>
           <div className="mt-4 flex flex-col gap-3">
-            {needsReport.map((lesson) => (
+            {visibleNeedsReport.map((lesson) => (
               <div key={lesson.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
@@ -182,6 +197,39 @@ export function TeacherLessonsSection({ initialLessons }: Props) {
                 </Button>
               </div>
             ))}
+            <ShowMoreButton
+              expanded={needsReportExpanded}
+              hiddenCount={needsReport.length - COLLAPSED_ROWS}
+              onToggle={() => setNeedsReportExpanded((v) => !v)}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Already-reported lessons — status shows whether payment was released, is still awaiting confirmation, or is under dispute */}
+      {reported.length > 0 && (
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-foreground">Zaraportowane lekcje</h2>
+            <Badge variant="secondary">{reported.length}</Badge>
+          </div>
+          <div className="mt-4 flex flex-col gap-3">
+            {visibleReported.map((lesson) => (
+              <div key={lesson.id} className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {lesson.studentName} · {lesson.date} · {lesson.price} zł
+                  </p>
+                </div>
+                <ReportStatusBadge lesson={lesson} />
+              </div>
+            ))}
+            <ShowMoreButton
+              expanded={reportedExpanded}
+              hiddenCount={reported.length - COLLAPSED_ROWS}
+              onToggle={() => setReportedExpanded((v) => !v)}
+            />
           </div>
         </section>
       )}

@@ -21,6 +21,7 @@ export const adminStatsData: AdminStats = {
   usersByRole: [
     { role: 'Uczniowie', count: 8480, color: '#F4B400' },
     { role: 'Nauczyciele', count: 312, color: '#3B82F6' },
+    { role: 'Rodzice', count: 640, color: '#10B981' },
     { role: 'Administratorzy', count: 50, color: '#8B5CF6' },
   ],
 }

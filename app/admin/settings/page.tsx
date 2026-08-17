@@ -1,4 +1,5 @@
 import { AdminSeedPanel } from '@/components/admin/admin-seed-panel'
+import { AdminResetPanel } from '@/components/admin/admin-reset-panel'
 
 export default function AdminSettingsPage() {
   return (
@@ -8,6 +9,7 @@ export default function AdminSettingsPage() {
         <p className="text-sm text-muted-foreground">Konfiguracja danych i integracji.</p>
       </div>
       <AdminSeedPanel />
+      <AdminResetPanel />
     </div>
   )
 }

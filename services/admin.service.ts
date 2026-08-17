@@ -27,7 +27,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MONTH_LABELS_PL = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru']
 
 type StoredUserProfile = {
-  role?: 'student' | 'teacher' | 'admin'
+  role?: 'student' | 'teacher' | 'admin' | 'parent'
   createdAt?: number
 }
 
@@ -84,6 +84,7 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
   const users = usersSnap.docs.map((d) => d.data() as StoredUserProfile)
   const totalStudents = users.filter((u) => u.role === 'student').length
   const totalTeachers = users.filter((u) => u.role === 'teacher').length
+  const totalParents = users.filter((u) => u.role === 'parent').length
   const totalUsers = users.length
   const weekAgo = Date.now() - WEEK_MS
   const newSignupsThisWeek = users.filter((u) => (u.createdAt ?? 0) >= weekAgo).length
@@ -101,7 +102,8 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
     usersByRole: [
       { role: 'Uczniowie', count: totalStudents, color: '#F4B400' },
       { role: 'Nauczyciele', count: totalTeachers, color: '#3B82F6' },
-      { role: 'Administratorzy', count: totalUsers - totalStudents - totalTeachers, color: '#8B5CF6' },
+      { role: 'Rodzice', count: totalParents, color: '#10B981' },
+      { role: 'Administratorzy', count: totalUsers - totalStudents - totalTeachers - totalParents, color: '#8B5CF6' },
     ],
   }
 }

@@ -113,11 +113,11 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] flex-col text-white">
+    <div className="flex h-[calc(100vh-64px)] flex-col overflow-hidden text-white">
       <RoomAudioRenderer />
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-4 py-3 text-sm">
+      <div className="flex shrink-0 items-center justify-between px-4 py-3 text-sm">
         <div className="flex items-center gap-2">
           <span className={cn('h-2 w-2 rounded-full', isConnected ? 'bg-emerald-400' : 'animate-pulse bg-yellow-400')} aria-hidden="true" />
           {isConnected ? `Połączono · ${formatElapsed(elapsed)}` : 'Łączenie…'}
@@ -125,11 +125,14 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
         <div className="text-white/50">Sala lekcji #{lessonId.slice(-6)}</div>
       </div>
 
-      {/* Video stage */}
-      <div className="relative mx-4 mb-4 flex-1 overflow-hidden rounded-2xl bg-[#151515]">
+      {/* Video stage — height-bounded (not min-height) so it never pushes the
+          controls off-screen, and every camera tile uses object-contain
+          (never object-cover) so a portrait/vertical camera is always shown
+          in full, letterboxed, instead of being cropped. */}
+      <div className="relative mx-4 mb-4 min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#151515]">
         {screenShareTrack ? (
-          <div className="flex h-full min-h-[360px] flex-col">
-            <div className="relative flex-1 overflow-hidden bg-black">
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
               <VideoTrack trackRef={screenShareTrack} className="h-full w-full object-contain" />
               <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium">
                 Udostępnianie ekranu — {screenShareTrack.participant.name || screenShareTrack.participant.identity}
@@ -144,7 +147,7 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
                     {camTrack ? (
                       <VideoTrack
                         trackRef={camTrack}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                         style={p.isLocal ? { transform: 'scaleX(-1)' } : undefined}
                       />
                     ) : (
@@ -153,13 +156,18 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
                       </div>
                     )}
                     <span className="absolute bottom-0.5 left-1 text-[9px] text-white/70">{p.isLocal ? 'Ty' : p.name || p.identity}</span>
+                    {!p.isMicrophoneEnabled && (
+                      <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500/90">
+                        <MicOff className="h-2.5 w-2.5" aria-hidden="true" />
+                      </span>
+                    )}
                   </div>
                 )
               })}
             </div>
           </div>
         ) : remoteParticipants.length === 0 ? (
-          <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-3">
+          <div className="flex h-full flex-col items-center justify-center gap-3">
             <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#F4B400] text-3xl font-bold text-[#0A0A0A]">
               {initialsOf(waitingForLabel)}
             </div>
@@ -167,19 +175,22 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
             {topic && <p className="max-w-md text-center text-xs text-white/40">{topic}</p>}
           </div>
         ) : (
-          <div className={cn('grid h-full min-h-[360px] gap-2 p-2', remoteParticipants.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
+          <div className={cn('grid h-full gap-2 p-2', remoteParticipants.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
             {remoteParticipants.map((p) => {
               const camTrack = cameraTrackFor(p.identity)
               return (
-                <div key={p.identity} className="relative flex items-center justify-center overflow-hidden rounded-xl bg-[#1c1c1c]">
+                <div key={p.identity} className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-[#1c1c1c]">
                   {camTrack ? (
-                    <VideoTrack trackRef={camTrack} className="h-full w-full object-cover" />
+                    <VideoTrack trackRef={camTrack} className="h-full w-full object-contain" />
                   ) : (
                     <div className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white" style={{ backgroundColor: '#3B82F6' }}>
                       {initialsOf(p.name || p.identity)}
                     </div>
                   )}
-                  <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[11px]">{p.name || p.identity}</span>
+                  <span className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/50 px-2 py-0.5 text-[11px]">
+                    {!p.isMicrophoneEnabled && <MicOff className="h-3 w-3 text-red-400" aria-hidden="true" />}
+                    {p.name || p.identity}
+                  </span>
                 </div>
               )
             })}
@@ -192,7 +203,7 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
             {isCameraEnabled && cameraTrackFor(localParticipant.identity) ? (
               <VideoTrack
                 trackRef={cameraTrackFor(localParticipant.identity)!}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
                 style={{ transform: 'scaleX(-1)' }}
               />
             ) : (
@@ -201,7 +212,11 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
               </div>
             )}
             <span className="absolute bottom-1.5 left-2 text-[10px] text-white/60">Ty</span>
-            {!isMicrophoneEnabled && <MicOff className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-white/70" aria-hidden="true" />}
+            {!isMicrophoneEnabled && (
+              <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/90">
+                <MicOff className="h-3 w-3" aria-hidden="true" />
+              </span>
+            )}
           </div>
         )}
 
