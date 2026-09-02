@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { MessageSquare, MessageSquareOff } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Panel, PanelFooterLink } from '@/components/dashboard/dashboard-primitives'
@@ -57,6 +57,7 @@ export function DashboardMessagesPreview({ conversations, unread, emptyDescripti
                   className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/40"
                 >
                   <Avatar className="h-9 w-9 shrink-0">
+                    {c.participant.photoUrl && <AvatarImage src={c.participant.photoUrl} alt="" />}
                     <AvatarFallback color={c.participant.avatarColor} className="text-[11px]">
                       {c.participant.initials}
                     </AvatarFallback>

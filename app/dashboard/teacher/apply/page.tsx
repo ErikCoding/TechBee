@@ -10,7 +10,7 @@ export default function TeacherApplyPage() {
       <Navbar />
       <main id="main-content" className="bg-background">
         <RequireAuth role="teacher">
-          <div className="mx-auto max-w-2xl px-4 py-8 md:px-8">
+          <div className="mx-auto max-w-4xl px-4 py-8 md:px-8">
             <BackButton fallbackHref="/dashboard/teacher" />
             <h1 className="text-2xl font-bold text-foreground">Profil nauczyciela</h1>
             <p className="mt-0.5 text-muted-foreground">

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { AdminUserRow } from '@/lib/types'
 
@@ -89,6 +89,7 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8 shrink-0">
+                        {u.photoUrl && <AvatarImage src={u.photoUrl} alt="" />}
                         <AvatarFallback color={u.avatarColor} className="text-[11px]">{u.initials}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">

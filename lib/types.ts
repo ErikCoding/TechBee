@@ -19,6 +19,7 @@ export type AuthUser = {
   role: UserRole
   initials: string
   avatarColor: string
+  photoUrl?: string
 }
 
 export type Category = {
@@ -70,6 +71,7 @@ export type Teacher = {
   name: string
   initials: string
   avatarColor: string
+  photoUrl?: string
   specialty: string
   categoryId: string
   rating: number
@@ -104,6 +106,7 @@ export type Teacher = {
 
 /** Fields a teacher fills in on the "become a teacher" application form — everything else on Teacher is derived/admin-controlled. */
 export type TeacherApplicationInput = {
+  photoUrl?: string
   categoryId: string
   specialty: string
   hourlyRate: number
@@ -324,6 +327,7 @@ export type TeacherDashboardData = {
   name: string
   initials: string
   avatarColor: string
+  photoUrl?: string
   specialty: string
   rating: number
   reviewCount: number
@@ -398,6 +402,7 @@ export type AdminUserRow = {
   name: string
   initials: string
   avatarColor: string
+  photoUrl?: string
   email: string
   role: UserRole
   status: 'active' | 'pending' | 'suspended'
@@ -411,6 +416,7 @@ export type ChatParticipant = {
   name: string
   initials: string
   avatarColor: string
+  photoUrl?: string
   role: UserRole
   specialty?: string
 }

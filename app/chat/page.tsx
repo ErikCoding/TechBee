@@ -27,7 +27,7 @@ export default function ChatPage() {
             <div className="md:mt-5">
               <Suspense
                 fallback={
-                  <Skeleton className="h-[calc(100dvh-4rem)] rounded-none md:h-[calc(100vh-13rem)] md:min-h-[540px] md:rounded-2xl" />
+                  <Skeleton className="h-[calc(100dvh-3.5rem)] rounded-none md:h-[calc(100vh-13rem)] md:min-h-[540px] md:rounded-2xl" />
                 }
               >
                 <ChatClient />

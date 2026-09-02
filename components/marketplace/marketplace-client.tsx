@@ -124,8 +124,8 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
   return (
     <>
       {/* ── Search band: sticks under the navbar so search is never scrolled away ── */}
-      <div className="sticky top-[57px] z-30 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-3 md:px-8">
+      <div className="sticky top-14 z-30 border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 py-2.5 md:px-8 md:py-3">
           {bookingFor && (
             <div className="mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
               Rezerwujesz lekcję dla: {bookingFor.name}
@@ -146,7 +146,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                 value={filters.query}
                 onChange={(e) => update({ query: e.target.value })}
                 placeholder="Szukaj umiejętności, programu lub nazwiska…"
-                className="h-10 w-full rounded-xl border border-border bg-card pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-3 focus-visible:ring-ring/25"
+                className="h-11 w-full rounded-xl border border-border bg-card pl-9 pr-9 text-base text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-3 focus-visible:ring-ring/25 md:h-10 md:text-sm"
               />
               {filters.query && (
                 <button
@@ -165,7 +165,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
               type="button"
               variant="outline"
               onClick={() => setSheetOpen(true)}
-              className="h-10 shrink-0 lg:hidden"
+              className="h-11 shrink-0 px-3 md:h-10 lg:hidden"
             >
               <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
               Filtry
@@ -201,13 +201,13 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
 
           {/* Active filters, each individually removable. */}
           {chips.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <div className="-mx-4 mt-2.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:px-0">
               {chips.map((chip) => (
                 <button
                   key={chip.key}
                   type="button"
                   onClick={chip.clear}
-                  className="group inline-flex items-center gap-1 rounded-full border border-primary/40 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground transition-colors hover:border-primary"
+                  className="group inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground transition-colors hover:border-primary"
                 >
                   {chip.label}
                   <X className="h-3 w-3 opacity-60 transition-opacity group-hover:opacity-100" aria-hidden="true" />
@@ -263,7 +263,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                   id="marketplace-sort-mobile"
                   value={filters.sort}
                   onChange={(e) => update({ sort: e.target.value as MarketplaceFilters['sort'] })}
-                  className="h-8 cursor-pointer appearance-none rounded-lg border border-border bg-card pl-2.5 pr-7 text-xs text-foreground outline-none"
+                  className="h-9 cursor-pointer appearance-none rounded-lg border border-border bg-card pl-2.5 pr-7 text-base text-foreground outline-none sm:h-8 sm:text-xs"
                 >
                   {SORT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -312,11 +312,11 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                 </Button>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {results.map((teacher, i) => (
                   <div
                     key={teacher.id}
-                    className="animate-fade-in-up"
+                    className="min-w-0 animate-fade-in-up"
                     style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                   >
                     <TeacherCard teacher={teacher} featured={teacher.featured} bookingFor={bookingFor} className="h-full" />
@@ -331,7 +331,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
       {/* ── Mobile filter sheet ── */}
       {sheetOpen && (
         <Dialog open onOpenChange={(open) => { if (!open) setSheetOpen(false) }}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-h-[calc(100svh-1rem)] w-[calc(100%-1rem)] rounded-xl sm:max-w-md sm:rounded-2xl">
             <DialogHeader>
               <DialogTitle>Filtry</DialogTitle>
             </DialogHeader>

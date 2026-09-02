@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ShieldCheck, Check, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getPendingTeacherApplications, reviewTeacherApplication } from '@/services/teachers.service'
 import type { Teacher } from '@/lib/types'
 
@@ -48,6 +48,7 @@ export function AdminVerificationsPanel() {
             <div key={app.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <Avatar className="h-10 w-10 shrink-0">
+                  {app.photoUrl && <AvatarImage src={app.photoUrl} alt="" />}
                   <AvatarFallback color={app.avatarColor}>{app.initials}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">

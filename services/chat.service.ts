@@ -47,6 +47,7 @@ export function toParticipant(input: {
   name: string
   initials: string
   avatarColor: string
+  photoUrl?: string
   role: ChatParticipant['role']
   specialty?: string
 }): ChatParticipant {
@@ -55,6 +56,7 @@ export function toParticipant(input: {
     name: input.name,
     initials: input.initials,
     avatarColor: input.avatarColor,
+    ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}),
     role: input.role,
     // Omit the key entirely rather than setting it to `undefined` — Firestore's
     // setDoc() rejects explicit `undefined` field values (students have no

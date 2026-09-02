@@ -12,6 +12,7 @@ export type CurrentUser = {
   firstName: string
   initials: string
   avatarColor: string
+  photoUrl?: string
   role: 'student' | 'teacher' | 'admin'
   email: string
 }

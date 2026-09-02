@@ -59,7 +59,7 @@ export function ChatComposer({ value, onChange, onSend, onAttach, disabled }: Pr
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); submit() }}
-      className="shrink-0 border-t border-border bg-card p-2.5 sm:p-3"
+      className="shrink-0 border-t border-border bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] sm:p-3"
     >
       <div className="flex items-end gap-1.5 rounded-2xl border border-border bg-background p-1.5 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/25">
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFile} />
@@ -89,7 +89,7 @@ export function ChatComposer({ value, onChange, onSend, onAttach, disabled }: Pr
           placeholder="Napisz wiadomość…"
           aria-label="Treść wiadomości"
           disabled={disabled}
-          className="max-h-[120px] min-h-9 flex-1 resize-none bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60"
+          className="max-h-[120px] min-h-9 flex-1 resize-none bg-transparent py-2 text-base text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60 md:text-sm"
         />
 
         <Button

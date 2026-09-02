@@ -6,8 +6,10 @@ import {
   logoutUser,
   registerUser,
   subscribeToAuthState,
+  updateUserProfile,
   type LoginInput,
   type RegisterInput,
+  type UpdateProfileInput,
 } from '@/services/auth.service'
 import type { AuthUser } from '@/lib/types'
 
@@ -18,6 +20,7 @@ interface AuthContextValue {
   status: AuthStatus
   login: (input: LoginInput) => Promise<AuthUser>
   register: (input: RegisterInput) => Promise<AuthUser>
+  updateProfile: (input: UpdateProfileInput) => Promise<AuthUser>
   logout: () => Promise<void>
 }
 
@@ -52,6 +55,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return created
   }, [])
 
+  const updateProfile = useCallback(async (input: UpdateProfileInput) => {
+    const updated = await updateUserProfile(input)
+    setUser(updated)
+    setStatus('authenticated')
+    return updated
+  }, [])
+
   const logout = useCallback(async () => {
     await logoutUser()
     setUser(null)
@@ -59,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, status, login, register, logout }}>
+    <AuthContext.Provider value={{ user, status, login, register, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   )

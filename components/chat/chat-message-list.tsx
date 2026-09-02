@@ -1,7 +1,7 @@
 'use client'
 
 import { FileText, FileArchive, Image as ImageIcon, Download, MessageSquare } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ReportCardMessage } from '@/components/chat/report-card-message'
 import { cn } from '@/lib/utils'
@@ -73,6 +73,7 @@ export function ChatMessageList({ messages, me, participant, viewerRole }: Props
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
         <Avatar className="h-14 w-14">
+          {participant.photoUrl && <AvatarImage src={participant.photoUrl} alt="" />}
           <AvatarFallback color={participant.avatarColor}>{participant.initials}</AvatarFallback>
         </Avatar>
         <div>
@@ -139,6 +140,7 @@ export function ChatMessageList({ messages, me, participant, viewerRole }: Props
                   <div className="w-7 shrink-0">
                     {endsRun && (
                       <Avatar className="h-7 w-7">
+                        {participant.photoUrl && <AvatarImage src={participant.photoUrl} alt="" />}
                         <AvatarFallback color={participant.avatarColor} className="text-[10px]">
                           {participant.initials}
                         </AvatarFallback>

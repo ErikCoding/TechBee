@@ -3,7 +3,7 @@ import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { BackButton } from '@/components/shared/back-button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { TeacherBookingCalendar } from '@/components/teacher/teacher-booking-calendar'
 import { getTeacherById, isTeacherApproved } from '@/services/teachers.service'
 
@@ -27,6 +27,7 @@ export default async function BookLessonPage({ params, searchParams }: Props) {
             <BackButton fallbackHref={`/teacher/${teacher.id}`} />
             <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4">
               <Avatar className="h-11 w-11 shrink-0">
+                {teacher.photoUrl && <AvatarImage src={teacher.photoUrl} alt="" />}
                 <AvatarFallback color={teacher.avatarColor}>{teacher.initials}</AvatarFallback>
               </Avatar>
               <div>

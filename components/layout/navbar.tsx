@@ -3,10 +3,10 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Menu, X, Wallet, Star, MessageSquare, LayoutDashboard, LogOut, ChevronDown, ClipboardCheck } from 'lucide-react'
+import { Menu, X, Wallet, Star, MessageSquare, LayoutDashboard, LogOut, ChevronDown, ClipboardCheck, UserCog } from 'lucide-react'
 import { BeeLogo } from '@/components/shared/bee-logo'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +37,11 @@ export function Navbar() {
   const [activeSection, setActiveSection] = useState<string | null>(null)
 
   const dashboardHref = dashboardPathForRole(user?.role)
+  const profileHref = user?.role === 'teacher'
+    ? '/dashboard/teacher/apply'
+    : user?.role === 'student'
+      ? '/dashboard/student/profile'
+      : dashboardHref
 
   // Real-time scrollspy: highlights the nav link for whichever section is
   // currently centered in the viewport, only relevant on the one-pager.
@@ -113,6 +118,7 @@ export function Navbar() {
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition-colors hover:bg-muted">
                 <Avatar className="h-7 w-7">
+                  {user.photoUrl && <AvatarImage src={user.photoUrl} alt="" />}
                   <AvatarFallback color={user.avatarColor} className="text-[11px]">
                     {user.initials}
                   </AvatarFallback>
@@ -130,7 +136,13 @@ export function Navbar() {
                   <MessageSquare className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   Wiadomości
                 </DropdownMenuItem>
-                {user.role !== 'admin' && (
+                {(user.role === 'student' || user.role === 'teacher') && (
+                  <DropdownMenuItem onClick={() => router.push(profileHref)}>
+                    <UserCog className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Edytuj profil
+                  </DropdownMenuItem>
+                )}
+                {(user.role === 'student' || user.role === 'teacher') && (
                   <DropdownMenuItem onClick={() => router.push('/reports')}>
                     <ClipboardCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     Raporty
@@ -203,6 +215,7 @@ export function Navbar() {
               <>
                 <div className="mt-2 flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5">
                   <Avatar className="h-7 w-7">
+                    {user.photoUrl && <AvatarImage src={user.photoUrl} alt="" />}
                     <AvatarFallback color={user.avatarColor} className="text-[11px]">
                       {user.initials}
                     </AvatarFallback>
@@ -218,6 +231,11 @@ export function Navbar() {
                 <Link href="/chat" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
                   <MessageSquare className="h-4 w-4" /> Wiadomości
                 </Link>
+                {user.role !== 'admin' && (
+                  <Link href={profileHref} onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                    <UserCog className="h-4 w-4" /> Edytuj profil
+                  </Link>
+                )}
                 {user.role !== 'admin' && (
                   <Link href="/reports" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
                     <ClipboardCheck className="h-4 w-4" /> Raporty

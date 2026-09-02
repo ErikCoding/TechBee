@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Star, UserCog, ExternalLink, BookOpen, Users, TrendingUp, Gauge, MessageCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/lib/auth-context'
 import { getTeacherDashboard, getTeacherLessons, respondToBookingRequest, respondToLessonChange } from '@/services/lessons.service'
 import { subscribeToConversations } from '@/services/chat.service'
@@ -128,6 +128,7 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
   const displayName = user?.role === 'teacher' ? user.name : data.name
   const initials = user?.role === 'teacher' ? user.initials : data.initials
   const avatarColor = user?.role === 'teacher' ? user.avatarColor : data.avatarColor
+  const photoUrl = data.photoUrl ?? user?.photoUrl
 
   return (
     <>
@@ -136,6 +137,7 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
         title={
           <span className="flex items-center gap-3">
             <Avatar className="h-9 w-9 shrink-0">
+              {photoUrl && <AvatarImage src={photoUrl} alt="" />}
               <AvatarFallback color={avatarColor} className="text-xs">{initials}</AvatarFallback>
             </Avatar>
             <span className="truncate">{displayName}</span>
@@ -206,24 +208,24 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
               onWriteReport={setReportModalFor}
             />
           </div>
-          <div className="order-5">
+          <div className="order-6">
             <TeacherSchedulePanel lessons={buckets.laterSchedule} />
           </div>
         </div>
 
         <div className="contents lg:flex lg:flex-col lg:gap-5">
           <div className="order-3">
+            <NotificationsPanel initialNotifications={initialNotifications} />
+          </div>
+          <div className="order-4">
             <DashboardMessagesPreview
               conversations={conversations}
               unread={unread}
               emptyDescription="Uczniowie napiszą do Ciebie po rezerwacji lekcji."
             />
           </div>
-          <div className="order-4">
+          <div className="order-5">
             <TeacherEarningsPanel data={data} />
-          </div>
-          <div className="order-6">
-            <NotificationsPanel initialNotifications={initialNotifications} />
           </div>
           <div className="order-7">
             <Panel icon={Gauge} title="Wyniki">

@@ -113,12 +113,13 @@ async function getAdminUsersFirebase(): Promise<AdminUserRow[]> {
   const snap = await getDocs(collection(db, collections.users))
   return snap.docs
     .map((d) => {
-      const data = d.data() as { name?: string; email?: string; role?: AdminUserRow['role']; initials?: string; avatarColor?: string; createdAt?: number }
+      const data = d.data() as { name?: string; email?: string; role?: AdminUserRow['role']; initials?: string; avatarColor?: string; photoUrl?: string; createdAt?: number }
       return {
         id: d.id,
         name: data.name ?? 'Bez nazwy',
         initials: data.initials ?? '??',
         avatarColor: data.avatarColor ?? '#94A3B8',
+        ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
         email: data.email ?? '—',
         role: data.role ?? 'student',
         // There's no suspension flow yet, so every real account reads as

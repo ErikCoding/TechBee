@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { Search, UserCog } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { getStudentLessons, getStudentStats } from '@/services/lessons.service'
@@ -144,12 +144,20 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
               : 'Zacznij od znalezienia nauczyciela'
         }
         action={
-          <Link href="/marketplace">
-            <Button className="w-full font-semibold transition-transform hover:-translate-y-0.5 sm:w-auto">
-              <Search className="h-4 w-4" aria-hidden="true" />
-              Zarezerwuj lekcję
-            </Button>
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link href="/dashboard/student/profile">
+              <Button variant="outline" className="w-full font-semibold sm:w-auto">
+                <UserCog className="h-4 w-4" aria-hidden="true" />
+                Edytuj profil
+              </Button>
+            </Link>
+            <Link href="/marketplace">
+              <Button className="w-full font-semibold transition-transform hover:-translate-y-0.5 sm:w-auto">
+                <Search className="h-4 w-4" aria-hidden="true" />
+                Zarezerwuj lekcję
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -186,7 +194,7 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
               onReview={setReviewModalFor}
             />
           </div>
-          <div className="order-4">
+          <div className="order-5">
             <StudentLessonsPanel
               upcoming={buckets.laterUpcoming}
               pending={buckets.pending}
@@ -200,14 +208,14 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
 
         <div className="contents lg:flex lg:flex-col lg:gap-5">
           <div className="order-3">
+            <NotificationsPanel initialNotifications={initialNotifications} />
+          </div>
+          <div className="order-4">
             <DashboardMessagesPreview
               conversations={conversations}
               unread={unread}
               emptyDescription="Napisz do nauczyciela z jego profilu, aby zacząć."
             />
-          </div>
-          <div className="order-5">
-            <NotificationsPanel initialNotifications={initialNotifications} />
           </div>
           <div className="order-6">
             <StudentStatsCards stats={stats} />

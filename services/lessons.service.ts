@@ -465,6 +465,7 @@ export async function getTeacherDashboard(teacherName?: string, userId?: string)
     name: application?.name ?? teacherDashboardDataMock.name,
     initials: application?.initials ?? teacherDashboardDataMock.initials,
     avatarColor: application?.avatarColor ?? teacherDashboardDataMock.avatarColor,
+    ...(application?.photoUrl ? { photoUrl: application.photoUrl } : {}),
     specialty: application?.specialty ?? teacherDashboardDataMock.specialty,
     rating: application?.rating ?? 0,
     reviewCount: application?.reviewCount ?? 0,

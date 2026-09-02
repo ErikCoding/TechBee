@@ -2,7 +2,7 @@
 
 import { Search, MessageSquareOff, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { cn, formatChatTime, roleLabelPl } from '@/lib/utils'
@@ -108,6 +108,7 @@ export function ChatConversationList({
                     )}
                   >
                     <Avatar className="h-10 w-10 shrink-0">
+                      {c.participant.photoUrl && <AvatarImage src={c.participant.photoUrl} alt="" />}
                       <AvatarFallback color={c.participant.avatarColor} className="text-xs">
                         {c.participant.initials}
                       </AvatarFallback>

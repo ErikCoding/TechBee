@@ -118,7 +118,7 @@ export async function HeroSection() {
         </div>
 
         <div
-          className="animate-fade-in-up w-full max-w-sm rounded-2xl border border-border bg-card/70 p-4 shadow-[0_24px_80px_-50px_rgba(0,0,0,0.95)] backdrop-blur sm:w-64 sm:shrink-0 sm:self-center md:w-72 lg:w-96"
+          className="hidden animate-fade-in-up w-full max-w-sm rounded-2xl border border-border bg-card/70 p-4 shadow-[0_24px_80px_-50px_rgba(0,0,0,0.95)] backdrop-blur sm:block sm:w-64 sm:shrink-0 sm:self-center md:w-72 lg:w-96"
           style={{ animationDelay: '260ms' }}
           aria-label="Podsumowanie platformy"
         >

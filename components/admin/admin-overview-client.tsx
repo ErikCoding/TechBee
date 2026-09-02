@@ -6,7 +6,6 @@ import { Users, Wallet, Activity, UserPlus, TrendingUp, TrendingDown, Graduation
 import { useAuth } from '@/lib/auth-context'
 import { getAdminStats } from '@/services/admin.service'
 import { AdminPendingSummary } from '@/components/admin/admin-pending-summary'
-import { cn } from '@/lib/utils'
 import type { AdminStats } from '@/lib/types'
 
 interface Props {
@@ -23,6 +22,8 @@ interface Props {
 export function AdminOverviewClient({ initialStats }: Props) {
   const { user } = useAuth()
   const [stats, setStats] = useState(initialStats)
+  const [activeSeries, setActiveSeries] = useState<string[]>(['gross', 'commission'])
+  const [hoveredMonth, setHoveredMonth] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user || user.role !== 'admin') return
@@ -35,7 +36,53 @@ export function AdminOverviewClient({ initialStats }: Props) {
     }
   }, [user])
 
-  const maxRevenue = Math.max(...stats.revenueChart.map((r) => r.amount))
+  const commissionRate = 0.15
+  const metricOptions = [
+    { id: 'gross', label: 'Obrót', color: '#F4B400', value: (amount: number) => amount },
+    { id: 'commission', label: 'Prowizja Runbee', color: '#10B981', value: (amount: number) => Math.round(amount * commissionRate) },
+    { id: 'teacher', label: 'Wypłaty nauczycieli', color: '#3B82F6', value: (amount: number) => Math.round(amount * (1 - commissionRate)) },
+  ]
+  const selectedMetrics = metricOptions.filter((metric) => activeSeries.includes(metric.id))
+  const revenueRows = stats.revenueChart.map((entry) => ({
+    month: entry.month,
+    gross: entry.amount,
+    commission: Math.round(entry.amount * commissionRate),
+    teacher: Math.round(entry.amount * (1 - commissionRate)),
+  }))
+  const revenueValues = revenueRows.flatMap((row) => selectedMetrics.map((metric) => row[metric.id as keyof typeof row] as number))
+  const maxRevenue = Math.max(...revenueValues, 1)
+  const minRevenue = Math.min(...revenueValues, 0)
+  const chartWidth = 760
+  const chartHeight = 300
+  const padX = 54
+  const padTop = 24
+  const padBottom = 44
+  const plotWidth = chartWidth - padX * 2
+  const plotHeight = chartHeight - padTop - padBottom
+  const valueSpan = Math.max(maxRevenue - minRevenue, 1)
+  const xForIndex = (index: number) => padX + (revenueRows.length === 1 ? plotWidth / 2 : (index / (revenueRows.length - 1)) * plotWidth)
+  const yForValue = (value: number) => padTop + ((maxRevenue - value) / valueSpan) * plotHeight
+  const chartSeries = selectedMetrics.map((metric) => {
+    const points = revenueRows.map((row, index) => {
+      const value = row[metric.id as keyof typeof row] as number
+      return { month: row.month, value, x: xForIndex(index), y: yForValue(value) }
+    })
+    return {
+      ...metric,
+      points,
+      path: points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' '),
+    }
+  })
+  const hoveredRow = revenueRows.find((row) => row.month === hoveredMonth) ?? revenueRows[revenueRows.length - 1]
+  const latestRevenue = hoveredRow?.gross ?? 0
+
+  function toggleSeries(id: string) {
+    setActiveSeries((prev) => {
+      if (prev.includes(id)) return prev.length === 1 ? prev : prev.filter((item) => item !== id)
+      return [...prev, id]
+    })
+  }
+
   const maxRole = Math.max(...stats.usersByRole.map((r) => r.count), 1)
 
   const cards = [
@@ -91,29 +138,162 @@ export function AdminOverviewClient({ initialStats }: Props) {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Revenue chart */}
         <section className="overflow-hidden rounded-2xl border border-border lg:col-span-2">
-          <div className="bg-muted/40 px-6 py-3.5">
-            <h2 className="text-sm font-semibold text-foreground">Przychód platformy</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">Dane demonstracyjne — bez połączenia z prawdziwymi płatnościami</p>
+          <div className="flex flex-col gap-3 bg-muted/40 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Finanse platformy</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">Ostatnie 6 miesięcy · obrót, prowizja i wypłaty</p>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-bold tabular-nums text-foreground">
+                {latestRevenue.toLocaleString('pl-PL')} zł
+              </span>
+              <span className={stats.revenueChange >= 0 ? 'text-xs font-semibold text-success' : 'text-xs font-semibold text-destructive'}>
+                {stats.revenueChange > 0 ? '+' : ''}{stats.revenueChange}%
+              </span>
+            </div>
           </div>
-          <div className="flex items-end gap-3 bg-card p-6" role="img" aria-label="Wykres słupkowy przychodu platformy">
-            {stats.revenueChart.map((entry) => {
-              const heightPct = (entry.amount / maxRevenue) * 100
-              return (
-                <div key={entry.month} className="flex flex-1 flex-col items-center gap-2">
-                  <span className="text-[10px] font-semibold text-muted-foreground">{(entry.amount / 1000).toFixed(0)}k zł</span>
-                  <div className="relative w-full rounded-t-lg bg-muted" style={{ height: '120px' }}>
-                    <div
-                      className={cn(
-                        'absolute bottom-0 w-full rounded-t-lg transition-all duration-700 ease-out',
-                        entry.month === 'Lip' ? 'bg-primary' : 'bg-border',
-                      )}
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">{entry.month}</span>
+
+          <div className="bg-card px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap gap-2" aria-label="Metryki widoczne na wykresie">
+              {metricOptions.map((metric) => {
+                const active = activeSeries.includes(metric.id)
+                return (
+                  <button
+                    key={metric.id}
+                    type="button"
+                    onClick={() => toggleSeries(metric.id)}
+                    aria-pressed={active}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      active ? 'border-primary bg-accent text-accent-foreground' : 'border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: metric.color }} aria-hidden="true" />
+                    {metric.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-border bg-background/40 p-3">
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">{hoveredRow?.month ?? 'Ostatni miesiąc'}</p>
+                  <p className="text-[11px] text-muted-foreground">Najedź na punkt lub miesiąc, aby zobaczyć szczegóły.</p>
                 </div>
-              )
-            })}
+                {hoveredRow && (
+                  <div className="grid grid-cols-3 gap-2 text-right text-[11px]">
+                    <div>
+                      <p className="text-muted-foreground">Obrót</p>
+                      <p className="font-semibold tabular-nums text-foreground">{hoveredRow.gross.toLocaleString('pl-PL')} zł</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Prowizja</p>
+                      <p className="font-semibold tabular-nums text-foreground">{hoveredRow.commission.toLocaleString('pl-PL')} zł</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Wypłaty</p>
+                      <p className="font-semibold tabular-nums text-foreground">{hoveredRow.teacher.toLocaleString('pl-PL')} zł</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <svg
+                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                className="h-auto w-full overflow-visible"
+                role="img"
+                aria-label="Interaktywny wykres liniowy finansów platformy za ostatnie 6 miesięcy"
+              >
+              <defs>
+                <filter id="chart-shadow" x="-10%" y="-20%" width="120%" height="150%">
+                  <feDropShadow dx="0" dy="6" stdDeviation="6" floodOpacity="0.12" />
+                </filter>
+              </defs>
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                const y = padTop + ratio * plotHeight
+                const value = maxRevenue - ratio * valueSpan
+                return (
+                  <g key={ratio}>
+                    <line x1={padX} x2={chartWidth - padX} y1={y} y2={y} stroke="var(--border)" strokeDasharray="4 6" />
+                    <text x={padX - 12} y={y + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">
+                      {(value / 1000).toFixed(0)}k
+                    </text>
+                  </g>
+                )
+              })}
+
+              {revenueRows.map((row, index) => {
+                const x = xForIndex(index)
+                const hovered = hoveredRow?.month === row.month
+                return (
+                  <g
+                    key={row.month}
+                    onMouseEnter={() => setHoveredMonth(row.month)}
+                    onFocus={() => setHoveredMonth(row.month)}
+                    tabIndex={0}
+                  >
+                    <rect
+                      x={x - plotWidth / Math.max(revenueRows.length - 1, 1) / 2}
+                      y={0}
+                      width={plotWidth / Math.max(revenueRows.length - 1, 1)}
+                      height={chartHeight}
+                      fill="transparent"
+                    />
+                    <line
+                      x1={x}
+                      x2={x}
+                      y1={padTop}
+                      y2={chartHeight - padBottom}
+                      stroke={hovered ? 'var(--muted-foreground)' : 'transparent'}
+                      strokeDasharray="4 6"
+                    />
+                    <line x1={x} x2={x} y1={chartHeight - padBottom} y2={chartHeight - padBottom + 5} stroke="var(--border)" />
+                    <text x={x} y={chartHeight - 14} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+                      {row.month}
+                    </text>
+                  </g>
+                )
+              })}
+
+              {chartSeries.map((series) => (
+                <g key={series.id} filter="url(#chart-shadow)">
+                  <path
+                    d={series.path}
+                    fill="none"
+                    stroke={series.color}
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              ))}
+
+              {chartSeries.map((series) => (
+                <g key={`${series.id}-points`}>
+                  {series.points.map((point) => {
+                    const hovered = hoveredRow?.month === point.month
+                    return (
+                      <circle
+                        key={`${series.id}-${point.month}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r={hovered ? 6 : 4.5}
+                        fill="var(--card)"
+                        stroke={series.color}
+                        strokeWidth="3"
+                        onMouseEnter={() => setHoveredMonth(point.month)}
+                        onFocus={() => setHoveredMonth(point.month)}
+                        tabIndex={0}
+                      >
+                        <title>{`${series.label}: ${point.value.toLocaleString('pl-PL')} zł (${point.month})`}</title>
+                      </circle>
+                    )
+                  })}
+                </g>
+              ))}
+
+              </svg>
+            </div>
           </div>
         </section>
 

@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
+import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import { notificationsData } from '@/data/notifications.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { formatChatTime } from '@/lib/utils'
@@ -22,6 +22,31 @@ export interface CreateNotificationInput {
   type: NotificationType
   title: string
   description: string
+}
+
+const NOTIFICATIONS_DELETED_KEY = 'techbee.notifications.deleted'
+const NOTIFICATIONS_READ_KEY = 'techbee.notifications.read'
+
+function isBrowser() {
+  return typeof window !== 'undefined'
+}
+
+function localKey(base: string, userId?: string) {
+  return userId ? `${base}.${userId}` : base
+}
+
+function readIdSet(key: string): Set<string> {
+  if (!isBrowser()) return new Set()
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(key) ?? '[]') as string[])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeIdSet(key: string, set: Set<string>) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(key, JSON.stringify([...set]))
 }
 
 async function createNotificationFirebase(input: CreateNotificationInput): Promise<void> {
@@ -53,6 +78,19 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
   // was exactly the "zapychacze" (filler) the notifications panel used to
   // flash on every load.
   if (!db || !userId) return []
+  const deleted = readIdSet(localKey(NOTIFICATIONS_DELETED_KEY, userId))
+  const read = readIdSet(localKey(NOTIFICATIONS_READ_KEY, userId))
+  try {
+    const userSnap = await getDoc(doc(db, collections.users, userId))
+    const dismissed = userSnap.data()?.dismissedNotificationIds
+    if (Array.isArray(dismissed)) {
+      dismissed.forEach((id) => {
+        if (typeof id === 'string') deleted.add(id)
+      })
+    }
+  } catch {
+    // Local fallback still hides notifications in this browser.
+  }
   // No `orderBy` here on purpose, same reason as walletTransactions below —
   // `where(userId) + orderBy(createdAt)` needs a composite index Firestore
   // doesn't create automatically, which made every notification read throw
@@ -60,6 +98,7 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
   // the small per-user result set in JS avoids that entirely.
   const snap = await getDocs(query(collection(db, collections.notifications), where('userId', '==', userId)))
   return snap.docs
+    .filter((d) => !deleted.has(d.id))
     .map((d) => {
       const data = d.data() as { type: NotificationType; title: string; description: string; read: boolean; createdAt: number }
       return {
@@ -68,7 +107,7 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
         title: data.title,
         description: data.description,
         date: formatChatTime(data.createdAt),
-        read: data.read,
+        read: data.read || read.has(d.id),
         _createdAt: data.createdAt,
       }
     })
@@ -77,7 +116,12 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
 }
 
 export async function getNotifications(userId?: string): Promise<Notification[]> {
-  return isFirebaseConfigured ? getNotificationsFirebase(userId) : (userId ? [] : notificationsData)
+  if (isFirebaseConfigured) return getNotificationsFirebase(userId)
+  const deleted = readIdSet(localKey(NOTIFICATIONS_DELETED_KEY, userId))
+  const read = readIdSet(localKey(NOTIFICATIONS_READ_KEY, userId))
+  return notificationsData
+    .filter((n) => !deleted.has(n.id))
+    .map((n) => ({ ...n, read: n.read || read.has(n.id) }))
 }
 
 export async function getUnreadNotificationsCount(userId?: string): Promise<number> {
@@ -85,8 +129,14 @@ export async function getUnreadNotificationsCount(userId?: string): Promise<numb
   return list.filter((n) => !n.read).length
 }
 
-export async function markNotificationRead(id: string): Promise<void> {
-  if (!isFirebaseConfigured || !db) return
+export async function markNotificationRead(id: string, userId?: string): Promise<void> {
+  const read = readIdSet(localKey(NOTIFICATIONS_READ_KEY, userId))
+  read.add(id)
+  writeIdSet(localKey(NOTIFICATIONS_READ_KEY, userId), read)
+
+  if (!isFirebaseConfigured || !db) {
+    return
+  }
   try {
     await updateDoc(doc(db, collections.notifications, id), { read: true })
   } catch {
@@ -94,8 +144,30 @@ export async function markNotificationRead(id: string): Promise<void> {
   }
 }
 
-/** Permanently removes one notification (see components/dashboard/notifications-panel.tsx's delete button) — a hard delete, same as every other user-owned doc in this app (conversations, lessons, ...) rather than a soft "dismissed" flag, since nothing else in the app needs to distinguish "deleted" from "never existed" for a notification. */
-export async function deleteNotification(id: string): Promise<void> {
-  if (!isFirebaseConfigured || !db) return
-  await deleteDoc(doc(db, collections.notifications, id))
+/**
+ * Hides one notification immediately for the current browser, then tries to
+ * delete the backing Firestore document. This keeps the UI reliable even when
+ * a Firebase project still has old/unpublished rules.
+ */
+export async function deleteNotification(id: string, userId?: string): Promise<void> {
+  const deleted = readIdSet(localKey(NOTIFICATIONS_DELETED_KEY, userId))
+  deleted.add(id)
+  writeIdSet(localKey(NOTIFICATIONS_DELETED_KEY, userId), deleted)
+
+  if (!isFirebaseConfigured || !db) {
+    return
+  }
+  if (userId) {
+    try {
+      await updateDoc(doc(db, collections.users, userId), { dismissedNotificationIds: arrayUnion(id) })
+    } catch {
+      // Local dismissal above is enough for this browser.
+    }
+  }
+  try {
+    await deleteDoc(doc(db, collections.notifications, id))
+  } catch {
+    // Local dismissal above is the fallback. Firestore can fail here if the
+    // deployed rules still do not allow notification owner deletes.
+  }
 }

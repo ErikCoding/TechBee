@@ -13,13 +13,14 @@ interface BookLessonActionsProps {
   teacherName: string
   teacherInitials: string
   teacherAvatarColor: string
+  teacherPhotoUrl?: string
   specialty: string
   /** Set when a parent arrived via the marketplace booking-for-a-student flow — carried through to the booking page. */
   bookingFor?: { id: string; name: string }
 }
 
 /** Booking/messaging require an account — browsing a teacher's profile does not. */
-export function BookLessonActions({ teacherId, teacherName, teacherInitials, teacherAvatarColor, specialty, bookingFor }: BookLessonActionsProps) {
+export function BookLessonActions({ teacherId, teacherName, teacherInitials, teacherAvatarColor, teacherPhotoUrl, specialty, bookingFor }: BookLessonActionsProps) {
   const { status, user } = useAuth()
   const router = useRouter()
   const [messaging, setMessaging] = useState(false)
@@ -42,7 +43,7 @@ export function BookLessonActions({ teacherId, teacherName, teacherInitials, tea
     setMessaging(true)
     try {
       const me = toParticipant(user)
-      const teacher = toParticipant({ id: teacherId, name: teacherName, initials: teacherInitials, avatarColor: teacherAvatarColor, role: 'teacher', specialty })
+      const teacher = toParticipant({ id: teacherId, name: teacherName, initials: teacherInitials, avatarColor: teacherAvatarColor, photoUrl: teacherPhotoUrl, role: 'teacher', specialty })
       const conversationId = await getOrCreateConversation(me, teacher)
       router.push(`/chat?with=${conversationId}`)
     } finally {

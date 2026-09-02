@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { ArrowLeft, CalendarDays, Video, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { roleLabelPl } from '@/lib/utils'
 import type { ChatParticipant, Lesson } from '@/lib/types'
 
@@ -40,6 +40,7 @@ export function ChatThreadHeader({ participant, nextLesson, onBack }: Props) {
         </button>
 
         <Avatar className="h-9 w-9 shrink-0">
+          {participant.photoUrl && <AvatarImage src={participant.photoUrl} alt="" />}
           <AvatarFallback color={participant.avatarColor} className="text-xs">
             {participant.initials}
           </AvatarFallback>

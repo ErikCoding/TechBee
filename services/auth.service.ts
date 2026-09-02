@@ -3,9 +3,9 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
-  updateProfile,
+  updateProfile as updateFirebaseProfile,
 } from 'firebase/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import type { AuthUser, PublicUserRole, UserRole } from '@/lib/types'
 
@@ -51,6 +51,11 @@ export interface RegisterInput {
 export interface LoginInput {
   email: string
   password: string
+}
+
+export interface UpdateProfileInput {
+  name: string
+  photoUrl?: string
 }
 
 /**
@@ -176,6 +181,28 @@ function getStoredSessionMock(): AuthUser | null {
   return user ? toPublicUser(user) : null
 }
 
+async function updateUserProfileMock(input: UpdateProfileInput): Promise<AuthUser> {
+  const current = getStoredSessionMock()
+  if (!current) throw new Error('Musisz być zalogowany, aby edytować profil.')
+  const users = readUsers()
+  const name = input.name.trim()
+  const nextUsers = users.map((u) => (
+    u.id === current.id
+      ? {
+          ...u,
+          name,
+          firstName: name.split(/\s+/)[0] ?? name,
+          initials: initialsFor(name),
+          ...(input.photoUrl ? { photoUrl: input.photoUrl.trim() } : { photoUrl: undefined }),
+        }
+      : u
+  ))
+  writeUsers(nextUsers)
+  const updated = nextUsers.find((u) => u.id === current.id)
+  if (!updated) throw new Error('Nie znaleziono profilu użytkownika.')
+  return toPublicUser(updated)
+}
+
 // ── Firebase implementation ──────────────────────────────────
 
 async function fetchFirebaseProfile(uid: string): Promise<AuthUser | null> {
@@ -204,7 +231,7 @@ async function registerFirebase(input: RegisterInput): Promise<AuthUser> {
     // so the admin panel can show real "joined" dates and weekly-signup
     // counts instead of static demo numbers.
     setDoc(doc(db, collections.users, credential.user.uid), { ...profile, createdAt: Date.now() }),
-    updateProfile(credential.user, { displayName: profile.name }),
+    updateFirebaseProfile(credential.user, { displayName: profile.name }),
   ])
   return { id: credential.user.uid, ...profile }
 }
@@ -215,6 +242,27 @@ async function loginFirebase(input: LoginInput): Promise<AuthUser> {
   const profile = await fetchFirebaseProfile(credential.user.uid)
   if (!profile) throw new Error('Nie znaleziono profilu użytkownika.')
   return profile
+}
+
+async function updateUserProfileFirebase(input: UpdateProfileInput): Promise<AuthUser> {
+  if (!auth?.currentUser || !db) throw new Error('Musisz być zalogowany, aby edytować profil.')
+  const name = input.name.trim()
+  const patch = {
+    name,
+    firstName: name.split(/\s+/)[0] ?? name,
+    initials: initialsFor(name),
+    ...(input.photoUrl ? { photoUrl: input.photoUrl.trim() } : { photoUrl: '' }),
+  }
+  await Promise.all([
+    updateDoc(doc(db, collections.users, auth.currentUser.uid), patch),
+    updateFirebaseProfile(auth.currentUser, {
+      displayName: patch.name,
+      photoURL: patch.photoUrl && patch.photoUrl.length <= 1024 ? patch.photoUrl : null,
+    }),
+  ])
+  const fresh = await fetchFirebaseProfile(auth.currentUser.uid)
+  if (!fresh) throw new Error('Nie znaleziono profilu użytkownika.')
+  return fresh
 }
 
 // ── Public API ────────────────────────────────────────────────
@@ -233,6 +281,10 @@ export async function logoutUser(): Promise<void> {
     return
   }
   if (isBrowser()) window.localStorage.removeItem(SESSION_KEY)
+}
+
+export async function updateUserProfile(input: UpdateProfileInput): Promise<AuthUser> {
+  return isFirebaseConfigured ? updateUserProfileFirebase(input) : updateUserProfileMock(input)
 }
 
 /** Looks up any user's public profile by id — used by services/family-link.service.ts to show a linked parent/student's name+avatar without duplicating the auth storage logic here. */

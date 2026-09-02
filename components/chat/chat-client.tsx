@@ -175,7 +175,7 @@ export function ChatClient() {
       thread grows the container instead of scrolling inside it, which is
       what used to push the composer off-screen.
     */
-    <div className="grid h-[calc(100dvh-4rem)] min-h-0 grid-cols-1 overflow-hidden rounded-none border-border bg-card md:h-[calc(100vh-13rem)] md:min-h-[540px] md:grid-cols-[300px_1fr] md:rounded-2xl md:border lg:grid-cols-[340px_1fr]">
+    <div className="grid h-[calc(100dvh-3.5rem)] min-h-0 grid-cols-1 overflow-hidden rounded-none border-border bg-card md:h-[calc(100vh-13rem)] md:min-h-[540px] md:grid-cols-[300px_1fr] md:rounded-2xl md:border lg:grid-cols-[340px_1fr]">
       {/* ── Conversation rail ── */}
       <div
         className={cn(

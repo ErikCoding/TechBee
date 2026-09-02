@@ -7,7 +7,7 @@ import {
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { StarRating } from '@/components/shared/star-rating'
 import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
@@ -49,6 +49,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
 
             <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
               <Avatar className="h-24 w-24 shrink-0 rounded-2xl text-2xl">
+                {teacher.photoUrl && <AvatarImage src={teacher.photoUrl} alt="" />}
                 <AvatarFallback color={teacher.avatarColor} className="rounded-2xl text-2xl">
                   {teacher.initials}
                 </AvatarFallback>
@@ -218,6 +219,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                     teacherName={teacher.name}
                     teacherInitials={teacher.initials}
                     teacherAvatarColor={teacher.avatarColor}
+                    teacherPhotoUrl={teacher.photoUrl}
                     specialty={teacher.specialty}
                     bookingFor={bookingFor}
                   />

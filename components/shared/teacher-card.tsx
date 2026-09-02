@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Star, MapPin, BadgeCheck, CalendarDays } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { Teacher } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -45,7 +45,7 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
     <Link
       href={profileHref}
       className={cn(
-        'group relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors',
+        'group relative flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         featured ? 'border-primary/40 hover:border-primary/60' : 'border-border hover:border-primary/40',
         className,
@@ -54,6 +54,7 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
       {/* Identity + the two comparison values */}
       <div className="flex items-start gap-3">
         <Avatar className="h-11 w-11 shrink-0">
+          {teacher.photoUrl && <AvatarImage src={teacher.photoUrl} alt="" />}
           <AvatarFallback color={teacher.avatarColor}>{teacher.initials}</AvatarFallback>
         </Avatar>
 
@@ -78,10 +79,22 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
           </div>
         </div>
 
-        <div className="shrink-0 text-right">
+        <div className="hidden shrink-0 text-right min-[380px]:block">
           <p className="whitespace-nowrap text-base font-bold leading-none text-foreground">{teacher.hourlyRate} zł</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">za godzinę</p>
         </div>
+      </div>
+
+      <div className="flex items-end justify-between gap-3 min-[380px]:hidden">
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground">Stawka</p>
+          <p className="text-base font-bold leading-none text-foreground">{teacher.hourlyRate} zł/godz.</p>
+        </div>
+        {teacher.verified && (
+          <span className="rounded-full bg-accent px-2 py-1 text-[10px] font-semibold text-accent-foreground">
+            Zweryfikowany
+          </span>
+        )}
       </div>
 
       <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{teacher.shortBio}</p>
@@ -97,7 +110,7 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
           <CalendarDays className="h-3 w-3 shrink-0" aria-hidden="true" />
           <span className="truncate">{availableDays.join(', ')}</span>
         </span>
-        <span className="shrink-0 text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">
+        <span className="shrink-0 text-right text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">
           {teacher.experience} lat doświadczenia →
         </span>
       </div>

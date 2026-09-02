@@ -143,14 +143,19 @@ function writeApplicationsMock(list: Teacher[]) {
 
 function buildTeacherFromApplication(
   input: TeacherApplicationInput,
-  authUser: { id: string; name: string; initials: string; avatarColor: string },
+  authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
   existing?: Teacher,
 ): Teacher {
+  const photoUrl = 'photoUrl' in input
+    ? input.photoUrl?.trim()
+    : authUser.photoUrl ?? existing?.photoUrl
+
   return {
     id: authUser.id,
     name: authUser.name,
     initials: authUser.initials,
     avatarColor: authUser.avatarColor,
+    ...(photoUrl ? { photoUrl } : {}),
     specialty: input.specialty,
     categoryId: input.categoryId,
     rating: existing?.rating ?? 0,
@@ -185,7 +190,7 @@ async function allTeachersMock(): Promise<Teacher[]> {
   return [...teachersData, ...readApplicationsMock()].filter(isTeacherApproved).map(applyReviewOverridesMock)
 }
 
-function submitApplicationMock(authUser: { id: string; name: string; initials: string; avatarColor: string }, input: TeacherApplicationInput): Teacher {
+function submitApplicationMock(authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string }, input: TeacherApplicationInput): Teacher {
   const list = readApplicationsMock()
   const existing = list.find((t) => t.authUserId === authUser.id)
   const teacher = buildTeacherFromApplication(input, authUser, existing)
@@ -273,7 +278,7 @@ async function allTeachersFirebase(): Promise<Teacher[]> {
 }
 
 async function submitApplicationFirebase(
-  authUser: { id: string; name: string; initials: string; avatarColor: string },
+  authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
   input: TeacherApplicationInput,
 ): Promise<Teacher> {
   if (!db) throw new Error('Firebase nie jest skonfigurowane.')
@@ -416,7 +421,7 @@ export async function getTeacherApplication(authUserId: string): Promise<Teacher
 
 /** Creates or re-submits a teacher's application. Always resets status to 'pending' for admin review. */
 export async function submitTeacherApplication(
-  authUser: { id: string; name: string; initials: string; avatarColor: string },
+  authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
   input: TeacherApplicationInput,
 ): Promise<Teacher> {
   return isFirebaseConfigured ? submitApplicationFirebase(authUser, input) : submitApplicationMock(authUser, input)
