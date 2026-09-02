@@ -41,7 +41,7 @@ export function ChatNavBadge({ className }: Props) {
     >
       <MessageSquare className="h-4 w-4" aria-hidden="true" />
       {unread > 0 && (
-        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F4B400] px-1 text-[10px] font-bold text-[#0A0A0A]">
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {unread > 9 ? '9+' : unread}
         </span>
       )}

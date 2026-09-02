@@ -104,9 +104,42 @@ service cloud.firestore {
       // nothing else (see submitLessonReview in lessons.service.ts). This is
       // a simulation-phase compromise (no trusted backend to broker it
       // instead), same as the wallet-write rule below.
-      allow update: if (isOwner(teacherId) && request.resource.data.status == 'pending')
-        || isAdmin()
-        || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviews', 'rating', 'reviewCount']));
+      // `stripe` (Connect account id / onboarding+payouts status, see
+      // TeacherStripeAccount in lib/types.ts) is never client-writable,
+      // full stop — only the trusted server (app/api/stripe/connect/*,
+      // the account.updated webhook) writes it, via the admin SDK,
+      // which bypasses these rules entirely. This blocks any client
+      // (including an admin's own browser) from smuggling a fake
+      // `chargesEnabled: true` etc. into an otherwise-legitimate edit.
+      // A review write may only touch the three review fields, and must
+      // leave the aggregate consistent with the array it ships alongside:
+      // `reviewCount` has to equal the number of reviews, the average has
+      // to stay in range, and the array can grow by at most one entry per
+      // write. That last clause is what stops a client from smuggling a
+      // pile of fabricated reviews into a single update — the intended
+      // write either edits an existing entry in place (same size) or adds
+      // exactly one (size + 1).
+      //
+      // Uniqueness per (student, teacher) is enforced by the deterministic
+      // review id plus the transactional upsert in
+      // services/teachers.service.ts, since rules cannot index into an
+      // array to prove no two entries share an authorId. Making that
+      // guarantee rule-level would require moving reviews into their own
+      // subcollection keyed by author — noted as future work rather than
+      // done here, because it is a schema migration, not a rules tweak.
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['stripe'])
+        && ((isOwner(teacherId) && request.resource.data.status == 'pending')
+          || isAdmin()
+          || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviews', 'rating', 'reviewCount'])
+            // `reviewCount` counts distinct reviewers, so it can legitimately
+            // be lower than the array length while legacy duplicate rows
+            // (written before the one-review-per-pair rule) are still present
+            // — hence <=, not ==. It may never exceed it.
+            && request.resource.data.reviewCount <= request.resource.data.reviews.size()
+            && request.resource.data.reviews.size() <= resource.data.reviews.size() + 1
+            && request.resource.data.rating >= 0
+            && request.resource.data.rating <= 5));
 
       allow delete: if isAdmin();
     }
@@ -150,17 +183,31 @@ service cloud.firestore {
         isAdmin() ||
         isLinkedParentOf(resource.data.studentId)
       );
-      allow create: if isSignedIn() && (
-        request.resource.data.studentId == request.auth.uid ||
-        request.resource.data.payerId == request.auth.uid
-      );
+      // No client `create` rule — a lesson doc only ever comes into
+      // existence once the Stripe webhook confirms a real successful
+      // payment (see app/api/stripe/webhook/route.ts), written via the
+      // trusted admin SDK, which bypasses these rules entirely. This
+      // used to allow the student/payer to create a booking directly;
+      // now that booking creation IS payment confirmation, letting the
+      // client do it would mean anyone could write themselves a "paid"
+      // lesson for free.
+      allow create: if false;
+      // Payment-integrity fields (see the "Stripe payment" block on
+      // Lesson in lib/types.ts) are never client-writable — only the
+      // trusted server (the webhook, the payout/transfer/refund
+      // endpoints) sets them, via the admin SDK. Everything else on a
+      // lesson (status, pendingChange, report, dispute, ...) keeps the
+      // existing client-write posture.
       allow update: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
         resource.data.payerId == request.auth.uid ||
         isTeacher() ||
         isAdmin() ||
         isLinkedParentOf(resource.data.studentId)
-      );
+      ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'paymentStatus', 'priceGrosze', 'platformFeeGrosze', 'teacherAmountGrosze',
+        'stripeCheckoutSessionId', 'stripePaymentIntentId', 'stripeTransferId', 'stripeRefundId'
+      ]);
       allow delete: if isAdmin();
     }
 
@@ -200,39 +247,39 @@ service cloud.firestore {
         allow create: if isSignedIn() &&
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds &&
           request.resource.data.senderId == request.auth.uid;
+        // Report-card messages (see services/chat.service.ts
+        // updateReportCardStatus) get their `reportCard.status` flipped
+        // live by whoever confirms/disputes it, by an admin resolving a
+        // dispute, or by anyone's browser lazily auto-confirming an
+        // overdue report — any conversation participant or admin, and
+        // only that one nested field.
+        allow update: if (isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCard'])) || isAdmin();
         allow delete: if isAdmin();
       }
     }
 
-    // ── Wallet, BeePoints, notifications ──
-    // Scoped to the owning user; balances should ultimately only be
-    // mutated by a trusted backend (Cloud Function) once real money
-    // is involved — this rule is a placeholder for the demo phase.
-    // Wallet top-up/withdrawal/lesson-payment-transfer is an intentional
-    // simulation (no real payment processor) — but a *working* one, so
-    // balances genuinely change. Booking a lesson moves the price from the
-    // student's wallet to the teacher's, which means a student's client
-    // needs to write to the teacher's wallet doc too — there's no trusted
-    // backend to broker that yet, so any signed-in user can write here.
-    // Tighten this (route writes through a Cloud Function) before this
-    // involves real money.
+    // ── Legacy BeeCoins wallet collections (unused) ──
+    // The old Firestore-simulated student/teacher wallet (top-up,
+    // withdraw, lesson-payment "transfer") was removed once real Stripe
+    // payments landed — students never had real money to begin with,
+    // and the teacher wallet now reads live from Stripe (see
+    // app/api/stripe/wallet/route.ts), never from a Firestore balance.
+    // Left deny-all (rather than deleted) purely so any leftover local
+    // data from before this migration stays readable by nobody but an
+    // admin doing cleanup, instead of silently reopening a write path
+    // nothing in the app uses anymore.
     match /wallets/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if isAdmin();
+      allow write: if false;
     }
     match /walletTransactions/{id} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
-      // Escrow holds (see holdLessonPayment in wallet.service.ts) get
-      // flipped from 'pending' to 'completed'/'failed' by whoever's
-      // browser happens to trigger the release/refund/auto-confirm — not
-      // necessarily the transaction's own owner (e.g. a teacher's dashboard
-      // load can lazily auto-confirm an overdue report and release a
-      // student's held payment). Same demo-phase "trust the client, no
-      // backend to broker it" compromise as the wallet doc rule above.
-      allow update: if isSignedIn();
-      allow delete: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false;
     }
+
+    // ── BeePoints, notifications ──
     match /beepoints/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow write: if isAdmin();
@@ -249,7 +296,30 @@ service cloud.firestore {
       // create one for the applicant, without needing a trusted backend.
       allow create: if isSignedIn();
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow delete: if isAdmin();
+      // The owner can delete their own notification (see the delete
+      // button in components/dashboard/notifications-panel.tsx) — no
+      // money/security implication either way, unlike most other
+      // owner-delete rules in this file, so this doesn't need to be
+      // admin-only like the reset-data button's bulk delete is.
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // ── Stripe payouts (see PayoutRecord in lib/types.ts) ──
+    // Written only by the trusted server (app/api/stripe/payout, the
+    // payout.paid/payout.failed webhook handlers), which bypasses these
+    // rules via the admin SDK — no client write path at all. A teacher
+    // can read their own payout history; admins can read everyone's.
+    match /payouts/{id} {
+      allow read: if isSignedIn() && (resource.data.teacherId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // ── Stripe webhook idempotency ledger ──
+    // One doc per processed Stripe event id (see
+    // app/api/stripe/webhook/route.ts) — purely an internal dedupe
+    // record, never read or written by any client.
+    match /stripeEvents/{id} {
+      allow read, write: if false;
     }
 
     // Deny everything else by default.

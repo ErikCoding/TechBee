@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import { notificationsData } from '@/data/notifications.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { formatChatTime } from '@/lib/utils'
@@ -92,4 +92,10 @@ export async function markNotificationRead(id: string): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+/** Permanently removes one notification (see components/dashboard/notifications-panel.tsx's delete button) — a hard delete, same as every other user-owned doc in this app (conversations, lessons, ...) rather than a soft "dismissed" flag, since nothing else in the app needs to distinguish "deleted" from "never existed" for a notification. */
+export async function deleteNotification(id: string): Promise<void> {
+  if (!isFirebaseConfigured || !db) return
+  await deleteDoc(doc(db, collections.notifications, id))
 }

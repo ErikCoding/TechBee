@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
+import { FormError } from '@/components/ui/form-error'
 import { useAuth } from '@/lib/auth-context'
 import { disputeLessonReport } from '@/services/lessons.service'
 import { cn } from '@/lib/utils'
@@ -53,57 +55,68 @@ export function LessonDisputeModal({ lesson, onClose, onSubmitted }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={() => !submitting && onClose()} aria-hidden="true" />
-      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl animate-fade-in-up">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">Zgłoś spór</h3>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-muted" aria-label="Zamknij">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          „{lesson.topic}" z {lesson.teacherName} · {lesson.date}. Support Techbee skontaktuje się z nauczycielem i rozstrzygnie sprawę w ciągu 3 dni roboczych.
-        </p>
+    <Dialog open onOpenChange={(open) => { if (!open && !submitting) onClose() }}>
+      <DialogContent showClose={!submitting}>
+        <DialogHeader>
+          <DialogTitle>Zgłoś spór</DialogTitle>
+        </DialogHeader>
 
-        <div className="mt-4 flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-foreground">Powód</span>
-          <div className="flex flex-col gap-1.5">
-            {reasonOptions.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setReason(opt.value)}
-                className={cn(
-                  'rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors',
-                  reason === opt.value ? 'border-[#F4B400] bg-[#FEF3C7] text-[#78350F] dark:bg-[#3B2800] dark:text-[#FBBF24]' : 'border-border text-foreground hover:bg-muted',
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
+        <DialogBody>
+          <div className="rounded-lg bg-muted/60 px-3 py-2">
+            <p className="text-xs font-medium text-foreground">„{lesson.topic}"</p>
+            <p className="text-[11px] text-muted-foreground">{lesson.teacherName} · {lesson.date}</p>
           </div>
-        </div>
 
-        <div className="mt-4 flex flex-col gap-1.5">
-          <label htmlFor="disputeNote" className="text-xs font-medium text-foreground">Opisz sytuację</label>
-          <textarea
-            id="disputeNote"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Co dokładnie się wydarzyło?"
-            rows={3}
-            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#F4B400]"
-          />
-        </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Zgłoszenie sporu wstrzymuje wypłatę dla nauczyciela — support Runbee sprawdzi zgłoszenie i rozstrzygnie je w ciągu 3 dni roboczych, uwalniając płatność nauczycielowi albo zwracając ją Tobie.
+          </p>
 
-        {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-foreground">Powód</span>
+            <div className="flex flex-col gap-1.5">
+              {reasonOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setReason(opt.value)}
+                  disabled={submitting}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-60',
+                    reason === opt.value ? 'border-primary bg-accent text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <Button onClick={handleSubmit} disabled={submitting} variant="destructive" className="mt-4 w-full">
-          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Zgłoś spór
-        </Button>
-      </div>
-    </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="disputeNote" className="text-xs font-medium text-foreground">Opisz sytuację</label>
+            <textarea
+              id="disputeNote"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Co dokładnie się wydarzyło?"
+              rows={3}
+              disabled={submitting}
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+            />
+          </div>
+
+          <FormError>{error}</FormError>
+        </DialogBody>
+
+        <DialogFooter>
+          <Button onClick={onClose} disabled={submitting} variant="outline" className="flex-1">
+            Anuluj
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting || !note.trim()} variant="destructive" className="flex-1">
+            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Zgłoś spór
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -2,11 +2,12 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import {
   Star, MapPin, Clock, BadgeCheck, Users, BookOpen,
-  CalendarDays, GraduationCap, ArrowLeft
+  CalendarDays, GraduationCap, ArrowLeft, Sparkles, MessageCircle,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { StarRating } from '@/components/shared/star-rating'
 import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
@@ -28,161 +29,180 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
   if (!teacher || !isTeacherApproved(teacher)) notFound()
   const bookingFor = bookingForId && bookingForName ? { id: bookingForId, name: bookingForName } : undefined
 
+  const dayLabels = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz']
+  const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
   return (
     <>
       <Navbar />
       <main id="main-content" className="bg-background">
-        <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
-          {/* Back */}
-          <Link
-            href="/marketplace"
-            className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Powrót do giełdy nauczycieli
-          </Link>
+        {/* Profile hero band */}
+        <div className="border-b border-border bg-card">
+          <div className="mx-auto max-w-7xl px-4 pb-8 pt-6 md:px-8">
+            <Link
+              href="/marketplace"
+              className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Powrót do giełdy nauczycieli
+            </Link>
 
-          <div className="grid gap-8 lg:grid-cols-3">
-            {/* ── Left: main content ── */}
-            <div className="flex flex-col gap-8 lg:col-span-2">
-              {/* Profile header */}
-              <div className="rounded-2xl border border-border bg-card p-6 animate-fade-in-up">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-                  <div
-                    className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl text-2xl font-bold text-white shadow-sm"
-                    style={{ backgroundColor: teacher.avatarColor }}
-                    aria-hidden="true"
-                  >
-                    {teacher.initials}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="text-2xl font-bold text-foreground">{teacher.name}</h1>
-                      {teacher.verified && (
-                        <BadgeCheck className="h-5 w-5 text-[#F4B400]" aria-label="Zweryfikowany nauczyciel" />
-                      )}
-                      {teacher.featured && (
-                        <Badge className="bg-[#F4B400] text-[#0A0A0A] text-[11px]">
-                          Wyróżniony
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-muted-foreground">{teacher.specialty}</p>
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+              <Avatar className="h-24 w-24 shrink-0 rounded-2xl text-2xl">
+                <AvatarFallback color={teacher.avatarColor} className="rounded-2xl text-2xl">
+                  {teacher.initials}
+                </AvatarFallback>
+              </Avatar>
 
-                    <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <Star className="h-3.5 w-3.5 fill-[#F4B400] stroke-none" aria-hidden="true" />
-                        <span className="font-semibold text-foreground">{teacher.rating.toFixed(1)}</span>
-                        <span>({teacher.reviewCount} opinii)</span>
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                        {teacher.location}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                        Odpowiada {teacher.responseTime}
-                      </span>
-                    </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold text-foreground">{teacher.name}</h1>
+                  {teacher.verified && (
+                    <BadgeCheck className="h-5 w-5 text-primary" aria-label="Zweryfikowany nauczyciel" />
+                  )}
+                  {teacher.featured && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-accent-foreground">
+                      <Sparkles className="h-3 w-3" aria-hidden="true" />
+                      Wyróżniony
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-muted-foreground">{teacher.specialty}</p>
 
-                    {/* Stats row */}
-                    <div className="mt-4 flex flex-wrap gap-5">
-                      {[
-                        { icon: Users, value: teacher.students, label: 'Uczniowie' },
-                        { icon: BookOpen, value: teacher.lessons.toLocaleString('pl-PL'), label: 'Lekcje' },
-                        { icon: CalendarDays, value: `${teacher.experience} lat`, label: 'Doświadczenie' },
-                        { icon: Star, value: `${teacher.completionRate}%`, label: 'Ukończenie' },
-                      ].map(({ icon: Icon, value, label }) => (
-                        <div key={label} className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
-                            <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-foreground">{value}</div>
-                            <div className="text-[11px] text-muted-foreground">{label}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <Star className="h-3.5 w-3.5 fill-primary stroke-none" aria-hidden="true" />
+                    <span className="font-semibold text-foreground">{teacher.rating.toFixed(1)}</span>
+                    <span>({teacher.reviewCount} opinii)</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                    {teacher.location}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                    Odpowiada {teacher.responseTime}
+                  </span>
                 </div>
               </div>
 
-              {/* About */}
-              <div className="rounded-2xl border border-border bg-card p-6 animate-fade-in-up" style={{ animationDelay: '60ms' }}>
-                <h2 className="font-semibold text-foreground">O nauczycielu</h2>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{teacher.bio}</p>
+              {/* Price + primary CTA, always visible at top on desktop for immediate visibility */}
+              <div className="hidden shrink-0 flex-col items-end gap-2 lg:flex">
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-foreground">{teacher.hourlyRate} zł</span>
+                  <span className="ml-1 text-sm text-muted-foreground">/godz.</span>
+                </div>
               </div>
+            </div>
 
-              {/* Skills */}
-              <div className="rounded-2xl border border-border bg-card p-6 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                <h2 className="font-semibold text-foreground">Umiejętności i technologie</h2>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {teacher.skills.map((skill) => (
-                    <Badge key={skill} variant="secondary">{skill}</Badge>
-                  ))}
+            {/* Stats row */}
+            <div className="mt-6 grid grid-cols-2 divide-x divide-border border-y border-border sm:grid-cols-4">
+              {[
+                { icon: Users, value: teacher.students, label: 'Uczniowie' },
+                { icon: BookOpen, value: teacher.lessons.toLocaleString('pl-PL'), label: 'Lekcje' },
+                { icon: CalendarDays, value: `${teacher.experience} lat`, label: 'Doświadczenie' },
+                { icon: Star, value: `${teacher.completionRate}%`, label: 'Ukończenie' },
+              ].map(({ icon: Icon, value, label }, i) => (
+                <div key={label} className={`flex items-center gap-2.5 px-4 py-3.5 ${i >= 2 ? 'border-t sm:border-t-0' : ''}`}>
+                  <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-foreground">{value}</div>
+                    <div className="truncate text-[11px] text-muted-foreground">{label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
+          <div className="grid gap-8 lg:grid-cols-3">
+            {/* ── Left: main content ── */}
+            <div className="flex flex-col gap-6 lg:col-span-2">
+              {/* About + Skills combined */}
+              <div className="overflow-hidden rounded-2xl border border-border">
+                <div className="flex items-center gap-2 bg-muted/40 px-5 py-3.5">
+                  <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold text-foreground">O nauczycielu</h2>
+                </div>
+                <div className="flex flex-col gap-5 bg-card px-5 py-5">
+                  <p className="text-sm leading-relaxed text-muted-foreground">{teacher.bio}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {teacher.skills.map((skill) => (
+                      <Badge key={skill} variant="secondary">{skill}</Badge>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {/* Education */}
-              <div className="rounded-2xl border border-border bg-card p-6 animate-fade-in-up" style={{ animationDelay: '140ms' }}>
-                <h2 className="font-semibold text-foreground">Wykształcenie i certyfikaty</h2>
-                <div className="mt-4 flex flex-col gap-4">
+              <section className="overflow-hidden rounded-2xl border border-border">
+                <div className="flex items-center gap-2 bg-muted/40 px-5 py-3.5">
+                  <GraduationCap className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold text-foreground">Wykształcenie i certyfikaty</h2>
+                </div>
+                <div className="flex flex-col divide-y divide-border bg-card">
                   {teacher.education.map((edu) => (
-                    <div key={edu.degree} className="flex gap-3">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#FEF3C7] dark:bg-[#3B2800]">
-                        <GraduationCap className="h-4 w-4 text-[#B45309] dark:text-[#FBBF24]" aria-hidden="true" />
+                    <div key={edu.degree} className="flex items-center gap-3 px-5 py-3.5">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+                        <GraduationCap className="h-4 w-4 text-bee-yellow-dark" aria-hidden="true" />
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{edu.degree}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{edu.degree}</p>
                         <p className="text-xs text-muted-foreground">{edu.institution} · {edu.year}</p>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
 
               {/* Reviews */}
-              <div className="rounded-2xl border border-border bg-card p-6 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-foreground">Opinie uczniów</h2>
-                  <div className="flex items-center gap-1.5">
-                    <Star className="h-4 w-4 fill-[#F4B400] stroke-none" aria-hidden="true" />
-                    <span className="font-semibold text-foreground">{teacher.rating.toFixed(1)}</span>
-                    <span className="text-sm text-muted-foreground">({teacher.reviewCount})</span>
+              <section className="overflow-hidden rounded-2xl border border-border">
+                <div className="flex items-center gap-2 bg-muted/40 px-5 py-3.5">
+                  <Star className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <h2 className="min-w-0 flex-1 text-sm font-semibold text-foreground">Opinie uczniów</h2>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Star className="h-3.5 w-3.5 fill-primary stroke-none" aria-hidden="true" />
+                    <span className="text-xs font-semibold text-foreground">{teacher.rating.toFixed(1)}</span>
+                    <span className="text-xs text-muted-foreground">({teacher.reviewCount})</span>
                   </div>
                 </div>
-                <div className="mt-5 flex flex-col gap-5">
+                {/*
+                  States plainly what the number means. Each student holds
+                  one opinion per teacher regardless of how many lessons
+                  they take, so the count is reviewers — not reviews left
+                  after individual lessons, which is what it used to be.
+                */}
+                <p className="border-b border-border bg-card px-5 py-2 text-[11px] text-muted-foreground">
+                  Jedna opinia na ucznia — liczba powyżej to liczba różnych uczniów, którzy ocenili tego nauczyciela.
+                </p>
+                <div className="flex flex-col divide-y divide-border bg-card">
                   {teacher.reviews.map((review) => (
-                    <article key={review.id} className="border-b border-border pb-5 last:border-0 last:pb-0">
-                      <div className="flex items-start gap-3">
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                          style={{ backgroundColor: review.authorColor }}
-                          aria-hidden="true"
-                        >
+                    <article key={review.id} className="flex items-start gap-3 px-5 py-4">
+                      <Avatar className="h-9 w-9 shrink-0">
+                        <AvatarFallback color={review.authorColor} className="text-xs">
                           {review.authorInitials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-semibold text-foreground">{review.author}</p>
+                          <span className="shrink-0 text-xs text-muted-foreground">{review.date}</span>
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-foreground">{review.author}</p>
-                            <span className="text-xs text-muted-foreground">{review.date}</span>
-                          </div>
-                          <StarRating rating={review.rating} className="mt-1" />
-                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{review.comment}</p>
-                        </div>
+                        <StarRating rating={review.rating} className="mt-1" />
+                        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{review.comment}</p>
                       </div>
                     </article>
                   ))}
                 </div>
-              </div>
+              </section>
             </div>
 
             {/* ── Right: booking sidebar ── */}
             <aside className="flex flex-col gap-4">
               <div className="sticky top-20 flex flex-col gap-4">
-                {/* Booking card */}
-                <div className="rounded-2xl border border-border bg-card p-6 shadow-sm animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+                {/* Booking card — the primary conversion point, given the strongest visual weight on the page */}
+                <div className="rounded-2xl border-2 border-primary/50 bg-card p-6 shadow-sm">
                   <div className="flex items-baseline justify-between">
                     <div>
                       <span className="text-3xl font-bold text-foreground">{teacher.hourlyRate} zł</span>
@@ -202,7 +222,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                     bookingFor={bookingFor}
                   />
 
-                  <div className="mt-5 flex flex-col gap-2 text-xs text-muted-foreground">
+                  <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
                     <div className="flex items-center justify-between">
                       <span>Wskaźnik ukończenia</span>
                       <span className="font-semibold text-foreground">{teacher.completionRate}%</span>
@@ -218,32 +238,32 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                   </div>
                 </div>
 
-                {/* Availability */}
-                <div className="rounded-2xl border border-border bg-card p-5 animate-fade-in-up" style={{ animationDelay: '140ms' }}>
-                  <h3 className="text-sm font-semibold text-foreground">Dostępność</h3>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz'].map((day, index) => (
-                      <span
-                        key={day}
-                        className={
-                          teacher.availability.includes(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index])
-                            ? 'rounded-lg bg-[#FEF3C7] px-3 py-1.5 text-xs font-semibold text-[#78350F] dark:bg-[#3B2800] dark:text-[#FBBF24]'
-                            : 'rounded-lg bg-muted px-3 py-1.5 text-xs text-muted-foreground/40'
-                        }
-                      >
-                        {day}
-                      </span>
-                    ))}
+                {/* Availability + Languages combined */}
+                <div className="overflow-hidden rounded-2xl border border-border">
+                  <div className="flex items-center gap-2 bg-muted/40 px-5 py-3.5">
+                    <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <h3 className="text-sm font-semibold text-foreground">Dostępność</h3>
                   </div>
-                </div>
-
-                {/* Languages */}
-                <div className="rounded-2xl border border-border bg-card p-5 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
-                  <h3 className="text-sm font-semibold text-foreground">Języki</h3>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {teacher.languages.map((lang) => (
-                      <Badge key={lang} variant="secondary">{lang}</Badge>
-                    ))}
+                  <div className="flex flex-col gap-4 bg-card px-5 py-4">
+                    <div className="flex flex-wrap gap-1.5">
+                      {dayLabels.map((day, index) => (
+                        <span
+                          key={day}
+                          className={
+                            teacher.availability.includes(dayKeys[index])
+                              ? 'rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground'
+                              : 'rounded-lg bg-muted px-3 py-1.5 text-xs text-muted-foreground/40'
+                          }
+                        >
+                          {day}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
+                      {teacher.languages.map((lang) => (
+                        <Badge key={lang} variant="secondary">{lang}</Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

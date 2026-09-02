@@ -36,6 +36,20 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  /* Status tokens — used by badges/pills across lessons, reports, payouts,
+     disputes instead of ad hoc amber-500/emerald-500/etc per usage. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-surface: var(--success-surface);
+  --color-success-on-surface: var(--success-on-surface);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-on-surface: var(--warning-on-surface);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-surface: var(--info-surface);
+  --color-info-on-surface: var(--info-on-surface);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -43,7 +57,7 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  /* TechBee custom tokens */
+  /* Runbee custom tokens */
   --color-bee-yellow: var(--bee-yellow);
   --color-bee-yellow-light: var(--bee-yellow-light);
   --color-bee-yellow-dark: var(--bee-yellow-dark);
@@ -53,7 +67,7 @@
 
 :root {
   color-scheme: light;
-  /* ── TechBee brand tokens ── */
+  /* ── Runbee brand tokens ── */
   --bee-yellow: #F4B400;
   --bee-yellow-light: #FEF3C7;
   --bee-yellow-dark: #B45309;
@@ -82,6 +96,23 @@
   --chart-3: #10B981;
   --chart-4: #8B5CF6;
   --chart-5: #EF4444;
+  /* Status tokens (light) */
+  --success: #10B981;
+  --success-foreground: #FFFFFF;
+  --success-surface: #ECFDF5;
+  /* Text/icon colour for content sitting ON the pale surface above.
+     `--success-foreground` is white — correct on the solid `--success`
+     fill, but ~1.05:1 against `--success-surface`, i.e. invisible. Same
+     relationship as `--accent` / `--accent-foreground` already uses. */
+  --success-on-surface: #065F46;
+  --warning: #F59E0B;
+  --warning-foreground: #FFFFFF;
+  --warning-surface: #FFFBEB;
+  --warning-on-surface: #92400E;
+  --info: #3B82F6;
+  --info-foreground: #FFFFFF;
+  --info-surface: #EFF6FF;
+  --info-on-surface: #1E40AF;
   --radius: 0.75rem;
   --sidebar: #FFFFFF;
   --sidebar-foreground: #0A0A0A;
@@ -95,7 +126,7 @@
 
 .dark {
   color-scheme: dark;
-  /* ── TechBee brand tokens ── */
+  /* ── Runbee brand tokens ── */
   --bee-yellow: #F4B400;
   --bee-yellow-light: #3B2800;
   --bee-yellow-dark: #FBBF24;
@@ -124,6 +155,20 @@
   --chart-3: #10B981;
   --chart-4: #8B5CF6;
   --chart-5: #EF4444;
+  /* Status tokens (dark) */
+  --success: #34D399;
+  --success-foreground: #062B1E;
+  --success-surface: #0B2E22;
+  /* On dark surfaces the light hue is already the readable one (7.65:1). */
+  --success-on-surface: #34D399;
+  --warning: #FBBF24;
+  --warning-foreground: #2E1F02;
+  --warning-surface: #2E2205;
+  --warning-on-surface: #FBBF24;
+  --info: #60A5FA;
+  --info-foreground: #041B36;
+  --info-surface: #0B2138;
+  --info-on-surface: #60A5FA;
   --sidebar: #141414;
   --sidebar-foreground: #FAFAFA;
   --sidebar-primary: #F4B400;
@@ -164,6 +209,15 @@
     --chart-3: #10B981;
     --chart-4: #8B5CF6;
     --chart-5: #EF4444;
+    --success: #34D399;
+    --success-foreground: #062B1E;
+    --success-surface: #0B2E22;
+    --warning: #FBBF24;
+    --warning-foreground: #2E1F02;
+    --warning-surface: #2E2205;
+    --info: #60A5FA;
+    --info-foreground: #041B36;
+    --info-surface: #0B2138;
     --sidebar: #141414;
     --sidebar-foreground: #FAFAFA;
     --sidebar-primary: #F4B400;
@@ -184,6 +238,8 @@ html {
     scroll-behavior: auto;
   }
 }
+
+
 
 @layer base {
   * {

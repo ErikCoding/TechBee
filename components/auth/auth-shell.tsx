@@ -8,13 +8,20 @@ interface AuthShellProps {
   footer: React.ReactNode
 }
 
-/** Shared centered-card layout for /login and /register. */
+/**
+ * Shared centered-card layout for /login and /register.
+ *
+ * This is the original Runbee auth design, restored after a split-screen
+ * variant was tried and rejected. The only thing carried over from that
+ * attempt is the glow using the `primary` token instead of a hardcoded
+ * `#F4B400` inline style — same brand colour, but it now follows the
+ * theme in dark mode instead of being pinned to one literal.
+ */
 export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
       <div
-        className="pointer-events-none absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full opacity-[0.08] blur-3xl"
-        style={{ background: '#F4B400' }}
+        className="pointer-events-none absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-primary opacity-[0.08] blur-3xl"
         aria-hidden="true"
       />
       <div className="relative w-full max-w-md">

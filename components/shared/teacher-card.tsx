@@ -1,9 +1,12 @@
 import Link from 'next/link'
-import { Star, MapPin, Clock, BadgeCheck } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Star, MapPin, BadgeCheck, CalendarDays } from 'lucide-react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import type { Teacher } from '@/lib/types'
 import { cn } from '@/lib/utils'
+
+const DAY_LABELS: Record<string, string> = {
+  Mon: 'Pon', Tue: 'Wt', Wed: 'Śr', Thu: 'Czw', Fri: 'Pt', Sat: 'Sob', Sun: 'Nd',
+}
 
 interface TeacherCardProps {
   teacher: Teacher
@@ -13,108 +16,97 @@ interface TeacherCardProps {
   bookingFor?: { id: string; name: string }
 }
 
+/**
+ * One teacher, sized for a decision rather than for completeness.
+ *
+ * The previous card stacked six blocks — avatar row, two-line bio, a row
+ * of skill pills plus an overflow pill, a metadata row, then a bordered
+ * footer bar with the price and a button. Skills were the visually
+ * loudest element despite being the least decisive, and the whole card
+ * was a link target that still contained its own separate link, so the
+ * price and CTA needed their own tinted footer to feel reachable.
+ *
+ * Here the entire card is one anchor. Rating and price — the two things
+ * people actually compare — sit on the top line where they can be
+ * scanned down a column, the bio carries the human voice, and skills
+ * drop to a single quiet line of text. Availability is surfaced because
+ * "can they teach when I'm free?" is a real filter on this data;
+ * `verified` and `featured` are the only status markers, both real
+ * fields.
+ */
 export function TeacherCard({ teacher, className, featured, bookingFor }: TeacherCardProps) {
   const profileHref = bookingFor
     ? `/teacher/${teacher.id}?bookingForId=${bookingFor.id}&bookingForName=${encodeURIComponent(bookingFor.name)}`
     : `/teacher/${teacher.id}`
+
+  const availableDays = teacher.availability.map((d) => DAY_LABELS[d] ?? d)
+
   return (
-    <article
+    <Link
+      href={profileHref}
       className={cn(
-        'group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#F4B400]/30',
-        featured && 'ring-1 ring-[#F4B400]/40',
+        'group relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+        featured ? 'border-primary/40 hover:border-primary/60' : 'border-border hover:border-primary/40',
         className,
       )}
     >
-      {/* Featured strip — a top bar instead of a floating badge, so it never covers card text */}
-      {featured && <div className="h-1 w-full shrink-0 bg-[#F4B400]" aria-hidden="true" />}
+      {/* Identity + the two comparison values */}
+      <div className="flex items-start gap-3">
+        <Avatar className="h-11 w-11 shrink-0">
+          <AvatarFallback color={teacher.avatarColor}>{teacher.initials}</AvatarFallback>
+        </Avatar>
 
-      <div className="p-5">
-        {/* Avatar + info */}
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
-          <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white shadow-sm transition-transform duration-300 group-hover:scale-105"
-            style={{ backgroundColor: teacher.avatarColor }}
-            aria-hidden="true"
-          >
-            {teacher.initials}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <h3 className="truncate text-sm font-semibold text-foreground">{teacher.name}</h3>
+            {teacher.verified && (
+              <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="Zweryfikowany nauczyciel" />
+            )}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <h3 className="truncate font-semibold text-foreground">{teacher.name}</h3>
-              {teacher.verified && (
-                <BadgeCheck className="h-4 w-4 shrink-0 text-[#F4B400]" aria-label="Zweryfikowany nauczyciel" />
-              )}
-              {featured && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#F4B400] px-2 py-0.5 text-[10px] font-semibold text-[#0A0A0A]">
-                  <Star className="h-2.5 w-2.5 fill-[#0A0A0A]" />
-                  Wyróżniony
-                </span>
-              )}
-            </div>
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">{teacher.specialty}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3 shrink-0" />
-                {teacher.location}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3 shrink-0" />
-                {teacher.responseTime}
-              </span>
-            </div>
+          <p className="truncate text-xs text-muted-foreground">{teacher.specialty}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Star className="h-3.5 w-3.5 shrink-0 fill-primary stroke-none" aria-hidden="true" />
+              <span className="font-semibold text-foreground">{teacher.rating.toFixed(1)}</span>
+              <span>({teacher.reviewCount})</span>
+            </span>
+            <span className="flex min-w-0 items-center gap-1">
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{teacher.location}</span>
+            </span>
           </div>
         </div>
 
-        {/* Bio */}
-        <p className="mt-3.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-          {teacher.shortBio}
-        </p>
-
-        {/* Skills */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {teacher.skills.slice(0, 3).map((skill) => (
-            <Badge key={skill} variant="secondary" className="text-[11px] font-normal">
-              {skill}
-            </Badge>
-          ))}
-          {teacher.skills.length > 3 && (
-            <Badge variant="secondary" className="text-[11px] font-normal">
-              +{teacher.skills.length - 3}
-            </Badge>
-          )}
+        <div className="shrink-0 text-right">
+          <p className="whitespace-nowrap text-base font-bold leading-none text-foreground">{teacher.hourlyRate} zł</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">za godzinę</p>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-5 py-3.5">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {/* Rating */}
-          <div className="flex items-center gap-1">
-            <Star className="h-3.5 w-3.5 shrink-0 fill-[#F4B400] stroke-none" aria-hidden="true" />
-            <span className="text-sm font-semibold text-foreground">{teacher.rating.toFixed(1)}</span>
-            <span className="text-xs text-muted-foreground">({teacher.reviewCount})</span>
-          </div>
-          {/* Stats */}
-          <span className="text-xs text-muted-foreground">
-            {teacher.lessons.toLocaleString('pl-PL')} lekcji
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-sm font-bold text-foreground">
-            {teacher.hourlyRate} zł
-            <span className="text-xs font-normal text-muted-foreground">/godz.</span>
-          </span>
-          <Link href={profileHref}>
-            <Button
-              size="sm"
-              className="h-8 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold text-xs"
-            >
-              Zobacz profil
-            </Button>
-          </Link>
-        </div>
+      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{teacher.shortBio}</p>
+
+      {/* Skills as text, not a wall of pills. */}
+      <p className="truncate text-[11px] text-muted-foreground">
+        <span className="text-foreground/70">{teacher.skills.slice(0, 3).join(' · ')}</span>
+        {teacher.skills.length > 3 && <span> +{teacher.skills.length - 3}</span>}
+      </p>
+
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3">
+        <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+          <CalendarDays className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <span className="truncate">{availableDays.join(', ')}</span>
+        </span>
+        <span className="shrink-0 text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">
+          {teacher.experience} lat doświadczenia →
+        </span>
       </div>
-    </article>
+
+      {featured && (
+        <span className="absolute -top-2 left-4 rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+          Wyróżniony
+        </span>
+      )}
+    </Link>
   )
 }

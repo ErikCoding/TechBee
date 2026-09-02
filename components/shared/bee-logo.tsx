@@ -42,8 +42,8 @@ export function BeeLogo({ className, iconOnly = false, size = 'md' }: BeeLogoPro
       </svg>
       {!iconOnly && (
         <span className={cn('font-bold tracking-tight', s.text)}>
-          <span className="text-foreground">Tech</span>
-          <span style={{ color: '#F4B400' }}>Bee</span>
+          <span className="text-foreground">Run</span>
+          <span className="text-primary">bee</span>
         </span>
       )}
     </Link>

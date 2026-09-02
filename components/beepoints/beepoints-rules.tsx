@@ -20,13 +20,13 @@ function RuleCard({ rule, index }: { rule: BeePointsRule; index: number }) {
       className="animate-fade-in-up flex gap-3 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-sm"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FEF3C7] dark:bg-[#3B2800]">
-        <Icon className="h-4 w-4 text-[#B45309] dark:text-[#FBBF24]" aria-hidden="true" />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+        <Icon className="h-4 w-4 text-bee-yellow-dark" aria-hidden="true" />
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <p className="text-sm font-semibold text-foreground">{rule.title}</p>
-          <span className="text-xs font-bold text-[#F4B400]">{rule.points}</span>
+          <span className="text-xs font-bold text-primary">{rule.points}</span>
         </div>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{rule.description}</p>
       </div>

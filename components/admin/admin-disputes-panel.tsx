@@ -65,7 +65,7 @@ function DisputeRow({ lesson, adminId, onResolved }: { lesson: Lesson; adminId: 
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#F4B400]"
+          className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
       </div>
 
@@ -74,7 +74,7 @@ function DisputeRow({ lesson, adminId, onResolved }: { lesson: Lesson; adminId: 
           {busy === 'payer' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <X className="mr-1 h-3.5 w-3.5" />}
           Na korzyść ucznia/rodzica (zwrot)
         </Button>
-        <Button size="sm" disabled={busy !== null} onClick={() => handleResolve('teacher')} className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] text-xs font-semibold">
+        <Button size="sm" disabled={busy !== null} onClick={() => handleResolve('teacher')} className="text-xs font-semibold">
           {busy === 'teacher' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 h-3.5 w-3.5" />}
           Na korzyść nauczyciela (zwolnij płatność)
         </Button>
@@ -96,28 +96,30 @@ export function AdminDisputesPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-center gap-2">
-        <Scale className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <h2 className="font-semibold text-foreground">Otwarte spory</h2>
+    <section className="animate-fade-in-up overflow-hidden rounded-2xl border border-border" style={{ animationDelay: '60ms' }}>
+      <div className="flex items-center gap-2 bg-muted/40 px-5 py-3.5">
+        <Scale className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <h2 className="text-sm font-semibold text-foreground">Otwarte spory</h2>
         {disputes !== null && disputes.length > 0 && (
-          <Badge className="bg-[#F4B400] text-[#0A0A0A]">{disputes.length}</Badge>
+          <Badge className="ml-auto">{disputes.length}</Badge>
         )}
       </div>
 
-      {disputes === null ? (
-        <div className="mt-4 h-20 animate-pulse rounded-xl bg-muted" />
-      ) : disputes.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">Brak otwartych sporów.</p>
-      ) : !user ? (
-        <p className="mt-3 text-sm text-muted-foreground">Ładowanie konta administratora…</p>
-      ) : (
-        <div className="mt-4 flex flex-col gap-3">
-          {disputes.map((lesson) => (
-            <DisputeRow key={lesson.id} lesson={lesson} adminId={user.id} onResolved={handleResolved} />
-          ))}
-        </div>
-      )}
+      <div className="bg-card p-5">
+        {disputes === null ? (
+          <div className="h-20 animate-pulse rounded-xl bg-muted" />
+        ) : disputes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Brak otwartych sporów.</p>
+        ) : !user ? (
+          <p className="text-sm text-muted-foreground">Ładowanie konta administratora…</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {disputes.map((lesson) => (
+              <DisputeRow key={lesson.id} lesson={lesson} adminId={user.id} onResolved={handleResolved} />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   )
 }

@@ -52,7 +52,7 @@ export function BookLessonActions({ teacherId, teacherName, teacherInitials, tea
 
   return (
     <div className="mt-4 flex flex-col gap-3">
-      <Button onClick={goToBooking} className="w-full bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold transition-transform hover:-translate-y-0.5">
+      <Button onClick={goToBooking} className="w-full font-semibold transition-transform hover:-translate-y-0.5">
         Zarezerwuj lekcję
       </Button>
       {status === 'authenticated' ? (

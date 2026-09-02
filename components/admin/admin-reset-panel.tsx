@@ -45,8 +45,8 @@ export function AdminResetPanel() {
       ) : (
         <div className="mt-3">
           <p className="text-sm text-muted-foreground">
-            Trwale usuwa wiadomości i konwersacje, lekcje/rezerwacje, portfele i transakcje, powiadomienia, kody łączące rodzic-uczeń oraz salda/zdarzenia BeePoints.
-            {' '}<span className="font-medium text-foreground">Nie</span> usuwa kont użytkowników, profili/aplikacji nauczycieli ani katalogu (kategorie, opinie, FAQ).
+            Trwale usuwa wiadomości i konwersacje, lekcje/rezerwacje, portfele i transakcje, powiadomienia, kody łączące rodzic-uczeń, salda/zdarzenia BeePoints oraz historię wypłat i log webhooka Stripe.
+            {' '}<span className="font-medium text-foreground">Nie</span> usuwa kont użytkowników, profili/aplikacji nauczycieli (w tym ich połączenia ze Stripe Connect) ani katalogu (kategorie, opinie, FAQ). Nie dotyka też danych po stronie samego Stripe (konta, płatności) — do tego służy „Reset test data" w Stripe Dashboard (Test Mode).
           </p>
 
           {!confirming ? (
@@ -77,7 +77,7 @@ export function AdminResetPanel() {
           )}
 
           {status === 'done' && (
-            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-success/30 bg-success-surface p-3 text-sm text-success-on-surface">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <ul className="flex flex-col gap-0.5">
                 {results.map((r) => (

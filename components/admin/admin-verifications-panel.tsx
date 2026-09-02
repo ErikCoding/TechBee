@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ShieldCheck, Check, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { getPendingTeacherApplications, reviewTeacherApplication } from '@/services/teachers.service'
 import type { Teacher } from '@/lib/types'
 
@@ -27,27 +28,28 @@ export function AdminVerificationsPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <h2 className="font-semibold text-foreground">Oczekujące zgłoszenia</h2>
+    <section className="animate-fade-in-up overflow-hidden rounded-2xl border border-border">
+      <div className="flex items-center gap-2 bg-muted/40 px-5 py-3.5">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <h2 className="text-sm font-semibold text-foreground">Oczekujące zgłoszenia</h2>
         {applications !== null && applications.length > 0 && (
-          <Badge className="bg-[#F4B400] text-[#0A0A0A]">{applications.length}</Badge>
+          <Badge className="ml-auto">{applications.length}</Badge>
         )}
       </div>
 
+      <div className="bg-card p-5">
       {applications === null ? (
-        <div className="mt-4 h-20 animate-pulse rounded-xl bg-muted" />
+        <div className="h-20 animate-pulse rounded-xl bg-muted" />
       ) : applications.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">Brak zgłoszeń czekających na weryfikację.</p>
+        <p className="text-sm text-muted-foreground">Brak zgłoszeń czekających na weryfikację.</p>
       ) : (
-        <div className="mt-4 flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border">
+        <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border">
           {applications.map((app) => (
             <div key={app.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white" style={{ backgroundColor: app.avatarColor }}>
-                  {app.initials}
-                </div>
+                <Avatar className="h-10 w-10 shrink-0">
+                  <AvatarFallback color={app.avatarColor}>{app.initials}</AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-foreground">{app.name}</p>
@@ -72,7 +74,7 @@ export function AdminVerificationsPanel() {
                   size="sm"
                   disabled={busyId === app.id}
                   onClick={() => decide(app.id, 'approved')}
-                  className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold"
+                  className="font-semibold"
                 >
                   {busyId === app.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   Zaakceptuj
@@ -87,6 +89,7 @@ export function AdminVerificationsPanel() {
         Zaakceptowani nauczyciele pojawiają się od razu w{' '}
         <Link href="/marketplace" className="underline underline-offset-2 hover:text-foreground">giełdzie nauczycieli</Link>.
       </p>
+      </div>
     </section>
   )
 }

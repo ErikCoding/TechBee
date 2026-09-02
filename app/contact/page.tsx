@@ -19,7 +19,7 @@ export default function ContactPage() {
       <main id="main-content" className="bg-background">
         <div className="mx-auto max-w-4xl px-4 py-14 md:px-8 md:py-20">
           <div className="text-center">
-            <p className="text-sm font-semibold text-[#F4B400] uppercase tracking-wide">Kontakt</p>
+            <p className="text-sm font-semibold text-primary uppercase tracking-wide">Kontakt</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">Napisz do nas</h1>
             <p className="mt-2 text-muted-foreground">Masz pytanie o platformę, współpracę albo coś poszło nie tak? Chętnie pomożemy.</p>
           </div>
@@ -30,8 +30,8 @@ export default function ContactPage() {
                 const Icon = info.icon
                 return (
                   <div key={info.label} className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FEF3C7] dark:bg-[#3B2800]">
-                      <Icon className="h-4 w-4 text-[#B45309] dark:text-[#FBBF24]" aria-hidden="true" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent">
+                      <Icon className="h-4 w-4 text-bee-yellow-dark" aria-hidden="true" />
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">{info.label}</p>

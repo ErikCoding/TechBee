@@ -42,7 +42,7 @@ export default async function BeePointsPage() {
           </p>
 
           {/* Current status hero */}
-          <div className="animate-fade-in-up mt-6 overflow-hidden rounded-3xl border border-[#F4B400]/30 bg-[#FEF3C7] p-7 dark:bg-[#3B2800]">
+          <div className="animate-fade-in-up mt-6 overflow-hidden rounded-3xl border border-primary/30 bg-accent p-7">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -51,18 +51,18 @@ export default async function BeePointsPage() {
                     {currentTierData.name} Bee
                   </span>
                 </div>
-                <p className="mt-3 text-5xl font-bold tracking-tight text-[#78350F] dark:text-[#FBBF24]">
+                <p className="mt-3 text-5xl font-bold tracking-tight text-accent-foreground">
                   {beePointsStats.currentPoints.toLocaleString('pl-PL')}
                 </p>
-                <p className="mt-0.5 text-sm text-[#92400E] dark:text-[#FCD34D]">Dostępne BeePoints</p>
+                <p className="mt-0.5 text-sm text-accent-foreground/80">Dostępne BeePoints</p>
               </div>
               <div className="w-full sm:w-56">
-                <div className="flex items-center justify-between text-xs text-[#92400E] dark:text-[#FCD34D]">
+                <div className="flex items-center justify-between text-xs text-accent-foreground/80">
                   <span>{currentTierData.name}</span>
                   <span>{nextTierData.name}</span>
                 </div>
                 <Progress value={progressToNext} className="mt-1.5 h-2" />
-                <p className="mt-1 text-xs text-[#92400E] dark:text-[#FCD34D]">
+                <p className="mt-1 text-xs text-accent-foreground/80">
                   <span className="font-semibold">{beePointsStats.pointsToNextTier} pkt</span> do poziomu {nextTierData.name}
                 </p>
               </div>
@@ -85,7 +85,7 @@ export default async function BeePointsPage() {
                     className={cn(
                       'animate-fade-in-up rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-md',
                       isActive
-                        ? 'border-[#F4B400] ring-1 ring-[#F4B400]/40'
+                        ? 'border-primary ring-1 ring-primary/40'
                         : 'border-border',
                     )}
                     style={{ animationDelay: `${i * 70}ms` }}
@@ -96,7 +96,7 @@ export default async function BeePointsPage() {
                         {tier.name}
                       </span>
                       {isActive && (
-                        <Badge className="bg-[#F4B400] text-[#0A0A0A] text-[10px]">Aktualny</Badge>
+                        <Badge className="text-[10px]">Aktualny</Badge>
                       )}
                     </div>
                     <p className="mt-2.5 text-xs text-muted-foreground">
@@ -109,7 +109,7 @@ export default async function BeePointsPage() {
                     <ul className="mt-3 flex flex-col gap-1.5">
                       {tier.benefits.map((b) => (
                         <li key={b} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                          <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#F4B400]" aria-hidden="true" />
+                          <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
                           {b}
                         </li>
                       ))}
@@ -129,11 +129,11 @@ export default async function BeePointsPage() {
                   <div
                     className={cn(
                       'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-                      event.type === 'earned' ? 'bg-[#FEF3C7] dark:bg-[#3B2800]' : 'bg-muted',
+                      event.type === 'earned' ? 'bg-accent' : 'bg-muted',
                     )}
                   >
                     {event.type === 'earned' ? (
-                      <ArrowDownLeft className="h-4 w-4 text-[#B45309] dark:text-[#FBBF24]" aria-hidden="true" />
+                      <ArrowDownLeft className="h-4 w-4 text-bee-yellow-dark" aria-hidden="true" />
                     ) : (
                       <ArrowUpRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     )}
@@ -145,7 +145,7 @@ export default async function BeePointsPage() {
                   <span
                     className={cn(
                       'text-sm font-bold',
-                      event.type === 'earned' ? 'text-[#F4B400]' : 'text-muted-foreground',
+                      event.type === 'earned' ? 'text-primary' : 'text-muted-foreground',
                     )}
                   >
                     {event.points > 0 ? '+' : ''}{event.points.toLocaleString('pl-PL')} pkt

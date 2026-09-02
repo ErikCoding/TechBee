@@ -1,7 +1,6 @@
 import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getUserProfileById } from '@/services/auth.service'
-import { getWalletStats } from '@/services/wallet.service'
 import type { StudentLinkCode } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -27,6 +26,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I — easy 
 const MOCK_CODES_KEY = 'techbee.family.linkCodes'
 const MOCK_PARENT_TO_STUDENTS_KEY = 'techbee.family.parentToStudents'
 const MOCK_STUDENT_TO_PARENTS_KEY = 'techbee.family.studentToParents'
+const MOCK_STUDENT_CAN_MANAGE_KEY = 'techbee.family.studentCanManageReports'
 
 function isBrowser() {
   return typeof window !== 'undefined'
@@ -106,6 +106,26 @@ function getLinkedParentIdsMock(studentId: string): string[] {
   return readMockLinks(MOCK_STUDENT_TO_PARENTS_KEY)[studentId] ?? []
 }
 
+function readMockBooleans(key: string): Record<string, boolean> {
+  if (!isBrowser()) return {}
+  try {
+    return JSON.parse(window.localStorage.getItem(key) ?? '{}') as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+
+function getStudentCanManageReportsMock(parentId: string): boolean {
+  return readMockBooleans(MOCK_STUDENT_CAN_MANAGE_KEY)[parentId] ?? false
+}
+
+function setStudentCanManageReportsMock(parentId: string, value: boolean) {
+  if (!isBrowser()) return
+  const all = readMockBooleans(MOCK_STUDENT_CAN_MANAGE_KEY)
+  all[parentId] = value
+  window.localStorage.setItem(MOCK_STUDENT_CAN_MANAGE_KEY, JSON.stringify(all))
+}
+
 // ── Firebase ──────────────────────────────────────────────────
 
 async function generateStudentLinkCodeFirebase(studentId: string, studentName: string): Promise<StudentLinkCode> {
@@ -156,6 +176,22 @@ async function getLinkedParentIdsFirebase(studentId: string): Promise<string[]> 
   return data.linkedParentIds ?? []
 }
 
+async function getStudentCanManageReportsFirebase(parentId: string): Promise<boolean> {
+  if (!db) return false
+  const snap = await getDoc(doc(db, collections.users, parentId))
+  if (!snap.exists()) return false
+  const data = snap.data() as { studentCanManageReports?: boolean }
+  // Absent (every parent account created before this setting existed) →
+  // false, i.e. the pre-existing "only the parent manages it" behavior —
+  // the explicit backward-compatibility rule (see lib/report-permissions.ts).
+  return data.studentCanManageReports ?? false
+}
+
+async function setStudentCanManageReportsFirebase(parentId: string, value: boolean): Promise<void> {
+  if (!db) return
+  await updateDoc(doc(db, collections.users, parentId), { studentCanManageReports: value })
+}
+
 // ── Public API ────────────────────────────────────────────────
 
 /** A student generates a fresh single-use code (valid 24h) for a parent to redeem. */
@@ -169,19 +205,18 @@ export async function redeemLinkCode(parentId: string, code: string): Promise<{ 
   return isFirebaseConfigured ? redeemLinkCodeFirebase(parentId, code) : redeemLinkCodeMock(parentId, code)
 }
 
-/** Every student currently linked to this parent, with a live wallet balance. Lesson counts are left at 0 here (to avoid a circular dependency with lessons.service.ts) — the parent dashboard overlays real counts by calling getStudentLessons per student. */
+/** Every student currently linked to this parent. Lesson counts are left at 0 here (to avoid a circular dependency with lessons.service.ts) — the parent dashboard overlays real counts by calling getStudentLessons per student. */
 export async function getLinkedStudents(parentId: string): Promise<import('@/lib/types').LinkedStudentSummary[]> {
   const ids = isFirebaseConfigured ? await getLinkedStudentIdsFirebase(parentId) : getLinkedStudentIdsMock(parentId)
   const summaries = await Promise.all(
     ids.map(async (id) => {
-      const [profile, wallet] = await Promise.all([getUserProfileById(id), getWalletStats(id)])
+      const profile = await getUserProfileById(id)
       if (!profile) return null
       return {
         id,
         name: profile.name,
         initials: profile.initials,
         avatarColor: profile.avatarColor,
-        walletBalance: wallet.balance,
         upcomingLessonsCount: 0,
         pendingConfirmationsCount: 0,
       }
@@ -197,16 +232,39 @@ export async function getLinkedParents(studentId: string): Promise<LinkedPersonS
   return profiles.filter((p): p is NonNullable<typeof p> => p !== null).map((p) => ({ id: p.id, name: p.name, initials: p.initials, avatarColor: p.avatarColor }))
 }
 
+/** Reads whether a parent has enabled "Pozwól uczniowi samodzielnie akceptować i odrzucać raporty" (see components/dashboard/parent-report-settings-card.tsx) — defaults to `false` if never set. */
+export async function getStudentCanManageReports(parentId: string): Promise<boolean> {
+  return isFirebaseConfigured ? getStudentCanManageReportsFirebase(parentId) : getStudentCanManageReportsMock(parentId)
+}
+
+/** Persists the parent's "let my student manage reports too" toggle. */
+export async function setStudentCanManageReports(parentId: string, value: boolean): Promise<void> {
+  if (isFirebaseConfigured) {
+    await setStudentCanManageReportsFirebase(parentId, value)
+  } else {
+    setStudentCanManageReportsMock(parentId, value)
+  }
+}
+
 /**
  * Who has confirmation authority (and financial responsibility framing)
  * for a student's next lesson report — their first linked parent if one
  * exists, otherwise the student themselves. Called once, at report-
  * submission time, and frozen onto the lesson (see Lesson.confirmingPartyId
- * in lib/types.ts) so a parent linking later doesn't retroactively change
- * responsibility for lessons already in flight.
+ * and Lesson.studentCanManageReport in lib/types.ts) so a parent linking
+ * later — or flipping their "let the student manage it too" setting later
+ * — doesn't retroactively change responsibility for lessons already in
+ * flight. `studentCanManage` is only meaningful (and only fetched) when a
+ * parent is actually the confirming party; a student with no linked
+ * parent always manages their own report, so it's `true` unconditionally
+ * in that branch.
  */
-export async function resolveConfirmingParty(studentId: string): Promise<{ id: string; role: 'student' | 'parent' }> {
+export async function resolveConfirmingParty(studentId: string): Promise<{ id: string; role: 'student' | 'parent'; studentCanManage: boolean }> {
   const parentIds = isFirebaseConfigured ? await getLinkedParentIdsFirebase(studentId) : getLinkedParentIdsMock(studentId)
-  if (parentIds.length > 0) return { id: parentIds[0], role: 'parent' }
-  return { id: studentId, role: 'student' }
+  if (parentIds.length > 0) {
+    const parentId = parentIds[0]
+    const studentCanManage = await getStudentCanManageReports(parentId)
+    return { id: parentId, role: 'parent', studentCanManage }
+  }
+  return { id: studentId, role: 'student', studentCanManage: true }
 }

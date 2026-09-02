@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { AdminUserRow } from '@/lib/types'
 
@@ -18,10 +19,10 @@ const roleLabels: Record<AdminUserRow['role'], string> = {
   parent: 'Rodzic',
 }
 
-const statusConfig: Record<AdminUserRow['status'], { label: string; className: string }> = {
-  active: { label: 'Aktywny', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  pending: { label: 'Oczekuje', className: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' },
-  suspended: { label: 'Zawieszony', className: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+const statusConfig: Record<AdminUserRow['status'], { label: string; tone: StatusTone }> = {
+  active: { label: 'Aktywny', tone: 'success' },
+  pending: { label: 'Oczekuje', tone: 'warning' },
+  suspended: { label: 'Zawieszony', tone: 'error' },
 }
 
 const roleFilters: { value: AdminUserRow['role'] | 'all'; label: string }[] = [
@@ -59,7 +60,7 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
               className={cn(
                 'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                 roleFilter === f.value
-                  ? 'border-[#F4B400] bg-[#FEF3C7] text-[#78350F] dark:bg-[#3B2800] dark:text-[#FBBF24]'
+                  ? 'border-primary bg-accent text-accent-foreground'
                   : 'border-border text-muted-foreground hover:text-foreground',
               )}
             >
@@ -87,13 +88,9 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
                 <tr key={u.id} className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                        style={{ backgroundColor: u.avatarColor }}
-                        aria-hidden="true"
-                      >
-                        {u.initials}
-                      </div>
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback color={u.avatarColor} className="text-[11px]">{u.initials}</AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">{u.name}</p>
                         <p className="truncate text-xs text-muted-foreground">{u.email}</p>
@@ -102,9 +99,9 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{roleLabels[u.role]}</td>
                   <td className="px-4 py-3">
-                    <Badge className={cn('border-0 text-[11px] font-medium', status.className)} variant="outline">
+                    <StatusBadge tone={status.tone} dot={false} className="text-[11px]">
                       {status.label}
-                    </Badge>
+                    </StatusBadge>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{u.joined}</td>
                   <td className="px-4 py-3 text-right text-xs font-semibold text-foreground">{u.lessons.toLocaleString('pl-PL')}</td>

@@ -1,33 +1,44 @@
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { HeroSection } from '@/components/landing/hero-section'
-import { StatsSection } from '@/components/landing/stats-section'
-import { CategoriesSection } from '@/components/landing/categories-section'
-import { FeaturedTeachersSection } from '@/components/landing/featured-teachers-section'
 import { HowItWorksSection } from '@/components/landing/how-it-works-section'
-import { ForTeachersSection } from '@/components/landing/for-teachers-section'
-import { TestimonialsSection } from '@/components/landing/testimonials-section'
-import { FaqSection } from '@/components/landing/faq-section'
+import { TeachersPreviewSection } from '@/components/landing/teachers-preview-section'
+import { BenefitsSection } from '@/components/landing/benefits-section'
+import { ProductExperienceSection } from '@/components/landing/product-experience-section'
 import { CtaSection } from '@/components/landing/cta-section'
-import { getFaqItems } from '@/services/faq.service'
 
-export default async function HomePage() {
-  const faqItems = await getFaqItems()
-
+/**
+ * Homepage composition.
+ *
+ * Six content sections between the shared navbar and footer, each one a
+ * single idea, each inside the same `max-w-7xl` container the
+ * marketplace and dashboards use:
+ *
+ *   hero          what this is + one search action
+ *   experience    what the platform does around the lesson
+ *   how it works  find → book → learn, as a left-rail timeline
+ *   teachers      real cards from the real catalogue
+ *   benefits      four real advantages
+ *   cta           one closing action
+ *
+ * The homepage runs in the existing page-scoped dark treatment. Shared
+ * UI still reads normal tokens (`--background`, `--card`, `--border`,
+ * ...), and the redesign stays within that black Runbee style.
+ */
+export default function HomePage() {
   return (
     <>
-      <Navbar />
-      <main id="main-content">
-        <HeroSection />
-        <StatsSection />
-        <CategoriesSection />
-        <FeaturedTeachersSection />
-        <HowItWorksSection />
-        <ForTeachersSection />
-        <TestimonialsSection />
-        <FaqSection items={faqItems} />
-        <CtaSection />
-      </main>
+      <div className="dark">
+        <Navbar />
+        <main id="main-content">
+          <HeroSection />
+          <ProductExperienceSection />
+          <HowItWorksSection />
+          <TeachersPreviewSection />
+          <BenefitsSection />
+          <CtaSection />
+        </main>
+      </div>
       <Footer />
     </>
   )

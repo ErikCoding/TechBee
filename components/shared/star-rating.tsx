@@ -21,9 +21,9 @@ export function StarRating({ rating, max = 5, className, size = 'sm' }: StarRati
             className={cn(
               sizeClass,
               filled
-                ? 'fill-[#F4B400] stroke-none'
+                ? 'fill-primary stroke-none'
                 : partial
-                ? 'fill-[#F4B400]/40 stroke-none'
+                ? 'fill-primary/40 stroke-none'
                 : 'fill-muted stroke-none',
             )}
             aria-hidden="true"

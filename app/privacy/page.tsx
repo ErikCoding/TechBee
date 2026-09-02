@@ -8,11 +8,11 @@ export default function PrivacyPage() {
     <LegalPage
       title="Polityka prywatności"
       updated="6 sierpnia 2026"
-      intro="Niniejsza Polityka Prywatności wyjaśnia, jakie dane osobowe przetwarzamy w związku z korzystaniem z serwisu TechBee, w jakim celu i na jakiej podstawie, zgodnie z Rozporządzeniem Parlamentu Europejskiego i Rady (UE) 2016/679 (RODO). To wersja bazowa, do weryfikacji prawnej przed uruchomieniem produkcyjnym."
+      intro="Niniejsza Polityka Prywatności wyjaśnia, jakie dane osobowe przetwarzamy w związku z korzystaniem z serwisu Runbee, w jakim celu i na jakiej podstawie, zgodnie z Rozporządzeniem Parlamentu Europejskiego i Rady (UE) 2016/679 (RODO). To wersja bazowa, do weryfikacji prawnej przed uruchomieniem produkcyjnym."
     >
       <section>
         <h2>1. Administrator danych</h2>
-        <p>Administratorem danych osobowych jest TechBee Technologie Sp. z o.o. z siedzibą w Warszawie, e-mail kontaktowy w sprawach ochrony danych: prywatnosc@techbee.pl.</p>
+        <p>Administratorem danych osobowych jest Runbee Technologie Sp. z o.o. z siedzibą w Warszawie, e-mail kontaktowy w sprawach ochrony danych: prywatnosc@techbee.pl.</p>
       </section>
 
       <section>
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           <li>dane konta: rola (Uczeń/Nauczyciel), historia lekcji, wiadomości w czacie,</li>
           <li>dane dotyczące profilu Nauczyciela: doświadczenie zawodowe, certyfikaty, umiejętności, opinie,</li>
           <li>dane transakcyjne: historia płatności i salda BeeCoins/BeePoints (przetwarzane częściowo przez zewnętrznego dostawcę płatności),</li>
-          <li>dane techniczne: adres IP, informacje o urządzeniu i przeglądarce, pliki cookies (patrz odrębna <a href="/cookies" className="text-foreground underline underline-offset-4 hover:text-[#F4B400]">Polityka Cookies</a>).</li>
+          <li>dane techniczne: adres IP, informacje o urządzeniu i przeglądarce, pliki cookies (patrz odrębna <a href="/cookies" className="text-foreground underline underline-offset-4 hover:text-primary">Polityka Cookies</a>).</li>
         </ul>
       </section>
 

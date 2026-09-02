@@ -50,12 +50,12 @@ export function RegisterForm() {
 
   return (
     <AuthShell
-      title="Załóż konto TechBee"
+      title="Załóż konto Runbee"
       subtitle="Oglądać ofertę możesz bez konta — do rezerwacji, portfela i BeePoints potrzebujesz konta"
       footer={
         <>
           Masz już konto?{' '}
-          <Link href="/login" className="font-medium text-foreground underline underline-offset-4 hover:text-[#F4B400]">
+          <Link href="/login" className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
             Zaloguj się
           </Link>
         </>
@@ -65,7 +65,7 @@ export function RegisterForm() {
         {/* Account type */}
         <div>
           <p className="mb-2 text-xs font-medium text-foreground">Typ konta</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {roleOptions.map((opt) => {
               const Icon = opt.icon
               const active = role === opt.value
@@ -78,12 +78,12 @@ export function RegisterForm() {
                   className={cn(
                     'flex flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all',
                     active
-                      ? 'border-[#F4B400] bg-[#FEF3C7] dark:bg-[#3B2800]'
+                      ? 'border-primary bg-accent'
                       : 'border-border hover:border-foreground/30',
                   )}
                 >
-                  <Icon className={cn('h-4 w-4', active ? 'text-[#B45309] dark:text-[#FBBF24]' : 'text-muted-foreground')} aria-hidden="true" />
-                  <span className={cn('text-xs font-semibold', active ? 'text-[#78350F] dark:text-[#FBBF24]' : 'text-foreground')}>{opt.label}</span>
+                  <Icon className={cn('h-4 w-4', active ? 'text-bee-yellow-dark' : 'text-muted-foreground')} aria-hidden="true" />
+                  <span className={cn('text-xs font-semibold', active ? 'text-accent-foreground' : 'text-foreground')}>{opt.label}</span>
                   <span className="text-[11px] leading-snug text-muted-foreground">{opt.description}</span>
                 </button>
               )
@@ -111,7 +111,7 @@ export function RegisterForm() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} className="mt-1 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+        <Button type="submit" disabled={loading} className="mt-1 font-semibold">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
           Utwórz konto
         </Button>

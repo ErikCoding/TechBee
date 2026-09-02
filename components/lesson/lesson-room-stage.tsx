@@ -168,7 +168,7 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
           </div>
         ) : remoteParticipants.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3">
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#F4B400] text-3xl font-bold text-[#0A0A0A]">
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-3xl font-bold text-primary-foreground">
               {initialsOf(waitingForLabel)}
             </div>
             <p className="text-sm text-white/70">Oczekiwanie na {waitingForLabel ?? 'drugą osobę'}…</p>
@@ -235,7 +235,7 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
                 const isMe = m.from?.isLocal ?? false
                 return (
                   <div key={m.id} className={cn('flex flex-col', isMe ? 'items-end' : 'items-start')}>
-                    <div className={cn('max-w-[85%] rounded-xl px-3 py-1.5 text-xs', isMe ? 'bg-[#F4B400] text-[#0A0A0A]' : 'bg-white/10 text-white')}>
+                    <div className={cn('max-w-[85%] rounded-xl px-3 py-1.5 text-xs', isMe ? 'bg-primary text-primary-foreground' : 'bg-white/10 text-white')}>
                       {m.message}
                     </div>
                     <span className="mt-0.5 px-1 text-[10px] text-white/30">{formatChatTime(m.timestamp)}</span>
@@ -251,7 +251,7 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
                 placeholder="Napisz na czacie..."
                 className="border-white/15 bg-white/5 text-white placeholder:text-white/40"
               />
-              <Button type="submit" size="icon" className="shrink-0 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24]" aria-label="Wyślij">
+              <Button type="submit" size="icon" className="shrink-0" aria-label="Wyślij">
                 <Send className="h-4 w-4" />
               </Button>
             </form>
@@ -299,7 +299,7 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
         >
           <MessageSquare className="h-5 w-5" />
           {!chatOpen && chatMessages.length > 0 && (
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#F4B400]" aria-hidden="true" />
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
           )}
         </button>
         <button

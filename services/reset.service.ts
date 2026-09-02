@@ -1,15 +1,33 @@
-import { collection, getDocs, writeBatch } from 'firebase/firestore'
-import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { auth, isFirebaseConfigured } from '@/lib/firebase'
 
 // ─────────────────────────────────────────────────────────────
 // Admin-only "wipe activity data" button (see components/admin/
 // admin-reset-panel.tsx) — clears everything that accumulates from
 // people actually using the platform (messages, bookings, wallets,
-// notifications, parent-link codes, BeePoints) so the app can be
-// reset to a clean slate right before launch, without touching real
-// accounts (`users`) or content that isn't per-user activity
-// (teacher profiles/applications, the categories/testimonials/FAQ
-// catalog).
+// notifications, parent-link codes, BeePoints, Stripe payout/webhook
+// history) so the app can be reset to a clean slate right before
+// launch, without touching real accounts (`users`) or content that
+// isn't per-user activity (teacher profiles/applications, the
+// categories/testimonials/FAQ catalog).
+//
+// Deliberately does NOT touch a teacher's Stripe Connect link
+// (`teachers/{id}.stripe` — account id + onboarding status) so
+// re-running this doesn't force every teacher back through Stripe's
+// hosted onboarding. It also can't touch anything that only exists in
+// Stripe itself (Connected Accounts, Checkout Sessions, Payment
+// Intents, Transfers, Payouts, Refunds) — Firestore only ever stores
+// IDs/status/history metadata for those (see services/stripe.service.ts),
+// never the money itself. To reset Stripe's own Test Mode data, use
+// Stripe's own "Reset test data" option (Dashboard → Test Mode →
+// Developers) instead.
+//
+// The actual deletes run server-side via the trusted admin SDK (see
+// app/api/admin/reset-activity/route.ts), not the client Firestore
+// SDK: several of the collections cleared here (wallets,
+// walletTransactions, payouts, stripeEvents) are deny-all in
+// firestore.rules for every client, including an admin's own browser
+// — money-integrity data only the trusted server may touch — so a
+// pure client-side reset would silently fail partway through.
 // ─────────────────────────────────────────────────────────────
 
 export interface ResetResult {
@@ -17,62 +35,20 @@ export interface ResetResult {
   count: number
 }
 
-// Firestore batched writes cap out at 500 ops — comfortably under that.
-const BATCH_LIMIT = 450
-
-async function deleteAllDocs(collectionName: string): Promise<number> {
-  if (!db) return 0
-  const snap = await getDocs(collection(db, collectionName))
-  const docs = snap.docs
-  for (let i = 0; i < docs.length; i += BATCH_LIMIT) {
-    const batch = writeBatch(db)
-    for (const d of docs.slice(i, i + BATCH_LIMIT)) batch.delete(d.ref)
-    await batch.commit()
-  }
-  return docs.length
-}
-
-/** Conversations' messages live in an `items` subcollection, which Firestore never cascade-deletes on its own — each conversation's messages have to be cleared before (or alongside) the conversation doc itself. */
-async function deleteAllConversationsAndMessages(): Promise<number> {
-  if (!db) return 0
-  const convSnap = await getDocs(collection(db, collections.conversations))
-  let total = 0
-  for (const convDoc of convSnap.docs) {
-    const itemsSnap = await getDocs(collection(db, collections.conversations, convDoc.id, 'items'))
-    const itemDocs = itemsSnap.docs
-    for (let i = 0; i < itemDocs.length; i += BATCH_LIMIT) {
-      const batch = writeBatch(db)
-      for (const m of itemDocs.slice(i, i + BATCH_LIMIT)) batch.delete(m.ref)
-      await batch.commit()
-    }
-    total += itemDocs.length
-  }
-  total += await deleteAllDocs(collections.conversations)
-  return total
-}
-
-/**
- * Wipes per-user *activity* data: conversations + their messages,
- * lessons/bookings, wallets + wallet transactions, BeePoints balances +
- * events, notifications, and parent-student link codes. Deliberately
- * leaves `users` (accounts), `teachers` (profiles/applications), and
- * the public catalog (`categories`/`testimonials`/`faq`) untouched.
- */
 export async function resetActivityData(): Promise<ResetResult[]> {
-  if (!isFirebaseConfigured || !db) {
+  if (!isFirebaseConfigured) {
     throw new Error('Firebase nie jest skonfigurowane.')
   }
 
-  const results: ResetResult[] = []
-
-  results.push({ collection: 'Wiadomości i konwersacje', count: await deleteAllConversationsAndMessages() })
-  results.push({ collection: 'Lekcje i rezerwacje', count: await deleteAllDocs(collections.lessons) })
-  results.push({ collection: 'Portfele', count: await deleteAllDocs(collections.wallets) })
-  results.push({ collection: 'Transakcje portfela', count: await deleteAllDocs(collections.walletTransactions) })
-  results.push({ collection: 'Salda BeePoints', count: await deleteAllDocs(collections.beepoints) })
-  results.push({ collection: 'Zdarzenia BeePoints', count: await deleteAllDocs(collections.beepointsEvents) })
-  results.push({ collection: 'Powiadomienia', count: await deleteAllDocs(collections.notifications) })
-  results.push({ collection: 'Kody łączące rodzic-uczeń', count: await deleteAllDocs(collections.linkCodes) })
-
-  return results
+  const idToken = await auth?.currentUser?.getIdToken().catch(() => undefined)
+  const res = await fetch('/api/admin/reset-activity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  })
+  const data = await res.json().catch(() => ({}) as Record<string, unknown>)
+  if (!res.ok) {
+    throw new Error(typeof data.error === 'string' ? data.error : 'Nie udało się zresetować danych.')
+  }
+  return data.results as ResetResult[]
 }

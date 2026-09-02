@@ -6,7 +6,9 @@ import { Search, Star, Trash2, Check, X, RotateCcw, ExternalLink, Loader2, Gradu
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { getAllTeachersForAdmin, deleteTeacherProfile, reviewTeacherApplication, setTeacherFeatured } from '@/services/teachers.service'
+import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
 import { cn } from '@/lib/utils'
 import type { Category, Teacher } from '@/lib/types'
 
@@ -16,10 +18,10 @@ interface Props {
 
 type StatusFilter = 'all' | 'approved' | 'pending' | 'rejected'
 
-const statusConfig: Record<'approved' | 'pending' | 'rejected', { label: string; className: string }> = {
-  approved: { label: 'Zaakceptowany', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  pending: { label: 'Oczekuje', className: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' },
-  rejected: { label: 'Odrzucony', className: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+const statusConfig: Record<'approved' | 'pending' | 'rejected', { label: string; tone: StatusTone }> = {
+  approved: { label: 'Zaakceptowany', tone: 'success' },
+  pending: { label: 'Oczekuje', tone: 'warning' },
+  rejected: { label: 'Odrzucony', tone: 'error' },
 }
 
 function statusOf(t: Teacher): 'approved' | 'pending' | 'rejected' {
@@ -95,7 +97,7 @@ export function AdminTeachersPanel({ categories }: Props) {
               onClick={() => setFilter(f.key)}
               className={cn(
                 'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
-                filter === f.key ? 'bg-[#F4B400] text-[#0A0A0A]' : 'bg-muted text-muted-foreground hover:bg-muted/70',
+                filter === f.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70',
               )}
             >
               {f.label} <span className="opacity-70">({counts[f.key]})</span>
@@ -120,14 +122,14 @@ export function AdminTeachersPanel({ categories }: Props) {
             return (
               <div key={t.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white" style={{ backgroundColor: t.avatarColor }}>
-                    {t.initials}
-                  </div>
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarFallback color={t.avatarColor}>{t.initials}</AvatarFallback>
+                  </Avatar>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', badge.className)}>{badge.label}</span>
-                      {t.featured && <Badge className="bg-[#F4B400] text-[#0A0A0A] text-[10px]">Wyróżniony</Badge>}
+                      <StatusBadge tone={badge.tone} dot={false} className="px-2 py-0.5 text-[10px]">{badge.label}</StatusBadge>
+                      {t.featured && <Badge className="text-[10px]">Wyróżniony</Badge>}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">{t.specialty} · {categoryName(t.categoryId)}</p>
                     <p className="text-xs text-muted-foreground">{t.location} · {t.hourlyRate} zł/godz.</p>
@@ -147,9 +149,9 @@ export function AdminTeachersPanel({ categories }: Props) {
                         variant="outline"
                         disabled={busy}
                         onClick={() => withBusy(t.id, () => setTeacherFeatured(t.id, !t.featured))}
-                        className={t.featured ? 'text-[#B45309] dark:text-[#FBBF24]' : ''}
+                        className={t.featured ? 'text-bee-yellow-dark' : ''}
                       >
-                        <Star className={cn('h-3.5 w-3.5', t.featured && 'fill-[#F4B400] stroke-[#F4B400]')} />
+                        <Star className={cn('h-3.5 w-3.5', t.featured && 'fill-primary stroke-primary')} />
                         {t.featured ? 'Cofnij wyróżnienie' : 'Wyróżnij'}
                       </Button>
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'rejected'))} className="text-destructive hover:text-destructive">
@@ -164,14 +166,14 @@ export function AdminTeachersPanel({ categories }: Props) {
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
                         Odrzuć
                       </Button>
-                      <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+                      <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="font-semibold">
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                         Zaakceptuj
                       </Button>
                     </>
                   )}
                   {status === 'rejected' && (
-                    <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+                    <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="font-semibold">
                       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                       Przywróć / zaakceptuj
                     </Button>

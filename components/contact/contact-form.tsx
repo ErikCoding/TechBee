@@ -21,7 +21,7 @@ export function ContactForm() {
   if (status === 'sent') {
     return (
       <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-8 text-center">
-        <CheckCircle2 className="h-8 w-8 text-emerald-500" aria-hidden="true" />
+        <CheckCircle2 className="h-8 w-8 text-success" aria-hidden="true" />
         <p className="font-semibold text-foreground">Wiadomość wysłana</p>
         <p className="text-sm text-muted-foreground">Odpowiemy najszybciej, jak to możliwe — zwykle w ciągu 1 dnia roboczego.</p>
       </div>
@@ -50,7 +50,7 @@ export function ContactForm() {
           className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
-      <Button type="submit" disabled={status === 'sending'} className="mt-1 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+      <Button type="submit" disabled={status === 'sending'} className="mt-1 font-semibold">
         {status === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         Wyślij wiadomość
       </Button>

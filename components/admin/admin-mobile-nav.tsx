@@ -24,6 +24,16 @@ export function AdminMobileNav() {
     setOpen(false)
   }, [pathname])
 
+  // Escape closes the drawer, matching the Dialog primitive used elsewhere.
+  useEffect(() => {
+    if (!open) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open])
+
   return (
     <div className="md:hidden">
       <button
@@ -75,7 +85,7 @@ export function AdminMobileNav() {
                 className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Wróć do TechBee
+                Wróć do Runbee
               </Link>
             </div>
           </div>

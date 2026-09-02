@@ -6,14 +6,14 @@ export const metadata: Metadata = { title: 'Regulamin' }
 export default function TermsPage() {
   return (
     <LegalPage
-      title="Regulamin serwisu TechBee"
+      title="Regulamin serwisu Runbee"
       updated="6 sierpnia 2026"
-      intro="Niniejszy regulamin określa zasady korzystania z serwisu internetowego TechBee (dalej: „Serwis”), dostępnego pod adresem techbee.pl, prowadzonego przez TechBee Technologie Sp. z o.o. z siedzibą w Warszawie (dalej: „Usługodawca”). To wersja robocza regulaminu — przed uruchomieniem produkcyjnym Serwisu i rozpoczęciem realnych płatności powinna zostać zweryfikowana przez radcę prawnego specjalizującego się w e-commerce i usługach płatniczych."
+      intro="Niniejszy regulamin określa zasady korzystania z serwisu internetowego Runbee (dalej: „Serwis”), dostępnego pod adresem techbee.pl, prowadzonego przez Runbee Technologie Sp. z o.o. z siedzibą w Warszawie (dalej: „Usługodawca”). To wersja robocza regulaminu — przed uruchomieniem produkcyjnym Serwisu i rozpoczęciem realnych płatności powinna zostać zweryfikowana przez radcę prawnego specjalizującego się w e-commerce i usługach płatniczych."
     >
       <section>
         <h2>§1. Postanowienia ogólne</h2>
         <p>1. Regulamin określa rodzaj i zakres usług świadczonych drogą elektroniczną przez Usługodawcę, warunki ich świadczenia, warunki zawierania i rozwiązywania umów o świadczenie usług drogą elektroniczną oraz tryb postępowania reklamacyjnego, zgodnie z art. 8 ustawy z dnia 18 lipca 2002 r. o świadczeniu usług drogą elektroniczną.</p>
-        <p>2. Dane Usługodawcy: TechBee Technologie Sp. z o.o., ul. Przykładowa 1, 00-001 Warszawa, NIP: 000-000-00-00, REGON: 000000000, e-mail: kontakt@techbee.pl. <em>(dane rejestrowe zostaną uzupełnione po formalnej rejestracji spółki)</em>.</p>
+        <p>2. Dane Usługodawcy: Runbee Technologie Sp. z o.o., ul. Przykładowa 1, 00-001 Warszawa, NIP: 000-000-00-00, REGON: 000000000, e-mail: kontakt@techbee.pl. <em>(dane rejestrowe zostaną uzupełnione po formalnej rejestracji spółki)</em>.</p>
         <p>3. Ilekroć w Regulaminie mowa jest o „Użytkowniku”, rozumie się przez to każdą osobę korzystającą z Serwisu, w tym „Ucznia” (osobę poszukującą lekcji) oraz „Nauczyciela” (osobę oferującą lekcje).</p>
       </section>
 
@@ -76,7 +76,7 @@ export default function TermsPage() {
 
       <section>
         <h2>§9. Dane osobowe</h2>
-        <p>Zasady przetwarzania danych osobowych Użytkowników opisane są w odrębnej <a href="/privacy" className="text-foreground underline underline-offset-4 hover:text-[#F4B400]">Polityce Prywatności</a>.</p>
+        <p>Zasady przetwarzania danych osobowych Użytkowników opisane są w odrębnej <a href="/privacy" className="text-foreground underline underline-offset-4 hover:text-primary">Polityce Prywatności</a>.</p>
       </section>
 
       <section>

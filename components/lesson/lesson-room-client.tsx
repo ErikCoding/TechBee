@@ -72,7 +72,7 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
   if (!isLiveKitConfigured) {
     return (
       <div className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center gap-3 px-4 text-center text-white">
-        <AlertTriangle className="h-8 w-8 text-[#F4B400]" aria-hidden="true" />
+        <AlertTriangle className="h-8 w-8 text-primary" aria-hidden="true" />
         <p className="text-lg font-semibold">Wideolekcje nie są jeszcze skonfigurowane</p>
         <p className="max-w-sm text-sm text-white/60">
           Brakuje zmiennych środowiskowych LiveKit (NEXT_PUBLIC_LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET) — zobacz .env.example.
@@ -104,7 +104,7 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
   if (state === 'loading' || !connection) {
     return (
       <div className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center gap-3 px-4 text-center text-white">
-        <Loader2 className="h-8 w-8 animate-spin text-[#F4B400]" aria-hidden="true" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
         <p className="text-sm text-white/60">Łączenie z salą lekcji…</p>
       </div>
     )

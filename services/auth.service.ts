@@ -64,7 +64,14 @@ export const demoAccounts = [
   { email: 'marek.kowalski@example.com', password: 'demo1234', role: 'teacher' as UserRole, label: 'Konto nauczyciela (demo)' },
 ]
 
-const demoAdminAccount = { email: 'admin@techbee.pl', password: 'admin1234', role: 'admin' as UserRole }
+const demoAdminAccount = { email: 'admin@runbee.pl', password: 'admin1234', role: 'admin' as UserRole }
+
+/**
+ * The admin demo address before the Runbee rename. Still accepted so an
+ * admin account already seeded into localStorage (or muscle memory) keeps
+ * working — the rebrand should not lock anyone out of their own sandbox.
+ */
+const legacyAdminEmail = 'admin@techbee.pl'
 
 // ── Mock (localStorage) implementation ──────────────────────
 
@@ -114,11 +121,11 @@ function ensureSeedData() {
     },
     {
       id: 'admin-1',
-      name: 'Administrator TechBee',
+      name: 'Administrator Runbee',
       firstName: 'Admin',
       email: demoAdminAccount.email,
       role: 'admin',
-      initials: 'TB',
+      initials: 'RB',
       avatarColor: '#F4B400',
       password: demoAdminAccount.password,
     },
@@ -149,7 +156,10 @@ async function registerMock(input: RegisterInput): Promise<AuthUser> {
 
 async function loginMock(input: LoginInput): Promise<AuthUser> {
   const users = readUsers()
-  const email = input.email.trim().toLowerCase()
+  const raw = input.email.trim().toLowerCase()
+  // The admin demo address moved with the Runbee rename; the old one still
+  // resolves so a sandbox seeded before the rename keeps working.
+  const email = raw === legacyAdminEmail ? demoAdminAccount.email : raw
   const user = users.find((u) => u.email.toLowerCase() === email)
   if (!user || user.password !== input.password) {
     throw new Error('Nieprawidłowy e-mail lub hasło.')

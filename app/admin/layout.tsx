@@ -29,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="flex min-w-0 items-center gap-2">
               <AdminMobileNav />
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">Panel administratora TechBee</p>
+                <p className="truncate text-sm font-semibold text-foreground">Panel administratora Runbee</p>
                 <p className="hidden text-xs text-muted-foreground sm:block">Dane demonstracyjne — bez połączenia z produkcją</p>
               </div>
             </div>

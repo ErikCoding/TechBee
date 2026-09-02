@@ -60,4 +60,7 @@ export const collections = {
   messages: 'messages',
   reviews: 'reviews',
   linkCodes: 'linkCodes',
+  payouts: 'payouts',
+  /** Processed Stripe webhook event ids — see app/api/stripe/webhook/route.ts's idempotency check (one doc per event.id, written before processing, checked before every write). */
+  stripeEvents: 'stripeEvents',
 } as const

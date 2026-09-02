@@ -32,7 +32,7 @@ export function AdminSeedPanel() {
       </div>
 
       {!isFirebaseConfigured ? (
-        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4 text-sm text-yellow-700 dark:text-yellow-400">
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning-surface p-4 text-sm text-warning-on-surface">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <div>
             <p className="font-medium">Firebase nie jest jeszcze skonfigurowane.</p>
@@ -46,12 +46,12 @@ export function AdminSeedPanel() {
           <p className="text-sm text-muted-foreground">
             Wgraj katalog demo (nauczyciele, kategorie, opinie, FAQ) do kolekcji Firestore. Bezpieczne do wielokrotnego uruchomienia — nadpisuje te same dokumenty.
           </p>
-          <Button onClick={handleSeed} disabled={status === 'loading'} className="mt-3 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+          <Button onClick={handleSeed} disabled={status === 'loading'} className="mt-3 font-semibold">
             {status === 'loading' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
             Zasiej dane demo
           </Button>
           {status === 'done' && (
-            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-success/30 bg-success-surface p-3 text-sm text-success-on-surface">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <ul className="flex flex-col gap-0.5">
                 {results.map((r) => (

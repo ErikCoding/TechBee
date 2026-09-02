@@ -1,19 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from '@/components/ui/dialog'
+import { FormError } from '@/components/ui/form-error'
 import { submitLessonReport } from '@/services/lessons.service'
 import { cn } from '@/lib/utils'
-import type { Lesson } from '@/lib/types'
+import type { Lesson, LessonReport } from '@/lib/types'
 
 interface Props {
   lesson: Lesson
   onClose: () => void
-  onSubmitted: () => void
+  /** Passed the just-submitted report so the caller can patch its local lesson list instead of refetching everything (see TeacherLessonsSection). */
+  onSubmitted: (report: LessonReport) => void
 }
 
-function RatingPicker({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+function RatingPicker({ label, value, onChange, disabled }: { label: string; value: number; onChange: (n: number) => void; disabled?: boolean }) {
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-foreground">{label}</span>
@@ -26,9 +29,10 @@ function RatingPicker({ label, value, onChange }: { label: string; value: number
             aria-checked={value === n}
             aria-label={String(n)}
             onClick={() => onChange(n)}
+            disabled={disabled}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-semibold transition-colors',
-              value === n ? 'border-[#F4B400] bg-[#F4B400] text-[#0A0A0A]' : 'border-border text-muted-foreground hover:bg-muted',
+              'flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-semibold transition-colors disabled:pointer-events-none disabled:opacity-60',
+              value === n ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-muted',
             )}
           >
             {n}
@@ -38,6 +42,9 @@ function RatingPicker({ label, value, onChange }: { label: string; value: number
     </div>
   )
 }
+
+const fieldClass =
+  'w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60'
 
 /**
  * The teacher's required last step after a lesson (see LessonReport in
@@ -64,15 +71,16 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
     setSubmitting(true)
     setError(null)
     try {
-      await submitLessonReport(lesson, {
+      const report: LessonReport = {
         topic: topic.trim(),
         progressRating,
         engagementRating,
         homework: homework.trim() || undefined,
         tutorNote: tutorNote.trim() || undefined,
         nextTopic: nextTopic.trim() || undefined,
-      })
-      onSubmitted()
+      }
+      await submitLessonReport(lesson, report)
+      onSubmitted(report)
     } catch {
       setError('Nie udało się zapisać raportu. Spróbuj ponownie.')
     } finally {
@@ -81,20 +89,14 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={() => !submitting && onClose()} aria-hidden="true" />
-      <div className="relative flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl border border-border bg-card shadow-xl animate-fade-in-up">
-        <div className="flex items-center justify-between border-b border-border p-5">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Raport z lekcji</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">z {lesson.studentName} · {lesson.date}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-muted" aria-label="Zamknij">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open && !submitting) onClose() }}>
+      <DialogContent showClose={!submitting} className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Raport z lekcji</DialogTitle>
+          <DialogDescription>z {lesson.studentName} · {lesson.date}</DialogDescription>
+        </DialogHeader>
 
-        <div className="flex flex-col gap-4 overflow-y-auto p-5">
+        <DialogBody>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="reportTopic" className="text-xs font-medium text-foreground">Co przerobiliście na lekcji</label>
             <textarea
@@ -102,12 +104,13 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#F4B400]"
+              disabled={submitting}
+              className={fieldClass}
             />
           </div>
 
-          <RatingPicker label="Ocena postępu ucznia" value={progressRating} onChange={setProgressRating} />
-          <RatingPicker label="Zaangażowanie ucznia" value={engagementRating} onChange={setEngagementRating} />
+          <RatingPicker label="Ocena postępu ucznia" value={progressRating} onChange={setProgressRating} disabled={submitting} />
+          <RatingPicker label="Zaangażowanie ucznia" value={engagementRating} onChange={setEngagementRating} disabled={submitting} />
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="reportHomework" className="text-xs font-medium text-foreground">Zadanie domowe / co ćwiczyć (opcjonalnie)</label>
@@ -117,7 +120,8 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
               onChange={(e) => setHomework(e.target.value)}
               rows={2}
               placeholder="np. Przećwiczyć programowanie sterownika PLC..."
-              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#F4B400]"
+              disabled={submitting}
+              className={fieldClass}
             />
           </div>
 
@@ -128,7 +132,8 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
               value={tutorNote}
               onChange={(e) => setTutorNote(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#F4B400]"
+              disabled={submitting}
+              className={fieldClass}
             />
           </div>
 
@@ -138,23 +143,24 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
               id="reportNextTopic"
               value={nextTopic}
               onChange={(e) => setNextTopic(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#F4B400]"
+              disabled={submitting}
+              className={cn(fieldClass, 'resize-auto')}
             />
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
-        </div>
+          <FormError>{error}</FormError>
+        </DialogBody>
 
-        <div className="border-t border-border p-5">
-          <Button onClick={handleSubmit} disabled={submitting} className="w-full bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+        <DialogFooter className="flex-col items-stretch gap-2">
+          <Button onClick={handleSubmit} disabled={submitting} className="w-full font-semibold">
             {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Wyślij raport
           </Button>
-          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          <p className="text-center text-[11px] text-muted-foreground">
             Płatność zostanie zwolniona po potwierdzeniu raportu (automatycznie po 24h, jeśli nikt nie zareaguje).
           </p>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

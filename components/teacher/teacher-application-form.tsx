@@ -105,13 +105,13 @@ export function TeacherApplicationForm() {
 
   if (submitted) {
     return (
-      <div className="animate-fade-in-up rounded-2xl border border-[#F4B400]/30 bg-[#FEF3C7] p-8 text-center dark:bg-[#3B2800]">
-        <CheckCircle2 className="mx-auto h-10 w-10 text-[#B45309] dark:text-[#FBBF24]" aria-hidden="true" />
-        <h2 className="mt-3 text-lg font-semibold text-[#78350F] dark:text-[#FBBF24]">Zgłoszenie wysłane!</h2>
-        <p className="mt-1 text-sm text-[#92400E] dark:text-[#FCD34D]">
+      <div className="animate-fade-in-up rounded-2xl border border-primary/30 bg-accent p-8 text-center">
+        <CheckCircle2 className="mx-auto h-10 w-10 text-bee-yellow-dark" aria-hidden="true" />
+        <h2 className="mt-3 text-lg font-semibold text-accent-foreground">Zgłoszenie wysłane!</h2>
+        <p className="mt-1 text-sm text-accent-foreground/80">
           Twój profil czeka teraz na weryfikację przez administratora. Po akceptacji pojawisz się w giełdzie nauczycieli.
         </p>
-        <Button onClick={() => router.push('/dashboard/teacher')} className="mt-5 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+        <Button onClick={() => router.push('/dashboard/teacher')} className="mt-5 font-semibold">
           Wróć do panelu
         </Button>
       </div>
@@ -126,7 +126,7 @@ export function TeacherApplicationForm() {
         </div>
       )}
       {existing?.status === 'pending' && (
-        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4 text-sm text-yellow-700 dark:text-yellow-400">
+        <div className="rounded-xl border border-warning/30 bg-warning-surface p-4 text-sm text-warning-on-surface">
           Masz już zgłoszenie oczekujące na weryfikację. Możesz je poniżej zaktualizować — wyślij ponownie, aby zapisać zmiany.
         </div>
       )}
@@ -196,7 +196,7 @@ export function TeacherApplicationForm() {
               onClick={() => toggleDay(d.code)}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                 availability.includes(d.code)
-                  ? 'bg-[#F4B400] text-[#0A0A0A]'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/70'
               }`}
             >
@@ -221,7 +221,7 @@ export function TeacherApplicationForm() {
         <p className="mt-1.5 text-[11px] text-muted-foreground">Uczniowie będą mogli rezerwować godzinne terminy w tym przedziale, w wybrane dni.</p>
       </div>
 
-      <Button type="submit" disabled={submitting} className="mt-1 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+      <Button type="submit" disabled={submitting} className="mt-1 font-semibold">
         {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
         Wyślij zgłoszenie do weryfikacji
       </Button>

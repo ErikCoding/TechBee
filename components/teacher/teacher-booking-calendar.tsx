@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { buildAvailability } from '@/lib/availability'
 import { useAuth } from '@/lib/auth-context'
+import { isFirebaseConfigured } from '@/lib/firebase'
 import { createBooking } from '@/services/lessons.service'
+import { startLessonCheckout } from '@/services/stripe.service'
 import { cn, dashboardPathForRole } from '@/lib/utils'
 import type { Teacher } from '@/lib/types'
 
@@ -42,19 +44,32 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
   const selectedDay = days[selectedDayIndex]
   const price = Math.round((teacher.hourlyRate / 60) * duration)
 
-  // Note: the price is charged (held in escrow) from the payer's wallet —
-  // the student themselves, or the parent booking on their behalf (see
-  // bookingFor above) — the moment this request is sent (see
-  // holdLessonPayment in wallet.service.ts). If they don't have enough
-  // balance, createBooking throws and the request never gets sent. It's
-  // refunded automatically if the teacher rejects it, and released to the
-  // teacher only once the post-lesson report is confirmed (see
-  // services/lessons.service.ts).
+  // Real (Firebase-configured) mode: payment happens now, via a real
+  // Stripe Checkout redirect — the lesson itself isn't created until
+  // Stripe confirms the payment actually succeeded (see the webhook at
+  // app/api/stripe/webhook/route.ts), so there's no "book now, pay
+  // later" gap and no way to book without paying. Mock mode keeps the
+  // old instant local demo booking (no real payment processor either
+  // way in that mode).
   async function handleConfirm() {
     if (!user || !selectedDay || !selectedSlot || !topic.trim()) return
     setSubmitting(true)
     setError(null)
     try {
+      if (isFirebaseConfigured) {
+        const url = await startLessonCheckout({
+          teacherId: teacher.id,
+          date: selectedDay.dayLabel,
+          time: selectedSlot,
+          duration,
+          topic: topic.trim(),
+          studentId: bookingFor?.id ?? user.id,
+          studentName: bookingFor?.name ?? user.name,
+          payer: bookingFor ? { id: user.id, role: 'parent' } : undefined,
+        })
+        window.location.href = url
+        return
+      }
       const lesson = await createBooking({
         teacherId: teacher.id,
         teacherName: teacher.name,
@@ -72,7 +87,7 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
       })
       setBookedLessonId(lesson.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nie udało się wysłać prośby o rezerwację. Spróbuj ponownie.')
+      setError(err instanceof Error ? err.message : 'Nie udało się rozpocząć płatności. Spróbuj ponownie.')
     } finally {
       setSubmitting(false)
     }
@@ -88,8 +103,8 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
 
   if (bookedLessonId) {
     return (
-      <div className="animate-fade-in-up rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center">
-        <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" aria-hidden="true" />
+      <div className="animate-fade-in-up rounded-2xl border border-success/30 bg-success-surface p-8 text-center">
+        <CheckCircle2 className="mx-auto h-10 w-10 text-success-on-surface" aria-hidden="true" />
         <h2 className="mt-3 text-lg font-semibold text-foreground">Prośba o rezerwację wysłana!</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {selectedDay.dayLabel} o {selectedSlot} z {teacher.name} · {duration} min · {price} zł
@@ -99,7 +114,7 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
           {bookingFor ? `Środki zostały zablokowane w Twoim portfelu. Lekcja` : 'Lekcja'} pojawi się w panelu, gdy {teacher.name} potwierdzi termin.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-          <Button onClick={() => router.push(dashboardPathForRole(user?.role))} className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+          <Button onClick={() => router.push(dashboardPathForRole(user?.role))} className="font-semibold">
             Przejdź do panelu
           </Button>
           <Link href={`/teacher/${teacher.id}`}>
@@ -111,89 +126,118 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Date picker */}
-      <div>
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          Wybierz dzień
-        </h2>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {days.map((day, i) => (
-            <button
-              key={day.isoDate}
-              type="button"
-              onClick={() => { setSelectedDayIndex(i); setSelectedSlot(null) }}
-              className={cn(
-                'flex shrink-0 flex-col items-center gap-0.5 rounded-xl border px-4 py-2.5 text-xs font-medium transition-colors',
-                i === selectedDayIndex
-                  ? 'border-[#F4B400] bg-[#FEF3C7] text-[#78350F] dark:bg-[#3B2800] dark:text-[#FBBF24]'
-                  : 'border-border text-muted-foreground hover:bg-muted',
-              )}
-            >
-              <span>{day.weekdayLabel}</span>
-              <span className="text-[11px] opacity-80">{day.dayLabel.split(', ')[1]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* Wizard card — every step lives inside one panel instead of loose stacked blocks */}
+      <div className="animate-fade-in-up overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="flex flex-col divide-y divide-border">
+          {/* Step 1 — Date picker */}
+          <div className="px-5 py-5">
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">1</span>
+              <h2 className="text-sm font-semibold text-foreground">Wybierz dzień</h2>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {days.map((day, i) => (
+                <button
+                  key={day.isoDate}
+                  type="button"
+                  onClick={() => { setSelectedDayIndex(i); setSelectedSlot(null) }}
+                  className={cn(
+                    'flex shrink-0 flex-col items-center gap-0.5 rounded-xl border px-4 py-2.5 text-xs font-medium transition-all',
+                    i === selectedDayIndex
+                      ? 'border-primary bg-accent text-accent-foreground'
+                      : 'border-border text-muted-foreground hover:-translate-y-0.5 hover:bg-muted',
+                  )}
+                >
+                  <span>{day.weekdayLabel}</span>
+                  <span className="text-[11px] opacity-80">{day.dayLabel.split(', ')[1]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Time slots */}
-      <div>
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-          <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          Wybierz godzinę — {selectedDay.dayLabel}
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {selectedDay.slots.map((slot) => (
-            <button
-              key={slot}
-              type="button"
-              onClick={() => setSelectedSlot(slot)}
-              className={cn(
-                'rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                selectedSlot === slot
-                  ? 'border-[#F4B400] bg-[#F4B400] text-[#0A0A0A]'
-                  : 'border-border text-foreground hover:bg-muted',
-              )}
-            >
-              {slot}
-            </button>
-          ))}
-        </div>
-      </div>
+          {/* Step 2 — Time slots */}
+          <div className="px-5 py-5">
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">2</span>
+              <h2 className="text-sm font-semibold text-foreground">Wybierz godzinę — {selectedDay.dayLabel}</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedDay.slots.map((slot) => (
+                <button
+                  key={slot}
+                  type="button"
+                  onClick={() => setSelectedSlot(slot)}
+                  className={cn(
+                    'rounded-lg border px-4 py-2 text-sm font-medium transition-all',
+                    selectedSlot === slot
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border text-foreground hover:-translate-y-0.5 hover:bg-muted',
+                  )}
+                >
+                  {slot}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Duration */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Długość lekcji</h2>
-        <div className="flex gap-2">
-          {DURATIONS.map((d) => (
-            <button
-              key={d.minutes}
-              type="button"
-              onClick={() => setDuration(d.minutes)}
-              className={cn(
-                'rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                duration === d.minutes
-                  ? 'border-[#F4B400] bg-[#F4B400] text-[#0A0A0A]'
-                  : 'border-border text-foreground hover:bg-muted',
-              )}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-      </div>
+          {/* Step 3 — Duration */}
+          <div className="px-5 py-5">
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">3</span>
+              <h2 className="text-sm font-semibold text-foreground">Długość lekcji</h2>
+            </div>
+            <div className="flex gap-2">
+              {DURATIONS.map((d) => (
+                <button
+                  key={d.minutes}
+                  type="button"
+                  onClick={() => setDuration(d.minutes)}
+                  className={cn(
+                    'rounded-lg border px-4 py-2 text-sm font-medium transition-all',
+                    duration === d.minutes
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border text-foreground hover:-translate-y-0.5 hover:bg-muted',
+                  )}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Topic */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Czego dotyczy lekcja?</h2>
-        <Textarea
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          placeholder="np. Konfiguracja bloków funkcyjnych w TIA Portal, przygotowanie do egzaminu certyfikacyjnego..."
-          rows={3}
-        />
+          {/* Step 4 — Topic */}
+          <div className="px-5 py-5">
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">4</span>
+              <h2 className="text-sm font-semibold text-foreground">Czego dotyczy lekcja?</h2>
+            </div>
+            <Textarea
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="np. Konfiguracja bloków funkcyjnych w TIA Portal, przygotowanie do egzaminu certyfikacyjnego..."
+              rows={3}
+            />
+          </div>
+        </div>
+
+        {/* Summary + confirm — attached footer bar, not a floating box */}
+        <div className="flex flex-col gap-3 border-t border-border bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {isFirebaseConfigured ? 'Cena lekcji — płatność przez Stripe' : 'Cena lekcji'}
+            </p>
+            <p className="text-2xl font-bold text-foreground">{price} zł</p>
+          </div>
+          <Button
+            onClick={handleConfirm}
+            disabled={!selectedSlot || !topic.trim() || submitting}
+            className="font-semibold transition-transform hover:-translate-y-0.5 disabled:hover:translate-y-0"
+          >
+            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {isFirebaseConfigured ? 'Zapłać i zarezerwuj' : 'Wyślij prośbę o rezerwację'}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -202,23 +246,7 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
         </div>
       )}
 
-      {/* Summary + confirm */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">Cena lekcji (zablokowana w portfelu do potwierdzenia raportu)</p>
-          <p className="text-2xl font-bold text-foreground">{price} zł</p>
-        </div>
-        <Button
-          onClick={handleConfirm}
-          disabled={!selectedSlot || !topic.trim() || submitting}
-          className="bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold transition-transform hover:-translate-y-0.5 disabled:hover:translate-y-0"
-        >
-          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Wyślij prośbę o rezerwację
-        </Button>
-      </div>
-
-      <Link href={`/teacher/${teacher.id}`} className="inline-flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+      <Link href={`/teacher/${teacher.id}`} className="inline-flex w-fit items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground">
         <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
         Wolisz najpierw zapytać? Napisz wiadomość z profilu nauczyciela.
       </Link>

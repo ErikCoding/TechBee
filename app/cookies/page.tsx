@@ -8,7 +8,7 @@ export default function CookiesPage() {
     <LegalPage
       title="Polityka cookies"
       updated="6 sierpnia 2026"
-      intro="Serwis TechBee wykorzystuje pliki cookies (ciasteczka) oraz podobne technologie w celu zapewnienia prawidłowego działania strony i utrzymania sesji zalogowanego Użytkownika."
+      intro="Serwis Runbee wykorzystuje pliki cookies (ciasteczka) oraz podobne technologie w celu zapewnienia prawidłowego działania strony i utrzymania sesji zalogowanego Użytkownika."
     >
       <section>
         <h2>1. Czym są pliki cookies</h2>
@@ -31,7 +31,7 @@ export default function CookiesPage() {
 
       <section>
         <h2>4. Więcej informacji</h2>
-        <p>Szczegółowe informacje o przetwarzaniu danych osobowych znajdują się w naszej <a href="/privacy" className="text-foreground underline underline-offset-4 hover:text-[#F4B400]">Polityce Prywatności</a>.</p>
+        <p>Szczegółowe informacje o przetwarzaniu danych osobowych znajdują się w naszej <a href="/privacy" className="text-foreground underline underline-offset-4 hover:text-primary">Polityce Prywatności</a>.</p>
       </section>
     </LegalPage>
   )

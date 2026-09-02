@@ -25,13 +25,13 @@ export function AdminPendingSummary() {
       className="flex items-center justify-between rounded-2xl border border-border bg-card p-6 transition-colors hover:bg-muted/40"
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FEF3C7] dark:bg-[#3B2800]">
-          <ShieldCheck className="h-4 w-4 text-[#B45309] dark:text-[#FBBF24]" aria-hidden="true" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
+          <ShieldCheck className="h-4 w-4 text-bee-yellow-dark" aria-hidden="true" />
         </div>
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
             Zgłoszenia do weryfikacji
-            {count !== null && count > 0 && <Badge className="bg-[#F4B400] text-[#0A0A0A] text-[10px]">{count}</Badge>}
+            {count !== null && count > 0 && <Badge className="text-[10px]">{count}</Badge>}
           </p>
           <p className="text-xs text-muted-foreground">Nowi nauczyciele czekający na sprawdzenie kwalifikacji</p>
         </div>

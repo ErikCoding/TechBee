@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   onSnapshot,
   orderBy,
   query,
@@ -12,7 +13,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
-import type { ChatConversation, ChatMessage, ChatParticipant } from '@/lib/types'
+import type { ChatConversation, ChatMessage, ChatParticipant, LessonReportCard, LessonReportCardStatus } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Real messaging between two accounts (student ⇄ teacher).
@@ -130,7 +131,7 @@ function listConversationsMock(viewerId: string): ChatConversation[] {
 }
 
 function getMessagesMock(conversationId: string): ChatMessage[] {
-  return readAllMock().find((c) => c.id === conversationId)?.messages ?? []
+  return (readAllMock().find((c) => c.id === conversationId)?.messages ?? []).map(normalizeMessage)
 }
 
 function sendMessageMock(conversationId: string, sender: ChatParticipant, text: string, attachment?: ChatMessage['attachment']) {
@@ -165,6 +166,68 @@ function markReadMock(conversationId: string, viewerId: string) {
   const idx = list.findIndex((c) => c.id === conversationId)
   if (idx === -1) return
   list[idx] = { ...list[idx], unread: { ...list[idx].unread, [viewerId]: 0 } }
+  writeAllMock(list)
+}
+
+/**
+ * Backfills a report card read from storage.
+ *
+ * `managerIds` was added to LessonReportCard when the parent-account
+ * model landed; report cards written to chat before that have every
+ * other field but not this one. Rebuilding it as `[confirmingPartyId]`
+ * reproduces exactly what computeReportManagerIds (lib/report-permissions.ts)
+ * returns in the no-linked-parent case, which is the situation every
+ * pre-parent-model report was created under — so an old card keeps
+ * behaving correctly rather than merely not crashing.
+ *
+ * Applied on read for both storage backends, so nothing downstream has
+ * to know the field was ever optional.
+ */
+function normalizeMessage(message: ChatMessage): ChatMessage {
+  const card = message.reportCard
+  if (!card || Array.isArray(card.managerIds)) return message
+  return {
+    ...message,
+    reportCard: {
+      ...card,
+      managerIds: card.confirmingPartyId ? [card.confirmingPartyId] : [],
+    },
+  }
+}
+
+function reportCardPreviewText(card: LessonReportCard): string {
+  return `📋 Raport z lekcji „${card.topic}"`
+}
+
+function sendReportCardMock(conversationId: string, sender: ChatParticipant, card: LessonReportCard): string {
+  const list = readAllMock()
+  const idx = list.findIndex((c) => c.id === conversationId)
+  if (idx === -1) throw new Error('Konwersacja nie istnieje.')
+  const now = Date.now()
+  const id = `local-${now}`
+  const message: ChatMessage = { id, senderId: sender.id, text: '', time: 'teraz', createdAt: now, reportCard: card }
+  const conv = list[idx]
+  const otherId = conv.participantIds.find((pid) => pid !== sender.id)
+  list[idx] = {
+    ...conv,
+    participants: { ...conv.participants, [sender.id]: sender },
+    messages: [...conv.messages, message],
+    lastMessage: reportCardPreviewText(card),
+    lastMessageTime: 'teraz',
+    lastMessageAt: now,
+    unread: { ...conv.unread, ...(otherId ? { [otherId]: (conv.unread[otherId] ?? 0) + 1 } : {}) },
+  }
+  writeAllMock(list)
+  return id
+}
+
+function updateReportCardStatusMock(conversationId: string, messageId: string, status: LessonReportCardStatus) {
+  const list = readAllMock()
+  const idx = list.findIndex((c) => c.id === conversationId)
+  if (idx === -1) return
+  const conv = list[idx]
+  const messages = conv.messages.map((m) => (m.id === messageId && m.reportCard ? { ...m, reportCard: { ...m.reportCard, status } } : m))
+  list[idx] = { ...conv, messages }
   writeAllMock(list)
 }
 
@@ -219,36 +282,72 @@ function subscribeToMessagesFirebase(conversationId: string, callback: (list: Ch
   }
   const q = query(collection(db, collections.conversations, conversationId, 'items'), orderBy('createdAt', 'asc'))
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChatMessage, 'id'>) })))
+    callback(snap.docs.map((d) => normalizeMessage({ id: d.id, ...(d.data() as Omit<ChatMessage, 'id'>) })))
   })
 }
 
 async function sendMessageFirebase(conversationId: string, sender: ChatParticipant, text: string, attachment?: ChatMessage['attachment']) {
   if (!db) throw new Error('Firebase nie jest skonfigurowane.')
   const messageText = text || (attachment ? `Wysłano załącznik: ${attachment.name}` : '')
-  await addDoc(collection(db, collections.conversations, conversationId, 'items'), {
-    senderId: sender.id,
-    text: messageText,
-    time: 'teraz',
-    createdAt: Date.now(),
-    ...(attachment ? { attachment } : {}),
-  })
   const convRef = doc(db, collections.conversations, conversationId)
-  const snap = await getDoc(convRef)
-  const data = snap.data() as StoredConversation | undefined
-  const otherId = data?.participantIds.find((id) => id !== sender.id)
-  await updateDoc(convRef, {
-    lastMessage: messageText,
-    lastMessageTime: 'teraz',
-    lastMessageAt: Date.now(),
-    participants: { ...(data?.participants ?? {}), [sender.id]: sender },
-    ...(otherId ? { [`unread.${otherId}`]: (data?.unread?.[otherId] ?? 0) + 1 } : {}),
-  })
+  // `conversationId` is deterministically `[aId, bId].sort().join('__')`
+  // (see conversationIdFor above), so the other participant's id can be
+  // read straight off it — no need to getDoc() the conversation first
+  // just to find out who else is in it. Combined with dot-notation +
+  // increment() below (atomic, no read-then-write race on the unread
+  // counter either), this turns "send a message" from 1 write + 1 read +
+  // 1 write into 2 writes, run concurrently.
+  const otherId = conversationId.split('__').find((id) => id !== sender.id)
+  await Promise.all([
+    addDoc(collection(db, collections.conversations, conversationId, 'items'), {
+      senderId: sender.id,
+      text: messageText,
+      time: 'teraz',
+      createdAt: Date.now(),
+      ...(attachment ? { attachment } : {}),
+    }),
+    updateDoc(convRef, {
+      lastMessage: messageText,
+      lastMessageTime: 'teraz',
+      lastMessageAt: Date.now(),
+      [`participants.${sender.id}`]: sender,
+      ...(otherId ? { [`unread.${otherId}`]: increment(1) } : {}),
+    }),
+  ])
 }
 
 async function markReadFirebase(conversationId: string, viewerId: string) {
   if (!db) return
   await updateDoc(doc(db, collections.conversations, conversationId), { [`unread.${viewerId}`]: 0 })
+}
+
+async function sendReportCardFirebase(conversationId: string, sender: ChatParticipant, card: LessonReportCard): Promise<string> {
+  if (!db) throw new Error('Firebase nie jest skonfigurowane.')
+  const convRef = doc(db, collections.conversations, conversationId)
+  // Same optimization as sendMessageFirebase above — see its comment.
+  const otherId = conversationId.split('__').find((id) => id !== sender.id)
+  const [ref] = await Promise.all([
+    addDoc(collection(db, collections.conversations, conversationId, 'items'), {
+      senderId: sender.id,
+      text: '',
+      time: 'teraz',
+      createdAt: Date.now(),
+      reportCard: card,
+    }),
+    updateDoc(convRef, {
+      lastMessage: reportCardPreviewText(card),
+      lastMessageTime: 'teraz',
+      lastMessageAt: Date.now(),
+      [`participants.${sender.id}`]: sender,
+      ...(otherId ? { [`unread.${otherId}`]: increment(1) } : {}),
+    }),
+  ])
+  return ref.id
+}
+
+async function updateReportCardStatusFirebase(conversationId: string, messageId: string, status: LessonReportCardStatus) {
+  if (!db) return
+  await updateDoc(doc(db, collections.conversations, conversationId, 'items', messageId), { 'reportCard.status': status })
 }
 
 // ── Public API ────────────────────────────────────────────────
@@ -286,4 +385,15 @@ export async function sendMessage(conversationId: string, sender: ChatParticipan
 export async function markConversationRead(conversationId: string, viewerId: string): Promise<void> {
   if (isFirebaseConfigured) return markReadFirebase(conversationId, viewerId)
   markReadMock(conversationId, viewerId)
+}
+
+/** Delivers a lesson report as a rich, interactive chat message instead of a dashboard list entry — see components/chat/report-card-message.tsx. Returns the new message's id, needed later to flip its status (confirmed/disputed/resolved). */
+export async function sendReportCardMessage(conversationId: string, sender: ChatParticipant, card: LessonReportCard): Promise<string> {
+  return isFirebaseConfigured ? sendReportCardFirebase(conversationId, sender, card) : sendReportCardMock(conversationId, sender, card)
+}
+
+/** Flips an already-sent report card's status live (confirmed / disputed / resolved) — the open chat thread updates itself via its existing real-time subscription, no refresh needed. */
+export async function updateReportCardStatus(conversationId: string, messageId: string, status: LessonReportCardStatus): Promise<void> {
+  if (isFirebaseConfigured) return updateReportCardStatusFirebase(conversationId, messageId, status)
+  updateReportCardStatusMock(conversationId, messageId, status)
 }

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// TechBee — shared domain types
+// Runbee — shared domain types
 // Single source of truth for shapes used across data/, services/
 // and UI components. Kept framework-agnostic on purpose so the
 // same types will work once services/ start reading from
@@ -32,13 +32,37 @@ export type Category = {
 }
 
 export type ReviewItem = {
+  /**
+   * Deterministic for every review written under the one-review-per-pair
+   * rule: `rev_{teacherId}__{authorId}` (see buildReviewId in
+   * services/teachers.service.ts). Making the id a function of the
+   * relationship — rather than a timestamp — is what makes the upsert
+   * idempotent, so a student re-submitting replaces their own entry
+   * instead of appending a second one.
+   *
+   * Reviews written before this rule existed keep their old `rev-<ts>`
+   * ids and no `authorId`; they are preserved untouched (see the
+   * migration note in submitTeacherReview).
+   */
   id: string
+  /**
+   * The reviewing student's user id. Absent on legacy reviews written
+   * before reviews were tied to an identity — those can no longer be
+   * matched to an author, so they are never edited or de-duplicated
+   * automatically.
+   */
+  authorId?: string
   author: string
   authorInitials: string
   authorColor: string
   rating: number
+  /** Human-readable date, kept for display. `createdAt`/`updatedAt` below are the machine-readable ones. */
   date: string
   comment: string
+  /** Epoch ms of the original submission. Absent on legacy reviews. */
+  createdAt?: number
+  /** Epoch ms of the most recent edit — only set once a review has actually been edited. */
+  updatedAt?: number
 }
 
 export type Teacher = {
@@ -74,6 +98,8 @@ export type Teacher = {
   /** Firebase Auth uid of the teacher who submitted this profile — set for real applications, absent on legacy demo entries. */
   authUserId?: string
   submittedAt?: number
+  /** Stripe Connect Express account info — see TeacherStripeAccount below. */
+  stripe?: TeacherStripeAccount
 }
 
 /** Fields a teacher fills in on the "become a teacher" application form — everything else on Teacher is derived/admin-controlled. */
@@ -189,8 +215,97 @@ export type Lesson = {
   /** Whoever has confirmation authority for this lesson's report — the student's linked parent if one existed at the moment the report was submitted, otherwise the student themselves (see services/family-link.service.ts). Frozen at report-submission time so a parent linking later doesn't retroactively change who was responsible. */
   confirmingPartyId?: string
   confirmingPartyRole?: 'student' | 'parent'
+  /** Snapshot, at report-submission time, of the linked parent's "Pozwól uczniowi samodzielnie akceptować i odrzucać raporty" setting (see getStudentCanManageReports in services/family-link.service.ts) — only meaningful when confirmingPartyRole is 'parent'. When true, the student can act on this report too, alongside the parent (see lib/report-permissions.ts). Absent/false (including on every lesson from before this setting existed) means only the parent can act — see lib/report-permissions.ts for the exact compatibility rule. */
+  studentCanManageReport?: boolean
   reportConfirmedAt?: number
   dispute?: LessonDispute
+  /** Which chat conversation/message the report was delivered to as an interactive card (see LessonReportCard below) — lets confirm/dispute/auto-confirm/admin-resolve flip that same card's status live instead of it living in a dashboard panel. */
+  reportChatConversationId?: string
+  reportChatMessageId?: string
+
+  // ── Stripe payment (see lib/stripe-config.ts, services/stripe.service.ts) ──
+  /**
+   * The Stripe half of a lesson's lifecycle, tracked separately from
+   * `status` (which stays the existing booking/teacher-decision
+   * lifecycle unchanged): a lesson doc is only ever created by the
+   * Stripe webhook once a real payment has actually succeeded (see
+   * app/api/stripe/webhook/route.ts) — so `paymentStatus` starts at
+   * `'paid'` the moment the lesson exists at all, never `'pending'`
+   * sitting in Firestore. It only moves again on a refund (teacher
+   * rejects the request, or a dispute resolves in the payer's favor).
+   */
+  paymentStatus?: 'paid' | 'refunded' | 'failed'
+  /** Smallest-unit (grosze) amounts — the authoritative money values; `price` (PLN) stays for display, unchanged. */
+  priceGrosze?: number
+  platformFeeGrosze?: number
+  teacherAmountGrosze?: number
+  stripeCheckoutSessionId?: string
+  stripePaymentIntentId?: string
+  /** Set once the teacher's share has actually been moved via a real Stripe Transfer (see finalizeReportConfirmation in lessons.service.ts) — this, not `paymentReleased` alone, is what "money genuinely reached the teacher" means now. */
+  stripeTransferId?: string
+  /** Set if this lesson's payment was refunded (booking rejected, or a dispute resolved for the payer). */
+  stripeRefundId?: string
+}
+
+/** Stripe Connect Express account info for a teacher — stored on `teachers/{authUserId}.stripe` (see services/teachers.service.ts). Synced from real Stripe account data by app/api/stripe/connect/* and the `account.updated` webhook event; never written from the client. */
+export type TeacherStripeAccount = {
+  accountId?: string
+  onboardingComplete?: boolean
+  detailsSubmitted?: boolean
+  chargesEnabled?: boolean
+  payoutsEnabled?: boolean
+}
+
+/** A single payout the teacher requested — Firestore only ever stores IDs/status/history metadata here; Stripe's own payout object is the source of truth for whether the money actually moved (see app/api/stripe/payout/route.ts + the payout.paid/payout.failed webhook handlers). */
+export type PayoutRecord = {
+  id: string
+  teacherId: string
+  amountGrosze: number
+  status: 'pending' | 'in_transit' | 'paid' | 'failed' | 'canceled'
+  stripePayoutId: string
+  createdAt: number
+  failureMessage?: string
+}
+
+/** The teacher wallet card's numbers — `availableGrosze`/`pendingGrosze` are read live from Stripe's own balance for the teacher's connected account (cache-for-UI only, see app/api/stripe/wallet/route.ts); the rest are computed from the teacher's own lesson docs, same as today's earnings chart. */
+export type TeacherWalletSummary = {
+  availableGrosze: number
+  pendingGrosze: number
+  monthlyEarningsGrosze: number
+  platformFeesGrosze: number
+}
+
+/** One row in the teacher wallet's "Ostatnie transakcje" list — either a lesson payout share or a withdrawal, built from real Lesson/PayoutRecord docs (see services/stripe.service.ts: getTeacherWalletHistory). */
+export type WalletHistoryEntry =
+  | { kind: 'lesson'; lessonId: string; studentName: string; topic: string; grossGrosze: number; platformFeeGrosze: number; teacherAmountGrosze: number; createdAt: number }
+  | { kind: 'payout'; amountGrosze: number; status: PayoutRecord['status']; createdAt: number }
+
+export type LessonReportCardStatus = 'pending' | 'confirmed' | 'dispute_open' | 'dispute_resolved_teacher' | 'dispute_resolved_payer'
+
+/**
+ * A lesson report delivered as a rich, interactive chat message (see
+ * components/chat/report-card-message.tsx) instead of a dashboard list —
+ * a lightweight snapshot of the report + enough context to render and
+ * act on it inline in the thread. The full Lesson doc (fetched by
+ * `lessonId` when the viewer actually confirms/disputes) remains the
+ * source of truth; this is display + a pointer.
+ */
+export type LessonReportCard = {
+  lessonId: string
+  teacherName: string
+  studentName: string
+  topic: string
+  price: number
+  progressRating: number
+  engagementRating: number
+  homework?: string
+  tutorNote?: string
+  nextTopic?: string
+  status: LessonReportCardStatus
+  /** The primary confirming party — the student's linked parent if one existed at report-submission time, otherwise the student themselves. Kept for display; use `managerIds` (below) to decide who sees the Confirm/Dispute buttons. */
+  confirmingPartyId: string
+  /** Every user id allowed to act on this report — normally just `confirmingPartyId`, plus the student too when their linked parent has enabled "Pozwól uczniowi samodzielnie akceptować i odrzucać raporty" (see lib/report-permissions.ts, the single place this list is computed both client- and server-side). */
+  managerIds: string[]
 }
 
 export type StudentStats = {
@@ -219,22 +334,6 @@ export type TeacherDashboardData = {
   completionRate: number
   responseRate: number
   earningsChart: { month: string; amount: number }[]
-}
-
-export type Transaction = {
-  id: string
-  type: 'credit' | 'debit' | 'refund'
-  description: string
-  amount: number
-  date: string
-  status: 'completed' | 'pending' | 'failed'
-}
-
-export type WalletStats = {
-  balance: number
-  pending: number
-  totalSpent: number
-  totalTopups: number
 }
 
 export type BeePointsEvent = {
@@ -323,6 +422,8 @@ export type ChatMessage = {
   time: string
   createdAt: number
   attachment?: { name: string; size: string; kind: 'pdf' | 'image' | 'zip' | 'doc' }
+  /** Present instead of (rendered in place of) a normal text bubble — see components/chat/report-card-message.tsx. */
+  reportCard?: LessonReportCard
 }
 
 /** A conversation summary from the current viewer's perspective — `participant` is always "the other person". */
@@ -369,7 +470,6 @@ export type LinkedStudentSummary = {
   name: string
   initials: string
   avatarColor: string
-  walletBalance: number
   upcomingLessonsCount: number
   pendingConfirmationsCount: number
 }

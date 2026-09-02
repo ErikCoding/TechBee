@@ -14,7 +14,7 @@ export default function TeacherApplyPage() {
             <BackButton fallbackHref="/dashboard/teacher" />
             <h1 className="text-2xl font-bold text-foreground">Profil nauczyciela</h1>
             <p className="mt-0.5 text-muted-foreground">
-              Uzupełnij dane, aby po weryfikacji przez administratora pojawić się w giełdzie nauczycieli TechBee.
+              Uzupełnij dane, aby po weryfikacji przez administratora pojawić się w giełdzie nauczycieli Runbee.
             </p>
             <div className="mt-6">
               <TeacherApplicationForm />

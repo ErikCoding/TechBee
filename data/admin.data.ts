@@ -35,6 +35,6 @@ export const adminUsersData: AdminUserRow[] = [
   { id: 'u6', name: 'Luiza Ferens', initials: 'LF', avatarColor: '#10B981', email: 'luiza.ferens@example.com', role: 'student', status: 'active', joined: '2 kwi 2025', lessons: 14 },
   { id: 'u7', name: 'Rafał Nowak', initials: 'RN', avatarColor: '#0EA5E9', email: 'rafal.nowak@example.com', role: 'teacher', status: 'suspended', joined: '11 lis 2022', lessons: 620 },
   { id: 'u8', name: 'Klaudia Pietrzak', initials: 'KP', avatarColor: '#EC4899', email: 'klaudia.pietrzak@example.com', role: 'student', status: 'active', joined: '25 maj 2025', lessons: 6 },
-  { id: 'u9', name: 'Zespół TechBee', initials: 'TB', avatarColor: '#F4B400', email: 'admin@techbee.pl', role: 'admin', status: 'active', joined: '1 sty 2022', lessons: 0 },
+  { id: 'u9', name: 'Zespół Runbee', initials: 'TB', avatarColor: '#F4B400', email: 'admin@techbee.pl', role: 'admin', status: 'active', joined: '1 sty 2022', lessons: 0 },
   { id: 'u10', name: 'Tomasz Wójcik', initials: 'TW', avatarColor: '#EC4899', email: 'tomasz.wojcik@example.com', role: 'teacher', status: 'active', joined: '19 wrz 2023', lessons: 1380 },
 ]

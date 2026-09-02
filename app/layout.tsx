@@ -12,13 +12,13 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'TechBee — ucz się umiejętności technicznych od ekspertów z przemysłu',
-    template: '%s | TechBee',
+    default: 'Runbee — ucz się umiejętności technicznych od ekspertów z przemysłu',
+    template: '%s | Runbee',
   },
   description:
     'Połącz się z certyfikowanymi specjalistami PLC, CNC, CAD i automatyki przemysłowej na indywidualne lekcje online. Praktyczne umiejętności, realni profesjonaliści, konkretne efekty.',
   keywords: ['programowanie PLC', 'obróbka CNC', 'projektowanie CAD', 'automatyka przemysłowa', 'korepetycje techniczne'],
-  generator: 'TechBee',
+  generator: 'Runbee',
 }
 
 export const viewport: Viewport = {

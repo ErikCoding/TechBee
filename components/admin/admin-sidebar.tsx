@@ -26,8 +26,8 @@ export function AdminSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground',
-                isActive ? 'bg-muted text-foreground' : 'text-muted-foreground',
+                'flex items-center gap-2.5 rounded-lg border-l-2 border-transparent px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground',
+                isActive ? 'border-l-primary bg-accent text-accent-foreground' : 'text-muted-foreground',
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
@@ -42,7 +42,7 @@ export function AdminSidebar() {
           className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Wróć do TechBee
+          Wróć do Runbee
         </Link>
       </div>
     </aside>

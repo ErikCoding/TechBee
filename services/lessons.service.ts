@@ -2,11 +2,14 @@ import { addDoc, collection, doc, getDoc, getDocs, query, updateDoc, where } fro
 import { studentLessonsData, studentStatsData, teacherDashboardDataMock, teacherLessonsData } from '@/data/lessons.data'
 import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
-import { getTeacherApplication, submitTeacherReview } from '@/services/teachers.service'
+import { getStudentReviewForTeacher, getTeacherApplication, submitTeacherReview } from '@/services/teachers.service'
 import { createNotification } from '@/services/notifications.service'
-import { holdLessonPayment, refundLessonPayment, releaseLessonPayment } from '@/services/wallet.service'
+import { refundLessonPayment as stripeRefund, transferLessonPayment as stripeTransfer } from '@/services/stripe.service'
 import { resolveConfirmingParty } from '@/services/family-link.service'
-import type { Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, LessonDisputeReason, LessonReport, StudentStats, TeacherDashboardData } from '@/lib/types'
+import { getOrCreateConversation, sendMessage, sendReportCardMessage, toParticipant, updateReportCardStatus } from '@/services/chat.service'
+import { getUserProfileById } from '@/services/auth.service'
+import { canManageLessonReport, computeReportManagerIds, getReportManagerIds } from '@/lib/report-permissions'
+import type { Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, LessonDisputeReason, LessonReport, LessonReportCard, LessonReportCardStatus, StudentStats, TeacherDashboardData } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Data-access layer for lessons/bookings.
@@ -15,21 +18,35 @@ import type { Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, Le
 //   pending → upcoming → completed
 //                 ↘ cancelled
 //
-// `createBooking` places an escrow hold on the payer's wallet right
-// away (see holdLessonPayment in wallet.service.ts) — the payer is
-// whoever booked (a student, or a linked parent booking on their
-// behalf, see LessonBookingInput.payer). The teacher gets a real
-// notification and must accept/reject the request
-// (respondToBookingRequest) — a rejection refunds the hold. Once
-// confirmed, either side can request a cancel/reschedule
-// (requestLessonChange → respondToLessonChange); an accepted cancel
-// also refunds the hold. When the call ends (completeLesson), the
-// lesson becomes `completed` but the held payment is *not* released
-// yet — the teacher still owes a report (submitLessonReport), and
-// only once that report is confirmed (confirmLessonReport, disputed
-// via disputeLessonReport + admin resolveDispute, or auto-confirmed
-// after 24h — see autoConfirmOverdueReports) does the money actually
-// move to the teacher.
+// Real (Firebase-configured) mode: a Lesson doc is created ONLY by the
+// Stripe webhook, once a real payment has actually succeeded (see
+// app/api/stripe/webhook/route.ts + app/api/stripe/checkout/create-session)
+// — there is no "book now, pay later" step and no client-writable
+// "paid" flag. `createBooking`/`createBookingFirebase` below are
+// consequently mock-mode-only now; the real flow starts at
+// components/teacher/teacher-booking-calendar.tsx calling
+// startLessonCheckout (services/stripe.service.ts) directly. The
+// platform holds the payment on its own Stripe balance (the "Separate
+// Charges and Transfers" pattern) until the teacher's post-lesson
+// report is confirmed — see `transferLessonPayment` calls below,
+// which create a real Stripe Transfer to the teacher's Connect
+// account. The teacher still gets a real notification and must
+// accept/reject the paid request (respondToBookingRequest) — a
+// rejection issues a real Stripe Refund. Once confirmed, either side
+// can request a cancel/reschedule (requestLessonChange →
+// respondToLessonChange); an accepted cancel also refunds. When the
+// call ends (completeLesson), the lesson becomes `completed` but the
+// payment is *not* transferred to the teacher yet — the teacher still
+// owes a report (submitLessonReport), and only once that report is
+// confirmed (confirmLessonReport, disputed via disputeLessonReport +
+// admin resolveDispute, or auto-confirmed after 24h — see
+// autoConfirmOverdueReports) does the money actually move.
+//
+// Mock (no Firebase) mode is unchanged in spirit: a pure local demo,
+// booking instantly "succeeds" with no real payment behind it at all
+// (there never was one, even before Stripe — the old BeeCoins wallet
+// sim is gone entirely — there was never a real payment processor in
+// mock mode either way).
 // ─────────────────────────────────────────────────────────────
 
 const DEMO_STUDENT_ID = 'u3'
@@ -96,8 +113,6 @@ function resolveTeacherCatalogId(teacherName?: string): string {
 
 async function createBookingMock(input: LessonBookingInput): Promise<Lesson> {
   const payer = input.payer ?? { id: input.studentId, role: 'student' as const }
-  const holdTransactionId = await holdLessonPayment(payer.id, input.price, input.topic)
-  if (!holdTransactionId) throw new Error('Niewystarczające środki na koncie płacącego — doładuj portfel.')
 
   const lesson: Lesson = {
     id: `local-${Date.now()}`,
@@ -117,7 +132,10 @@ async function createBookingMock(input: LessonBookingInput): Promise<Lesson> {
     createdAt: Date.now(),
     payerId: payer.id,
     payerRole: payer.role,
-    holdTransactionId,
+    // Pure local demo — no real payment processor in mock mode (see the
+    // top-of-file comment), so this is "paid" the instant it's booked,
+    // same honesty-about-simulation posture the old wallet sim had.
+    paymentStatus: 'paid',
   }
   writeLocal(studentBookingsKey(input.studentId), [lesson, ...readLocal<Lesson>(studentBookingsKey(input.studentId))])
   writeLocal(teacherBookingsKey(input.teacherId), [lesson, ...readLocal<Lesson>(teacherBookingsKey(input.teacherId))])
@@ -174,50 +192,20 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     reportSubmittedAt: data.reportSubmittedAt as number | undefined,
     confirmingPartyId: data.confirmingPartyId as string | undefined,
     confirmingPartyRole: data.confirmingPartyRole as Lesson['confirmingPartyRole'],
+    studentCanManageReport: data.studentCanManageReport as boolean | undefined,
     reportConfirmedAt: data.reportConfirmedAt as number | undefined,
     dispute: data.dispute as LessonDispute | undefined,
+    reportChatConversationId: data.reportChatConversationId as string | undefined,
+    reportChatMessageId: data.reportChatMessageId as string | undefined,
+    paymentStatus: data.paymentStatus as Lesson['paymentStatus'],
+    priceGrosze: data.priceGrosze as number | undefined,
+    platformFeeGrosze: data.platformFeeGrosze as number | undefined,
+    teacherAmountGrosze: data.teacherAmountGrosze as number | undefined,
+    stripeCheckoutSessionId: data.stripeCheckoutSessionId as string | undefined,
+    stripePaymentIntentId: data.stripePaymentIntentId as string | undefined,
+    stripeTransferId: data.stripeTransferId as string | undefined,
+    stripeRefundId: data.stripeRefundId as string | undefined,
   }
-}
-
-async function createBookingFirebase(input: LessonBookingInput): Promise<Lesson> {
-  if (!db) throw new Error('Firebase nie jest skonfigurowane.')
-  const payer = input.payer ?? { id: input.studentId, role: 'student' as const }
-  const holdTransactionId = await holdLessonPayment(payer.id, input.price, input.topic)
-  if (!holdTransactionId) throw new Error('Niewystarczające środki na koncie płacącego — doładuj portfel.')
-
-  const payload = {
-    teacherId: input.teacherId,
-    teacherName: input.teacherName,
-    teacherInitials: input.teacherInitials,
-    teacherColor: input.teacherColor,
-    specialty: input.specialty,
-    studentId: input.studentId,
-    studentName: input.studentName,
-    date: input.date,
-    time: input.time,
-    duration: input.duration,
-    price: input.price,
-    topic: input.topic,
-    status: 'pending' as const,
-    createdAt: Date.now(),
-    payerId: payer.id,
-    payerRole: payer.role,
-    holdTransactionId,
-  }
-  const ref = await addDoc(collection(db, collections.lessons), payload)
-
-  // Notify the teacher that a booking is awaiting their confirmation — this
-  // only reaches a real inbox for teachers who applied for real (their
-  // Firestore doc id / `teacherId` here is their actual auth uid); for the
-  // legacy static demo catalog there's no matching real account to notify.
-  createNotification({
-    userId: input.teacherId,
-    type: 'lesson',
-    title: 'Nowa prośba o rezerwację',
-    description: `${input.studentName} prosi o lekcję „${input.topic}" — ${input.date} o ${input.time}. Potwierdź lub odrzuć w panelu.`,
-  })
-
-  return { id: ref.id, ...payload }
 }
 
 async function getStudentLessonsFirebase(userId?: string): Promise<Lesson[]> {
@@ -252,10 +240,34 @@ async function getLessonByIdFirebase(id: string): Promise<Lesson | undefined> {
 // report that's been sitting unconfirmed/undisputed past the window
 // is finalized right there before the result is returned.
 
-async function finalizeReportConfirmation(lesson: Lesson): Promise<void> {
-  const payerId = lesson.payerId ?? lesson.studentId
-  await updateLessonDoc(lesson.id, { reportConfirmedAt: Date.now(), paymentReleased: true })
-  await releaseLessonPayment(payerId, lesson.teacherId, lesson.teacherName, lesson.price, lesson.topic, lesson.holdTransactionId)
+async function finalizeReportConfirmation(lesson: Lesson, chatStatus: LessonReportCardStatus = 'confirmed'): Promise<void> {
+  if (isFirebaseConfigured) {
+    // Real Stripe Transfer to the teacher's connected account — see
+    // app/api/stripe/lessons/[lessonId]/transfer/route.ts, which also
+    // writes reportConfirmedAt/paymentReleased itself once the
+    // transfer succeeds (server-side, re-verified against the real
+    // lesson doc). Deliberately NOT swallowed here (unlike the refund
+    // calls elsewhere in this file, which really are best-effort): a
+    // failed Transfer — most commonly Stripe Test Mode's
+    // `balance_insufficient` (a just-completed Checkout payment sits in
+    // "pending" balance for a while before it's "available" to fund a
+    // Transfer, see https://stripe.com/docs/testing#available-balance)
+    // — must not be treated as a successful confirmation. Letting it
+    // throw here means the report correctly stays "pending" (no chat
+    // card flip, no misleading "Płatność zwolniona" notification below)
+    // and the caller sees a real error instead of a false success.
+    await stripeTransfer(lesson.id)
+  } else {
+    // Mock mode: no real payment ever moved, so there's nothing to
+    // transfer — just record that the report was confirmed.
+    await updateLessonDoc(lesson.id, { reportConfirmedAt: Date.now(), paymentReleased: true })
+  }
+  // Not awaited: the money has already genuinely moved (or been
+  // recorded) by this point, which is what the caller is actually
+  // waiting on — the chat card's status pill is a best-effort display
+  // update (see flipReportCardStatus) that shouldn't add its own
+  // Firestore round-trip to the confirming user's perceived wait.
+  flipReportCardStatus(lesson, chatStatus)
   createNotification({
     userId: lesson.teacherId,
     type: 'payment',
@@ -264,11 +276,32 @@ async function finalizeReportConfirmation(lesson: Lesson): Promise<void> {
   })
 }
 
+/** Flips the chat-delivered report card's status live — best-effort, never blocks the underlying financial/report action if chat delivery failed or the lesson predates this feature (no reportChatConversationId/MessageId). */
+async function flipReportCardStatus(lesson: Lesson, status: LessonReportCardStatus): Promise<void> {
+  if (!lesson.reportChatConversationId || !lesson.reportChatMessageId) return
+  try {
+    await updateReportCardStatus(lesson.reportChatConversationId, lesson.reportChatMessageId, status)
+  } catch {
+    // best-effort — the chat card is a display layer, not the source of truth
+  }
+}
+
 async function autoConfirmIfOverdue(lesson: Lesson): Promise<Lesson> {
   if (!lesson.report || lesson.reportConfirmedAt || lesson.dispute || !lesson.reportSubmittedAt) return lesson
   if (Date.now() - lesson.reportSubmittedAt < REPORT_AUTO_CONFIRM_MS) return lesson
-  await finalizeReportConfirmation(lesson)
-  return { ...lesson, reportConfirmedAt: Date.now(), paymentReleased: true }
+  try {
+    await finalizeReportConfirmation(lesson)
+    return { ...lesson, reportConfirmedAt: Date.now(), paymentReleased: true }
+  } catch (err) {
+    // This runs opportunistically every time a lesson list is fetched
+    // (see the section comment above) — unlike a manual confirm click,
+    // there's no UI waiting for this specific error, so a failed
+    // Transfer (finalizeReportConfirmation now throws instead of
+    // swallowing it, see there) must not break the whole list fetch.
+    // Leave the lesson as still-pending and let the next fetch retry.
+    console.error('[autoConfirmIfOverdue] Transfer failed, will retry on next fetch:', err)
+    return lesson
+  }
 }
 
 async function autoConfirmOverdueReports(lessons: Lesson[]): Promise<Lesson[]> {
@@ -379,11 +412,12 @@ const MONTH_LABELS_PL = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie',
 /**
  * Real earnings/activity figures computed straight from the teacher's own
  * lesson docs — no demo baseline involved. `totalEarnings`/`monthlyEarnings`
- * only count lessons whose held payment has actually been *released*
- * (`paymentReleased`, via a confirmed/auto-confirmed report — see
- * releaseLessonPayment in wallet.service.ts), not merely `completed` —
- * a completed-but-unconfirmed lesson's money is still sitting in escrow,
- * not the teacher's. `lessonsThisMonth`/`studentsThisMonth` reflect real
+ * only count lessons whose payment has actually been *transferred* to the
+ * teacher (`paymentReleased`, via a confirmed/auto-confirmed report — see
+ * finalizeReportConfirmation above, which triggers a real Stripe Transfer),
+ * not merely `completed` — a completed-but-unconfirmed lesson's money is
+ * still sitting on Runbee's own Stripe balance, not the teacher's.
+ * `lessonsThisMonth`/`studentsThisMonth` reflect real
  * booking activity this month (`createdAt`-scoped, cancelled bookings
  * excluded) since those describe demand, not just completed calls.
  */
@@ -440,18 +474,27 @@ export async function getTeacherDashboard(teacherName?: string, userId?: string)
   }
 }
 
-/** Creates a real, persisted lesson *request* — status starts at 'pending' and only becomes a confirmed booking once the teacher accepts it. */
+/**
+ * Mock-mode-only local booking (see the top-of-file comment) —
+ * instant, no real payment. In real (Firebase-configured) mode, a
+ * lesson only ever comes from a successful Stripe payment (see
+ * startLessonCheckout in services/stripe.service.ts, called directly
+ * from components/teacher/teacher-booking-calendar.tsx); this throws
+ * rather than silently creating an unpaid booking.
+ */
 export async function createBooking(input: LessonBookingInput): Promise<Lesson> {
-  return isFirebaseConfigured ? createBookingFirebase(input) : createBookingMock(input)
+  if (isFirebaseConfigured) {
+    throw new Error('Rezerwacje przechodzą teraz przez płatność Stripe — użyj startLessonCheckout zamiast createBooking.')
+  }
+  return createBookingMock(input)
 }
 
 /** Teacher accepts/rejects a pending booking request. A rejection refunds the escrow hold placed at booking time — an acceptance leaves it held until the lesson's report is confirmed. */
 export async function respondToBookingRequest(lesson: Lesson, decision: 'accepted' | 'rejected'): Promise<void> {
   const nextStatus = decision === 'accepted' ? 'upcoming' : 'cancelled'
   await updateLessonDoc(lesson.id, { status: nextStatus })
-  if (decision === 'rejected') {
-    const payerId = lesson.payerId ?? lesson.studentId
-    await refundLessonPayment(payerId, lesson.price, lesson.topic, lesson.holdTransactionId)
+  if (decision === 'rejected' && isFirebaseConfigured) {
+    await stripeRefund(lesson.id).catch((err) => console.error('[respondToBookingRequest] Refund failed:', err))
   }
   createNotification({
     userId: lesson.studentId,
@@ -494,8 +537,9 @@ export async function respondToLessonChange(lesson: Lesson, decision: 'accepted'
   let refunded = false
   if (decision === 'accepted' && change.type === 'cancel') {
     patch.status = 'cancelled'
-    const payerId = lesson.payerId ?? lesson.studentId
-    await refundLessonPayment(payerId, lesson.price, lesson.topic, lesson.holdTransactionId)
+    if (isFirebaseConfigured) {
+      await stripeRefund(lesson.id).catch((err) => console.error('[respondToLessonChange] Refund failed:', err))
+    }
     refunded = true
   } else if (decision === 'accepted' && change.type === 'reschedule') {
     patch.date = change.newDate ?? lesson.date
@@ -551,44 +595,199 @@ export async function completeLesson(lessonId: string): Promise<void> {
  * The tutor's required last step (see LessonReport in lib/types.ts) —
  * starts the confirmation window. Confirmation authority is resolved
  * *now*, once, via services/family-link.service.ts, and frozen onto
- * the lesson so a parent linking later doesn't retroactively change
- * who's responsible for a lesson already in flight.
+ * the lesson so a parent linking later — or changing their "let the
+ * student manage reports too" setting later — doesn't retroactively
+ * change who's responsible for a lesson already in flight (see
+ * lib/report-permissions.ts for the exact rule).
+ *
+ * Delivered as a rich, interactive chat "card" (see
+ * components/chat/report-card-message.tsx) in the teacher's conversation
+ * with whoever actually has primary confirmation authority — never as a
+ * dashboard list entry. If the confirming party is a linked parent (not
+ * the student), a plain read-only notice is also dropped into the
+ * student↔teacher thread so the student knows a report went out — the
+ * wording tells them whether they can act on it themselves (via
+ * /reports) or whether it's the parent's call, matching
+ * `studentCanManageReport`. Chat delivery is best-effort: if it fails,
+ * the report itself still saves — chat is a display layer, not the
+ * source of truth.
+ *
+ * Performance: the two chat deliveries above are independent of each
+ * other (different conversations, different recipients) and run
+ * concurrently via Promise.all instead of one after another. The lesson
+ * doc write only needs the *first* one's result
+ * (reportChatConversationId/MessageId), so it starts as soon as that one
+ * resolves rather than waiting on both.
  */
 export async function submitLessonReport(lesson: Lesson, report: LessonReport): Promise<void> {
   if (lesson.status !== 'completed' || lesson.report) return
 
-  const confirmingParty = await resolveConfirmingParty(lesson.studentId)
+  // Independent reads — neither depends on the other's result.
+  const [confirmingParty, studentProfile] = await Promise.all([
+    resolveConfirmingParty(lesson.studentId),
+    getUserProfileById(lesson.studentId),
+  ])
+
+  const teacherParticipant = toParticipant({
+    id: lesson.teacherId,
+    name: lesson.teacherName,
+    initials: lesson.teacherInitials,
+    avatarColor: lesson.teacherColor,
+    role: 'teacher',
+    specialty: lesson.specialty,
+  })
+
+  const managerIds = computeReportManagerIds({
+    studentId: lesson.studentId,
+    confirmingPartyId: confirmingParty.id,
+    confirmingPartyRole: confirmingParty.role,
+    studentCanManageReport: confirmingParty.studentCanManage,
+  })
+
+  const card: LessonReportCard = {
+    lessonId: lesson.id,
+    teacherName: lesson.teacherName,
+    studentName: lesson.studentName,
+    topic: report.topic,
+    price: lesson.price,
+    progressRating: report.progressRating,
+    engagementRating: report.engagementRating,
+    homework: report.homework,
+    tutorNote: report.tutorNote,
+    nextTopic: report.nextTopic,
+    status: 'pending',
+    confirmingPartyId: confirmingParty.id,
+    managerIds,
+  }
+
+  async function deliverPrimaryCard(): Promise<{ conversationId: string; messageId: string } | undefined> {
+    try {
+      // Reuse the student's already-fetched profile when they're their
+      // own confirming party — saves a duplicate profile read.
+      const confirmingProfile = confirmingParty.id === lesson.studentId ? studentProfile : await getUserProfileById(confirmingParty.id)
+      const confirmingParticipant = toParticipant({
+        id: confirmingParty.id,
+        name: confirmingProfile?.name ?? lesson.studentName,
+        initials: confirmingProfile?.initials ?? lesson.studentName.slice(0, 2).toUpperCase(),
+        avatarColor: confirmingProfile?.avatarColor ?? '#F4B400',
+        role: confirmingParty.role,
+      })
+      const conversationId = await getOrCreateConversation(teacherParticipant, confirmingParticipant)
+      const messageId = await sendReportCardMessage(conversationId, teacherParticipant, card)
+      return { conversationId, messageId }
+    } catch {
+      // best-effort — the report itself must still save even if chat delivery fails
+      return undefined
+    }
+  }
+
+  async function notifyStudentOfParentReport(): Promise<void> {
+    if (confirmingParty.id === lesson.studentId) return
+    try {
+      const studentParticipant = toParticipant({
+        id: lesson.studentId,
+        name: studentProfile?.name ?? lesson.studentName,
+        initials: studentProfile?.initials ?? lesson.studentName.slice(0, 2).toUpperCase(),
+        avatarColor: studentProfile?.avatarColor ?? '#F4B400',
+        role: 'student',
+      })
+      const studentConversationId = await getOrCreateConversation(teacherParticipant, studentParticipant)
+      const text = confirmingParty.studentCanManage
+        ? `📋 Raport z lekcji „${report.topic}" jest gotowy — możesz go potwierdzić lub zgłosić spór w zakładce Raporty.`
+        : `📋 Raport z lekcji „${report.topic}" został wysłany do Twojego rodzica do potwierdzenia.`
+      await sendMessage(studentConversationId, teacherParticipant, text)
+    } catch {
+      // best-effort
+    }
+  }
+
+  // Both deliveries run concurrently; only the primary one gates the
+  // lesson doc write (it needs its conversation/message id), so the
+  // student-notice delivery is intentionally not awaited before that
+  // write starts.
+  const notifyStudentPromise = notifyStudentOfParentReport()
+  const primary = await deliverPrimaryCard()
+
   await updateLessonDoc(lesson.id, {
     report,
     reportSubmittedAt: Date.now(),
     confirmingPartyId: confirmingParty.id,
     confirmingPartyRole: confirmingParty.role,
+    studentCanManageReport: confirmingParty.studentCanManage,
+    reportChatConversationId: primary?.conversationId,
+    reportChatMessageId: primary?.messageId,
   })
 
   createNotification({
     userId: confirmingParty.id,
     type: 'lesson',
     title: 'Raport z lekcji gotowy do potwierdzenia',
-    description: `${lesson.teacherName} przesłał(a) raport z lekcji „${lesson.topic}". Potwierdź go w ciągu 24h — inaczej płatność zostanie zwolniona automatycznie.`,
+    description: `${lesson.teacherName} przesłał(a) raport z lekcji „${lesson.topic}" na czacie. Potwierdź go w ciągu 24h — inaczej płatność zostanie zwolniona automatycznie.`,
   })
   if (confirmingParty.id !== lesson.studentId) {
     createNotification({
       userId: lesson.studentId,
       type: 'lesson',
       title: 'Raport z lekcji gotowy',
-      description: `${lesson.teacherName} przesłał(a) raport z lekcji „${lesson.topic}". Czeka na potwierdzenie rodzica.`,
+      description: confirmingParty.studentCanManage
+        ? `${lesson.teacherName} przesłał(a) raport z lekcji „${lesson.topic}". Możesz go potwierdzić samodzielnie w zakładce Raporty.`
+        : `${lesson.teacherName} przesłał(a) raport z lekcji „${lesson.topic}". Czeka na potwierdzenie rodzica.`,
     })
+  }
+
+  // Don't let a slow/failed student-notice delivery affect the caller —
+  // it's a nice-to-have side effect, not something submitLessonReport's
+  // own success should ever hinge on.
+  notifyStudentPromise.catch(() => {})
+}
+
+/**
+ * Rebuilds the same `LessonReportCard` shape the chat message got at
+ * submission time, straight from a `Lesson` doc — used by /reports (see
+ * components/dashboard/reports-client.tsx) so a report is findable and
+ * actionable even if its chat message was never seen, its conversation
+ * got buried in the list, or chat delivery failed outright (best-effort,
+ * see submitLessonReport above). The Lesson doc is the source of truth
+ * either way; this only re-derives what the chat card already computed
+ * once. Returns undefined for lessons with no report yet.
+ */
+export function lessonToReportCard(lesson: Lesson): LessonReportCard | undefined {
+  if (!lesson.report) return undefined
+  const status: LessonReportCardStatus = lesson.dispute
+    ? lesson.dispute.status === 'open'
+      ? 'dispute_open'
+      : lesson.dispute.status === 'resolved_teacher'
+        ? 'dispute_resolved_teacher'
+        : 'dispute_resolved_payer'
+    : lesson.reportConfirmedAt
+      ? 'confirmed'
+      : 'pending'
+
+  return {
+    lessonId: lesson.id,
+    teacherName: lesson.teacherName,
+    studentName: lesson.studentName,
+    topic: lesson.report.topic,
+    price: lesson.price,
+    progressRating: lesson.report.progressRating,
+    engagementRating: lesson.report.engagementRating,
+    homework: lesson.report.homework,
+    tutorNote: lesson.report.tutorNote,
+    nextTopic: lesson.report.nextTopic,
+    status,
+    confirmingPartyId: lesson.confirmingPartyId ?? lesson.studentId,
+    managerIds: getReportManagerIds(lesson),
   }
 }
 
-/** The confirming party (student, or their linked parent — see Lesson.confirmingPartyId) approves the report, releasing the held payment to the teacher. */
+/** Whoever is allowed to manage this lesson's report — the resolved confirming party (student or their linked parent), plus the student too when the parent has enabled "Pozwól uczniowi samodzielnie akceptować i odrzucać raporty" — approves it, releasing the held payment to the teacher. See lib/report-permissions.ts for the exact rule. */
 export async function confirmLessonReport(lesson: Lesson, confirmedByUserId: string): Promise<void> {
   if (!lesson.report || lesson.reportConfirmedAt || lesson.dispute) return
-  if (lesson.confirmingPartyId && lesson.confirmingPartyId !== confirmedByUserId) return
+  if (!canManageLessonReport(lesson, confirmedByUserId)) return
   await finalizeReportConfirmation(lesson)
 }
 
-/** The confirming party rejects the report instead of approving it — parks the held payment until an admin resolves the dispute (see resolveDispute below). */
+/** Whoever is allowed to manage this lesson's report (see confirmLessonReport above) rejects it instead of approving it — parks the held payment until an admin resolves the dispute (see resolveDispute below). */
 export async function disputeLessonReport(
   lesson: Lesson,
   reason: LessonDisputeReason,
@@ -597,13 +796,15 @@ export async function disputeLessonReport(
   raisedByUserId: string,
 ): Promise<void> {
   if (!lesson.report || lesson.reportConfirmedAt || lesson.dispute) return
+  if (!canManageLessonReport(lesson, raisedByUserId)) return
   const dispute: LessonDispute = { reason, note, raisedBy, raisedByUserId, raisedAt: Date.now(), status: 'open' }
   await updateLessonDoc(lesson.id, { dispute })
+  flipReportCardStatus(lesson, 'dispute_open') // not awaited — best-effort display update, see finalizeReportConfirmation
   createNotification({
     userId: lesson.teacherId,
     type: 'lesson',
     title: 'Zgłoszono spór dotyczący raportu',
-    description: `${raisedBy === 'parent' ? 'Rodzic ucznia' : lesson.studentName} zgłosił(a) spór dotyczący lekcji „${lesson.topic}". Support Techbee skontaktuje się w ciągu 3 dni roboczych.`,
+    description: `${raisedBy === 'parent' ? 'Rodzic ucznia' : lesson.studentName} zgłosił(a) spór dotyczący lekcji „${lesson.topic}". Support Runbee skontaktuje się w ciągu 3 dni roboczych.`,
   })
 }
 
@@ -622,9 +823,12 @@ export async function resolveDispute(lesson: Lesson, resolution: 'teacher' | 'pa
 
   const payerId = lesson.payerId ?? lesson.studentId
   if (resolution === 'teacher') {
-    await finalizeReportConfirmation(lesson)
+    await finalizeReportConfirmation(lesson, 'dispute_resolved_teacher')
   } else {
-    await refundLessonPayment(payerId, lesson.price, lesson.topic, lesson.holdTransactionId)
+    if (isFirebaseConfigured) {
+      await stripeRefund(lesson.id).catch((err) => console.error('[resolveDispute] Refund failed:', err))
+    }
+    flipReportCardStatus(lesson, 'dispute_resolved_payer') // not awaited — best-effort display update, see finalizeReportConfirmation
     createNotification({
       userId: payerId,
       type: 'payment',
@@ -643,23 +847,55 @@ export async function resolveDispute(lesson: Lesson, resolution: 'teacher' | 'pa
 }
 
 /**
- * The student leaves a rating + review for a completed lesson — a light
- * "as-verification" signal that they actually took the lesson, per the
- * request. Appends a real review to the teacher's profile (recomputing
- * their rating/reviewCount) and marks the lesson `reviewed` so the "Oceń
- * lekcję" prompt doesn't show again. No-ops if the lesson isn't completed
- * yet or was already reviewed.
+ * Whether this student has actually completed a lesson with this
+ * teacher, and may therefore review them.
+ *
+ * Reuses the system's existing notion of a finished lesson —
+ * `status === 'completed'`, the same condition the review prompt, the
+ * teacher's "needs a report" queue and the student's history already
+ * key on — rather than inventing a second definition of completion.
+ * Cancelled and merely-booked lessons never qualify, so a user who has
+ * never sat through a lesson with a teacher cannot rate them.
+ */
+export async function canStudentReviewTeacher(studentId: string, teacherId: string): Promise<boolean> {
+  const lessons = await getStudentLessons(studentId)
+  return lessons.some((l) => l.teacherId === teacherId && l.status === 'completed')
+}
+
+/**
+ * The student creates or updates their single review of a teacher.
+ *
+ * One student holds at most one review per teacher, no matter how many
+ * lessons they take — submitting again edits the existing one (see
+ * submitTeacherReview / upsertReview in teachers.service.ts). This
+ * replaced a per-lesson model where ten lessons with the same teacher
+ * produced ten separate reviews and ten votes in that teacher's average.
+ *
+ * Eligibility is verified here, server-side of the UI, so a client that
+ * skipped the check still cannot write a review for a teacher the
+ * student never completed a lesson with.
+ *
+ * The originating lesson is still marked `reviewed` so the per-lesson
+ * "Oceń lekcję" prompt stops appearing for it; that flag is now only a
+ * prompt-suppressor, not the thing that decides whether a review may
+ * exist.
  */
 export async function submitLessonReview(
   lesson: Lesson,
   rating: number,
   comment: string,
-  author: { name: string; initials: string; avatarColor: string },
+  author: { id: string; name: string; initials: string; avatarColor: string },
 ): Promise<void> {
-  if (lesson.status !== 'completed' || lesson.reviewed) return
+  if (lesson.status !== 'completed') return
+  if (!(await canStudentReviewTeacher(author.id, lesson.teacherId))) return
+
+  const isUpdate = Boolean(
+    await getStudentReviewForTeacher(lesson.teacherId, author.id),
+  )
 
   await submitTeacherReview({
     teacherId: lesson.teacherId,
+    authorId: author.id,
     author: author.name,
     authorInitials: author.initials,
     authorColor: author.avatarColor,
@@ -667,16 +903,20 @@ export async function submitLessonReview(
     comment,
   })
 
-  if (isFirebaseConfigured && db) {
-    await updateDoc(doc(db, collections.lessons, lesson.id), { reviewed: true })
-  } else {
-    updateLocalLesson(lesson.id, { reviewed: true })
+  if (!lesson.reviewed) {
+    if (isFirebaseConfigured && db) {
+      await updateDoc(doc(db, collections.lessons, lesson.id), { reviewed: true })
+    } else {
+      updateLocalLesson(lesson.id, { reviewed: true })
+    }
   }
 
   createNotification({
     userId: lesson.teacherId,
     type: 'review',
-    title: 'Nowa opinia od ucznia',
-    description: `${author.name} zostawił(a) opinię (${rating}/5) po lekcji „${lesson.topic}".`,
+    title: isUpdate ? 'Zaktualizowana opinia ucznia' : 'Nowa opinia od ucznia',
+    description: isUpdate
+      ? `${author.name} zaktualizował(a) swoją opinię (${rating}/5).`
+      : `${author.name} zostawił(a) opinię (${rating}/5) po lekcji „${lesson.topic}".`,
   })
 }

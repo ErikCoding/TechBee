@@ -4,12 +4,12 @@ import type { FaqItem } from '@/lib/types'
 // or a Firestore `faq` collection so it can be edited without a deploy.
 export const faqData: FaqItem[] = [
   {
-    question: 'Jak TechBee pomaga znaleźć odpowiedniego nauczyciela?',
+    question: 'Jak Runbee pomaga znaleźć odpowiedniego nauczyciela?',
     answer: 'Przeglądasz nauczycieli według specjalizacji, lokalizacji, języka i dostępności. Każdy profil zawiera doświadczenie przemysłowe, certyfikaty, opinie uczniów i wprowadzenie wideo. Przed rezerwacją możesz wysłać wiadomość, aby upewnić się, że to dobry wybór.',
   },
   {
-    question: 'Czy nauczyciele TechBee to prawdziwi profesjonaliści z przemysłu?',
-    answer: 'Tak. Każdy nauczyciel na TechBee jest weryfikowany pod kątem realnego doświadczenia przemysłowego: sprawdzamy historię zatrudnienia, certyfikaty i przeprowadzamy rozmowę techniczną na żywo przed dopuszczeniem do nauczania. Nie akceptujemy osób, które mają wyłącznie akademickie doświadczenie bez praktyki w terenie.',
+    question: 'Czy nauczyciele Runbee to prawdziwi profesjonaliści z przemysłu?',
+    answer: 'Tak. Każdy nauczyciel na Runbee jest weryfikowany pod kątem realnego doświadczenia przemysłowego: sprawdzamy historię zatrudnienia, certyfikaty i przeprowadzamy rozmowę techniczną na żywo przed dopuszczeniem do nauczania. Nie akceptujemy osób, które mają wyłącznie akademickie doświadczenie bez praktyki w terenie.',
   },
   {
     question: 'Jak wyglądają lekcje?',
@@ -24,7 +24,7 @@ export const faqData: FaqItem[] = [
     answer: 'BeePoints to nasz system lojalnościowy. Zdobywasz je za ukończone lekcje, pisanie opinii, polecanie znajomych i regularność nauki. Punkty odblokowują zniżki, kredyty na darmowe lekcje i dostęp do treści premium.',
   },
   {
-    question: 'Czy mogę zostać nauczycielem na TechBee?',
+    question: 'Czy mogę zostać nauczycielem na Runbee?',
     answer: 'Tak — jeśli masz co najmniej 3 lata praktycznego doświadczenia przemysłowego w specjalizacji technicznej, zachęcamy do zgłoszenia. Samodzielnie ustalasz stawkę, grafik i dostępność. Najlepsi nauczyciele zarabiają 15 000 zł+ miesięcznie, pracując na część etatu.',
   },
   {

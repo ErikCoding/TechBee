@@ -86,7 +86,7 @@ export const beePointsEarningRulesData: BeePointsRule[] = [
     icon: 'Sparkles',
     title: 'Pierwsza lekcja',
     points: '+150 pkt',
-    description: 'Jednorazowy bonus powitalny za Twoją pierwszą zarezerwowaną i ukończoną lekcję na TechBee.',
+    description: 'Jednorazowy bonus powitalny za Twoją pierwszą zarezerwowaną i ukończoną lekcję na Runbee.',
   },
   {
     icon: 'UserCheck',

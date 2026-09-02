@@ -4,8 +4,8 @@
 // ─────────────────────────────────────────────────────────────
 
 export const siteConfig = {
-  name: 'TechBee',
-  legalName: 'TechBee Technologie Sp. z o.o.',
+  name: 'Runbee',
+  legalName: 'Runbee Technologie Sp. z o.o.',
   tagline: 'Ucz się praktycznych umiejętności przemysłowych od certyfikowanych ekspertów',
   description:
     'Połącz się z certyfikowanymi specjalistami PLC, CNC, CAD i automatyki przemysłowej na indywidualne lekcje online.',

@@ -38,12 +38,12 @@ export function LoginForm() {
 
   return (
     <AuthShell
-      title="Zaloguj się do TechBee"
+      title="Zaloguj się do Runbee"
       subtitle="Wróć do swoich lekcji, portfela i BeePoints"
       footer={
         <>
           Nie masz konta?{' '}
-          <Link href="/register" className="font-medium text-foreground underline underline-offset-4 hover:text-[#F4B400]">
+          <Link href="/register" className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
             Zarejestruj się
           </Link>
         </>
@@ -66,7 +66,7 @@ export function LoginForm() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} className="mt-1 bg-[#F4B400] text-[#0A0A0A] hover:bg-[#FBBF24] font-semibold">
+        <Button type="submit" disabled={loading} className="mt-1 font-semibold">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
           Zaloguj się
         </Button>
@@ -81,7 +81,7 @@ export function LoginForm() {
                 key={acc.email}
                 type="button"
                 onClick={() => { setEmail(acc.email); setPassword(acc.password) }}
-                className="flex-1 rounded-xl border border-border px-3 py-2 text-left text-xs transition-colors hover:border-[#F4B400]/50 hover:bg-muted/50"
+                className="flex-1 rounded-xl border border-border px-3 py-2 text-left text-xs transition-colors hover:border-primary/50 hover:bg-muted/50"
               >
                 <span className="block font-medium text-foreground">{acc.label}</span>
                 <span className="text-muted-foreground">{acc.email}</span>

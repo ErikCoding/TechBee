@@ -19,7 +19,7 @@ export function LegalPage({ title, updated, intro, children }: LegalPageProps) {
       <Navbar />
       <main id="main-content" className="bg-background">
         <div className="mx-auto max-w-3xl px-4 py-14 md:px-8 md:py-20">
-          <p className="text-sm font-semibold text-[#F4B400] uppercase tracking-wide">Dokument prawny</p>
+          <p className="text-sm font-semibold text-primary uppercase tracking-wide">Dokument prawny</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">{title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">Ostatnia aktualizacja: {updated}</p>
           {intro && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{intro}</p>}
