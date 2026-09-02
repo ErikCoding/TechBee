@@ -13,7 +13,11 @@ import type { Category } from '@/lib/types'
 export async function getCategories(): Promise<Category[]> {
   if (isFirebaseConfigured && db) {
     const snap = await getDocs(collection(db, collections.categories))
-    if (!snap.empty) return snap.docs.map((d) => d.data() as Category)
+    if (!snap.empty) {
+      const stored = snap.docs.map((d) => d.data() as Category)
+      const storedIds = new Set(stored.map((c) => c.id))
+      return [...stored, ...categoriesData.filter((c) => !storedIds.has(c.id))]
+    }
   }
   return categoriesData
 }

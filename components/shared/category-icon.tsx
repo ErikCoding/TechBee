@@ -1,4 +1,4 @@
-import { Cpu, Settings2, LayoutPanelLeft, Bot, CircuitBoard, Monitor, Zap, Droplets } from 'lucide-react'
+import { Atom, Bot, Calculator, CircuitBoard, Cpu, Droplets, Languages, LayoutPanelLeft, Monitor, Settings2, Zap } from 'lucide-react'
 
 /**
  * Maps a `Category.icon` string from the catalogue onto a lucide icon.
@@ -18,6 +18,9 @@ const iconMap: Record<string, React.ElementType> = {
   Monitor,
   Zap,
   Droplets,
+  Calculator,
+  Atom,
+  Languages,
 }
 
 export function CategoryIcon({ name, className }: { name: string; className?: string }) {

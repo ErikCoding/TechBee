@@ -197,6 +197,7 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     dispute: data.dispute as LessonDispute | undefined,
     reportChatConversationId: data.reportChatConversationId as string | undefined,
     reportChatMessageId: data.reportChatMessageId as string | undefined,
+    reportChatDeliveries: data.reportChatDeliveries as Lesson['reportChatDeliveries'],
     paymentStatus: data.paymentStatus as Lesson['paymentStatus'],
     priceGrosze: data.priceGrosze as number | undefined,
     platformFeeGrosze: data.platformFeeGrosze as number | undefined,
@@ -276,11 +277,16 @@ async function finalizeReportConfirmation(lesson: Lesson, chatStatus: LessonRepo
   })
 }
 
-/** Flips the chat-delivered report card's status live — best-effort, never blocks the underlying financial/report action if chat delivery failed or the lesson predates this feature (no reportChatConversationId/MessageId). */
+/** Flips every chat-delivered report card's status live — best-effort, never blocks the underlying financial/report action if chat delivery failed or the lesson predates this feature. */
 async function flipReportCardStatus(lesson: Lesson, status: LessonReportCardStatus): Promise<void> {
-  if (!lesson.reportChatConversationId || !lesson.reportChatMessageId) return
+  const deliveries = lesson.reportChatDeliveries?.length
+    ? lesson.reportChatDeliveries
+    : lesson.reportChatConversationId && lesson.reportChatMessageId
+      ? [{ conversationId: lesson.reportChatConversationId, messageId: lesson.reportChatMessageId }]
+      : []
+  if (deliveries.length === 0) return
   try {
-    await updateReportCardStatus(lesson.reportChatConversationId, lesson.reportChatMessageId, status)
+    await Promise.all(deliveries.map((delivery) => updateReportCardStatus(delivery.conversationId, delivery.messageId, status)))
   } catch {
     // best-effort — the chat card is a display layer, not the source of truth
   }
@@ -604,21 +610,16 @@ export async function completeLesson(lessonId: string): Promise<void> {
  * Delivered as a rich, interactive chat "card" (see
  * components/chat/report-card-message.tsx) in the teacher's conversation
  * with whoever actually has primary confirmation authority — never as a
- * dashboard list entry. If the confirming party is a linked parent (not
- * the student), a plain read-only notice is also dropped into the
- * student↔teacher thread so the student knows a report went out — the
- * wording tells them whether they can act on it themselves (via
- * /reports) or whether it's the parent's call, matching
- * `studentCanManageReport`. Chat delivery is best-effort: if it fails,
- * the report itself still saves — chat is a display layer, not the
- * source of truth.
+ * dashboard list entry. If the confirming party is a linked parent and
+ * that parent also allowed the student to manage reports, the same rich
+ * report card is delivered to the student↔teacher thread too. Otherwise
+ * the student gets a plain read-only notice that the parent has the next
+ * step. Chat delivery is best-effort: if it fails, the report itself
+ * still saves — chat is a display layer, not the source of truth.
  *
- * Performance: the two chat deliveries above are independent of each
- * other (different conversations, different recipients) and run
- * concurrently via Promise.all instead of one after another. The lesson
- * doc write only needs the *first* one's result
- * (reportChatConversationId/MessageId), so it starts as soon as that one
- * resolves rather than waiting on both.
+ * Performance: chat deliveries are started independently. The lesson doc
+ * stores every successfully delivered card copy so later status changes
+ * can update the parent and student threads consistently.
  */
 export async function submitLessonReport(lesson: Lesson, report: LessonReport): Promise<void> {
   if (lesson.status !== 'completed' || lesson.report) return
@@ -682,8 +683,8 @@ export async function submitLessonReport(lesson: Lesson, report: LessonReport): 
     }
   }
 
-  async function notifyStudentOfParentReport(): Promise<void> {
-    if (confirmingParty.id === lesson.studentId) return
+  async function deliverStudentCopy(): Promise<{ conversationId: string; messageId: string } | undefined> {
+    if (confirmingParty.id === lesson.studentId || !confirmingParty.studentCanManage) return undefined
     try {
       const studentParticipant = toParticipant({
         id: lesson.studentId,
@@ -693,21 +694,38 @@ export async function submitLessonReport(lesson: Lesson, report: LessonReport): 
         role: 'student',
       })
       const studentConversationId = await getOrCreateConversation(teacherParticipant, studentParticipant)
-      const text = confirmingParty.studentCanManage
-        ? `📋 Raport z lekcji „${report.topic}" jest gotowy — możesz go potwierdzić lub zgłosić spór w zakładce Raporty.`
-        : `📋 Raport z lekcji „${report.topic}" został wysłany do Twojego rodzica do potwierdzenia.`
-      await sendMessage(studentConversationId, teacherParticipant, text)
+      const messageId = await sendReportCardMessage(studentConversationId, teacherParticipant, card)
+      return { conversationId: studentConversationId, messageId }
+    } catch {
+      // best-effort
+      return undefined
+    }
+  }
+
+  async function notifyStudentOfParentReport(): Promise<void> {
+    if (confirmingParty.id === lesson.studentId || confirmingParty.studentCanManage) return
+    try {
+      const studentParticipant = toParticipant({
+        id: lesson.studentId,
+        name: studentProfile?.name ?? lesson.studentName,
+        initials: studentProfile?.initials ?? lesson.studentName.slice(0, 2).toUpperCase(),
+        avatarColor: studentProfile?.avatarColor ?? '#F4B400',
+        role: 'student',
+      })
+      const studentConversationId = await getOrCreateConversation(teacherParticipant, studentParticipant)
+      await sendMessage(studentConversationId, teacherParticipant, `📋 Raport z lekcji „${report.topic}" został wysłany do Twojego rodzica do potwierdzenia.`)
     } catch {
       // best-effort
     }
   }
 
-  // Both deliveries run concurrently; only the primary one gates the
-  // lesson doc write (it needs its conversation/message id), so the
-  // student-notice delivery is intentionally not awaited before that
-  // write starts.
+  // Card deliveries run concurrently; the plain student notice is
+  // fire-and-forget because it does not need to be referenced later.
+  const studentCopyPromise = deliverStudentCopy()
   const notifyStudentPromise = notifyStudentOfParentReport()
   const primary = await deliverPrimaryCard()
+  const studentCopy = await studentCopyPromise
+  const reportChatDeliveries = [primary, studentCopy].filter((delivery): delivery is { conversationId: string; messageId: string } => Boolean(delivery))
 
   await updateLessonDoc(lesson.id, {
     report,
@@ -717,6 +735,7 @@ export async function submitLessonReport(lesson: Lesson, report: LessonReport): 
     studentCanManageReport: confirmingParty.studentCanManage,
     reportChatConversationId: primary?.conversationId,
     reportChatMessageId: primary?.messageId,
+    reportChatDeliveries,
   })
 
   createNotification({

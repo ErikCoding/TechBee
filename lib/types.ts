@@ -225,6 +225,8 @@ export type Lesson = {
   /** Which chat conversation/message the report was delivered to as an interactive card (see LessonReportCard below) — lets confirm/dispute/auto-confirm/admin-resolve flip that same card's status live instead of it living in a dashboard panel. */
   reportChatConversationId?: string
   reportChatMessageId?: string
+  /** Every chat card copy for this report. The two legacy fields above are kept for older lesson docs; new parent+student delivery stores both copies here so status changes update everywhere. */
+  reportChatDeliveries?: { conversationId: string; messageId: string }[]
 
   // ── Stripe payment (see lib/stripe-config.ts, services/stripe.service.ts) ──
   /**
