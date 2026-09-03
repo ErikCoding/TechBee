@@ -6,6 +6,7 @@ import { Users, Wallet, Activity, UserPlus, TrendingUp, TrendingDown, Graduation
 import { useAuth } from '@/lib/auth-context'
 import { getAdminStats } from '@/services/admin.service'
 import { AdminPendingSummary } from '@/components/admin/admin-pending-summary'
+import { AdminPlatformWallet } from '@/components/admin/admin-platform-wallet'
 import type { AdminStats } from '@/lib/types'
 
 interface Props {
@@ -36,18 +37,17 @@ export function AdminOverviewClient({ initialStats }: Props) {
     }
   }, [user])
 
-  const commissionRate = 0.15
   const metricOptions = [
     { id: 'gross', label: 'Obrót', color: '#F4B400', value: (amount: number) => amount },
-    { id: 'commission', label: 'Prowizja Runbee', color: '#10B981', value: (amount: number) => Math.round(amount * commissionRate) },
-    { id: 'teacher', label: 'Wypłaty nauczycieli', color: '#3B82F6', value: (amount: number) => Math.round(amount * (1 - commissionRate)) },
+    { id: 'commission', label: 'Prowizja Runbee', color: '#10B981', value: (amount: number) => amount },
+    { id: 'teacher', label: 'Wypłaty nauczycieli', color: '#3B82F6', value: (amount: number) => amount },
   ]
   const selectedMetrics = metricOptions.filter((metric) => activeSeries.includes(metric.id))
   const revenueRows = stats.revenueChart.map((entry) => ({
     month: entry.month,
     gross: entry.amount,
-    commission: Math.round(entry.amount * commissionRate),
-    teacher: Math.round(entry.amount * (1 - commissionRate)),
+    commission: Math.round(entry.platformFee ?? entry.amount * 0.15),
+    teacher: Math.round(entry.teacherAmount ?? entry.amount * 0.85),
   }))
   const revenueValues = revenueRows.flatMap((row) => selectedMetrics.map((metric) => row[metric.id as keyof typeof row] as number))
   const maxRevenue = Math.max(...revenueValues, 1)
@@ -134,6 +134,8 @@ export function AdminOverviewClient({ initialStats }: Props) {
           <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Link>
       </div>
+
+      <AdminPlatformWallet />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Revenue chart */}

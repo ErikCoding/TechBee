@@ -2,7 +2,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { adminStatsData, adminUsersData } from '@/data/admin.data'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getPendingTeacherApplications } from '@/services/teachers.service'
-import type { AdminStats, AdminUserRow } from '@/lib/types'
+import type { AdminStats, AdminUserRow, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Data-access layer for the admin panel.
@@ -33,6 +33,9 @@ type StoredUserProfile = {
 
 type CompletedLessonRow = {
   price?: number
+  priceGrosze?: number
+  platformFeeGrosze?: number
+  teacherAmountGrosze?: number
   completedAt?: number
 }
 
@@ -63,7 +66,10 @@ function computePlatformRevenue(lessons: CompletedLessonRow[]) {
     const amount = lessons
       .filter((l) => l.completedAt && isSameMonth(l.completedAt, monthDate))
       .reduce((sum, l) => sum + (l.price ?? 0), 0)
-    return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount }
+    const scoped = lessons.filter((l) => l.completedAt && isSameMonth(l.completedAt, monthDate))
+    const platformFee = scoped.reduce((sum, l) => sum + ((l.platformFeeGrosze ?? 0) / 100), 0)
+    const teacherAmount = scoped.reduce((sum, l) => sum + ((l.teacherAmountGrosze ?? 0) / 100), 0)
+    return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount, platformFee, teacherAmount }
   })
 
   const todayStart = new Date()
@@ -142,4 +148,30 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 export async function getAdminUsers(): Promise<AdminUserRow[]> {
   return isFirebaseConfigured ? getAdminUsersFirebase() : adminUsersData
+}
+
+async function getIdToken(): Promise<string | undefined> {
+  return auth?.currentUser?.getIdToken().catch(() => undefined)
+}
+
+async function adminJson<T>(path: string, method: 'POST' | 'PATCH', body: Record<string, unknown> = {}): Promise<T> {
+  const idToken = await getIdToken()
+  const res = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, idToken }),
+  })
+  const data = await res.json().catch(() => ({}) as Record<string, unknown>)
+  if (!res.ok) {
+    throw new Error(typeof data.error === 'string' ? data.error : 'Coś poszło nie tak. Spróbuj ponownie.')
+  }
+  return data as T
+}
+
+export async function getPlatformWallet(): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
+  return adminJson('/api/admin/platform-wallet', 'POST')
+}
+
+export async function updatePlatformCommission(commissionPercent: number): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
+  return adminJson('/api/admin/platform-wallet', 'PATCH', { commissionPercent })
 }

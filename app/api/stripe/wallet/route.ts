@@ -48,7 +48,28 @@ export async function POST(request: Request) {
   const platformFeesGrosze = released.filter((l) => isSameMonth(l.completedAt!)).reduce((sum, l) => sum + (l.platformFeeGrosze ?? 0), 0)
 
   const payoutsSnap = await adminDb!.collection(collections.payouts).where('teacherId', '==', uid).get()
-  const payouts = payoutsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PayoutRecord, 'id'>) })).sort((a, b) => b.createdAt - a.createdAt)
+  const payoutDocs = payoutsSnap.docs
+  let payouts = payoutDocs.map((d) => ({ id: d.id, ...(d.data() as Omit<PayoutRecord, 'id'>) }))
+
+  if (accountId) {
+    await Promise.all(payoutDocs.map(async (payoutDoc) => {
+      const payout = payoutDoc.data() as Omit<PayoutRecord, 'id'>
+      if (payout.status === 'paid' || payout.status === 'failed' || payout.status === 'canceled') return
+      try {
+        const fresh = await stripe!.payouts.retrieve(payout.stripePayoutId, {}, { stripeAccount: accountId })
+        const nextStatus = fresh.status as PayoutRecord['status']
+        if (nextStatus !== payout.status || fresh.failure_message) {
+          await payoutDoc.ref.update({ status: nextStatus, ...(fresh.failure_message ? { failureMessage: fresh.failure_message } : {}) })
+        }
+      } catch (err) {
+        console.error('[stripe/wallet] Failed to refresh payout status:', err)
+      }
+    }))
+    const refreshed = await adminDb!.collection(collections.payouts).where('teacherId', '==', uid).get()
+    payouts = refreshed.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PayoutRecord, 'id'>) }))
+  }
+
+  payouts = payouts.sort((a, b) => b.createdAt - a.createdAt)
 
   const history: WalletHistoryEntry[] = [
     ...released.map((l) => ({

@@ -13,10 +13,9 @@ const POLL_INTERVAL_MS = 1500
 const MAX_POLLS = 12 // ~18s — the webhook is usually near-instant
 
 /**
- * Never itself confirms a booking — that's the Stripe webhook's job
- * (see app/api/stripe/webhook/route.ts). This page just polls whether
- * the webhook has landed yet and shows the right state; if it takes
- * unusually long, it says so honestly instead of pretending success.
+ * Polls whether the paid Checkout Session has a Lesson doc yet. The
+ * webhook normally creates it, and the status endpoint can reconcile it
+ * directly from Stripe when local development has no webhook tunnel.
  */
 export function PaymentSuccessClient() {
   const { user } = useAuth()

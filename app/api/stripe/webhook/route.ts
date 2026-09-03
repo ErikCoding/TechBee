@@ -3,7 +3,8 @@ import type Stripe from 'stripe'
 import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
-import type { Lesson, PayoutRecord } from '@/lib/types'
+import { ensureLessonForCheckoutSession } from '@/lib/stripe-checkout-lessons'
+import type { PayoutRecord } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // The one place a booking actually becomes "paid" — everything else
@@ -24,7 +25,8 @@ import type { Lesson, PayoutRecord } from '@/lib/types'
 //                                    the ones this app triggers itself)
 //   transfer.created            → logged only (informational; the transfer/refund
 //                                    routes already write stripeTransferId themselves)
-//   payout.paid / payout.failed → updates the matching payouts/{id} doc
+//   payout.created / payout.updated / payout.paid / payout.failed
+//                                    → updates the matching payouts/{id} doc
 //   account.updated             → logged only, see handleAccountUpdated for why
 // ─────────────────────────────────────────────────────────────
 
@@ -41,60 +43,7 @@ async function markProcessed(eventId: string): Promise<void> {
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const m = session.metadata
-  if (!m?.teacherId || !m.studentId || !m.priceGrosze) {
-    console.error('[stripe/webhook] checkout.session.completed missing required metadata', session.id)
-    return
-  }
-
-  // Idempotency belt-and-suspenders: also guard on the Checkout Session
-  // id itself, in case Stripe redelivers this event under a different
-  // event id (rare, but the event-id dedupe above is the primary guard).
-  const existing = await adminDb!.collection(collections.lessons).where('stripeCheckoutSessionId', '==', session.id).limit(1).get()
-  if (!existing.empty) return
-
-  const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
-  const now = Date.now()
-  const lesson: Omit<Lesson, 'id'> = {
-    teacherId: m.teacherId,
-    studentId: m.studentId,
-    teacherName: m.teacherName ?? '',
-    studentName: m.studentName ?? '',
-    teacherInitials: m.teacherInitials ?? '',
-    teacherColor: m.teacherColor || '#F4B400',
-    specialty: m.specialty ?? '',
-    date: m.date ?? '',
-    time: m.time ?? '',
-    duration: Number(m.duration ?? 60),
-    status: 'pending',
-    price: Math.round(Number(m.priceGrosze)) / 100,
-    topic: m.topic ?? '',
-    createdAt: now,
-    payerId: m.payerId || m.studentId,
-    payerRole: (m.payerRole as Lesson['payerRole']) || 'student',
-    paymentStatus: 'paid',
-    priceGrosze: Number(m.priceGrosze),
-    platformFeeGrosze: Number(m.platformFeeGrosze ?? 0),
-    teacherAmountGrosze: Number(m.teacherAmountGrosze ?? 0),
-    stripeCheckoutSessionId: session.id,
-    stripePaymentIntentId: paymentIntentId,
-  }
-
-  const ref = await adminDb!.collection(collections.lessons).add(lesson)
-
-  // Real notification for the teacher — mirrors what createBooking used
-  // to send from the client (see services/lessons.service.ts history).
-  await adminDb!.collection(collections.notifications).add({
-    userId: m.teacherId,
-    type: 'lesson',
-    title: 'Nowa opłacona rezerwacja',
-    description: `${m.studentName} zapłacił(a) za lekcję „${m.topic}" — ${m.date} o ${m.time}. Potwierdź lub odrzuć w panelu.`,
-    date: new Date(now).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
-    read: false,
-    createdAt: now,
-  })
-
-  console.log(`[stripe/webhook] Created lesson ${ref.id} from checkout session ${session.id}`)
+  await ensureLessonForCheckoutSession(session)
 }
 
 async function handleChargeRefunded(charge: Stripe.Charge) {
@@ -170,6 +119,8 @@ export async function POST(request: Request) {
         break
       case 'payout.paid':
       case 'payout.failed':
+      case 'payout.created':
+      case 'payout.updated':
         await handlePayoutStatusChange(event.data.object as Stripe.Payout)
         break
       case 'account.updated':
@@ -186,10 +137,9 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error(`[stripe/webhook] Handler failed for ${event.type} (${event.id}):`, err)
     // Return 500 so Stripe retries — the stripeEvents doc was already
-    // written before processing started, but re-processing an event
-    // whose handler threw partway through is still safer than silently
-    // dropping it. Every handler above is itself idempotent (checks
-    // for an existing lesson/payout doc first), so a retry is safe.
+    // not written yet, so re-processing an event whose handler threw
+    // partway through is still safer than silently dropping it. Every
+    // handler above is itself idempotent, so a retry is safe.
     return NextResponse.json({ error: 'Przetwarzanie nie powiodło się.' }, { status: 500 })
   }
 

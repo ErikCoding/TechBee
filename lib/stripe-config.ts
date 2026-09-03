@@ -25,8 +25,8 @@ export function fromGrosze(grosze: number): number {
   return Math.round(grosze) / 100
 }
 
-/** Splits a gross lesson price (in grosze) into the platform's commission and the teacher's net earnings, using PLATFORM_COMMISSION_PERCENT. Commission is rounded down in the platform's favor by a single grosz at most — teacherAmount + platformFee always sums back to grossAmount exactly. */
-export function splitPayment(grossGrosze: number): { platformFeeGrosze: number; teacherAmountGrosze: number } {
-  const platformFeeGrosze = Math.round((grossGrosze * PLATFORM_COMMISSION_PERCENT) / 100)
+/** Splits a gross lesson price (in grosze) into the platform's commission and the teacher's net earnings. Commission is rounded to the nearest grosz; teacherAmount + platformFee always sums back to grossAmount exactly. */
+export function splitPayment(grossGrosze: number, commissionPercent = PLATFORM_COMMISSION_PERCENT): { platformFeeGrosze: number; teacherAmountGrosze: number } {
+  const platformFeeGrosze = Math.round((grossGrosze * commissionPercent) / 100)
   return { platformFeeGrosze, teacherAmountGrosze: grossGrosze - platformFeeGrosze }
 }

@@ -4,6 +4,7 @@ import { adminDb } from '@/lib/firebase-admin'
 import { requireStripeBackend, verifyCaller } from '@/lib/stripe-server-auth'
 import { getOrigin } from '@/lib/request-origin'
 import { splitPayment, toGrosze, STRIPE_CURRENCY } from '@/lib/stripe-config'
+import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { collections } from '@/lib/firebase'
 
 // ─────────────────────────────────────────────────────────────
@@ -76,7 +77,8 @@ export async function POST(request: Request) {
   // Authoritative price — recomputed server-side, never trusted from the client.
   const pricePln = Math.round((teacher.hourlyRate / 60) * duration)
   const priceGrosze = toGrosze(pricePln)
-  const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(priceGrosze)
+  const paymentSettings = await getPlatformPaymentSettings()
+  const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(priceGrosze, paymentSettings.commissionPercent)
 
   try {
     const origin = getOrigin(request)
@@ -108,6 +110,7 @@ export async function POST(request: Request) {
         duration: String(duration),
         topic: topic.trim(),
         priceGrosze: String(priceGrosze),
+        commissionPercent: String(paymentSettings.commissionPercent),
         platformFeeGrosze: String(platformFeeGrosze),
         teacherAmountGrosze: String(teacherAmountGrosze),
       },

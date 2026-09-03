@@ -11,12 +11,12 @@ export const adminStatsData: AdminStats = {
   newSignupsThisWeek: 284,
   pendingVerifications: 7,
   revenueChart: [
-    { month: 'Lut', amount: 268000 },
-    { month: 'Mar', amount: 301000 },
-    { month: 'Kwi', amount: 322000 },
-    { month: 'Maj', amount: 349000 },
-    { month: 'Cze', amount: 378000 },
-    { month: 'Lip', amount: 412600 },
+    { month: 'Lut', amount: 268000, platformFee: 40200, teacherAmount: 227800 },
+    { month: 'Mar', amount: 301000, platformFee: 45150, teacherAmount: 255850 },
+    { month: 'Kwi', amount: 322000, platformFee: 48300, teacherAmount: 273700 },
+    { month: 'Maj', amount: 349000, platformFee: 52350, teacherAmount: 296650 },
+    { month: 'Cze', amount: 378000, platformFee: 56700, teacherAmount: 321300 },
+    { month: 'Lip', amount: 412600, platformFee: 61890, teacherAmount: 350710 },
   ],
   usersByRole: [
     { role: 'Uczniowie', count: 8480, color: '#F4B400' },

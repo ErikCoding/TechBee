@@ -242,6 +242,8 @@ export type Lesson = {
   paymentStatus?: 'paid' | 'refunded' | 'failed'
   /** Smallest-unit (grosze) amounts — the authoritative money values; `price` (PLN) stays for display, unchanged. */
   priceGrosze?: number
+  /** Snapshot of the platform commission rate used when this specific payment was created. */
+  commissionPercent?: number
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
   stripeCheckoutSessionId?: string
@@ -284,6 +286,36 @@ export type TeacherWalletSummary = {
 export type WalletHistoryEntry =
   | { kind: 'lesson'; lessonId: string; studentName: string; topic: string; grossGrosze: number; platformFeeGrosze: number; teacherAmountGrosze: number; createdAt: number }
   | { kind: 'payout'; amountGrosze: number; status: PayoutRecord['status']; createdAt: number }
+
+export type PlatformPaymentSettings = {
+  commissionPercent: number
+  updatedAt?: number
+  updatedBy?: string
+}
+
+export type PlatformWalletSummary = {
+  commissionPercent: number
+  availableGrosze: number | null
+  pendingGrosze: number | null
+  grossPaidGrosze: number
+  platformFeesGrosze: number
+  teacherTransfersGrosze: number
+  pendingTeacherTransfersGrosze: number
+  refundedGrosze: number
+}
+
+export type PlatformWalletEntry = {
+  lessonId: string
+  teacherName: string
+  studentName: string
+  topic: string
+  grossGrosze: number
+  platformFeeGrosze: number
+  teacherAmountGrosze: number
+  status: Lesson['paymentStatus']
+  transferStatus: 'pending' | 'sent'
+  createdAt: number
+}
 
 export type LessonReportCardStatus = 'pending' | 'confirmed' | 'dispute_open' | 'dispute_resolved_teacher' | 'dispute_resolved_payer'
 
@@ -395,7 +427,7 @@ export type AdminStats = {
   revenueChange: number
   newSignupsThisWeek: number
   pendingVerifications: number
-  revenueChart: { month: string; amount: number }[]
+  revenueChart: { month: string; amount: number; platformFee?: number; teacherAmount?: number }[]
   usersByRole: { role: string; count: number; color: string }[]
 }
 

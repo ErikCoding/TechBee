@@ -200,6 +200,7 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     reportChatDeliveries: data.reportChatDeliveries as Lesson['reportChatDeliveries'],
     paymentStatus: data.paymentStatus as Lesson['paymentStatus'],
     priceGrosze: data.priceGrosze as number | undefined,
+    commissionPercent: data.commissionPercent as number | undefined,
     platformFeeGrosze: data.platformFeeGrosze as number | undefined,
     teacherAmountGrosze: data.teacherAmountGrosze as number | undefined,
     stripeCheckoutSessionId: data.stripeCheckoutSessionId as string | undefined,
