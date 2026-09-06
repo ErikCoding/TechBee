@@ -1,9 +1,13 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { BackButton } from '@/components/shared/back-button'
 import { ReportsClient } from '@/components/dashboard/reports-client'
+import { noIndexMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = noIndexMetadata('Raporty z lekcji')
 
 export default function ReportsPage() {
   return (

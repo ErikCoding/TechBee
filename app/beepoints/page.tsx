@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { Sprout, Award, Star, Crown, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
@@ -8,6 +9,9 @@ import { RequireAuth } from '@/components/auth/require-auth'
 import { BeePointsRules } from '@/components/beepoints/beepoints-rules'
 import { BackButton } from '@/components/shared/back-button'
 import { cn } from '@/lib/utils'
+import { noIndexMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = noIndexMetadata('BeePoints')
 
 const tierIconMap: Record<string, React.ElementType> = {
   Sprout, Award, Star, Crown,

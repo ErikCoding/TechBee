@@ -1,8 +1,12 @@
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { BackButton } from '@/components/shared/back-button'
 import { TeacherWalletClient } from '@/components/wallet/teacher-wallet-client'
+import { noIndexMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = noIndexMetadata('Portfel')
 
 /**
  * Teacher-only — there is no student wallet (students pay per-booking

@@ -3,10 +3,9 @@ import { AdminSidebar } from '@/components/admin/admin-sidebar'
 import { AdminMobileNav } from '@/components/admin/admin-mobile-nav'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { AdminIdentity } from '@/components/admin/admin-identity'
+import { noIndexMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = {
-  title: 'Panel administratora',
-}
+export const metadata: Metadata = noIndexMetadata('Panel administratora')
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

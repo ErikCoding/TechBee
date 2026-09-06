@@ -1,9 +1,18 @@
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { MarketplaceClient } from '@/components/marketplace/marketplace-client'
 import { filtersFromParams } from '@/components/marketplace/marketplace-filters'
 import { getTeachers } from '@/services/teachers.service'
 import { getCategories } from '@/services/categories.service'
+import { pageMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = pageMetadata({
+  title: 'Giełda nauczycieli technicznych',
+  description:
+    'Znajdź zweryfikowanego nauczyciela PLC, CNC, CAD, robotyki lub automatyki i zarezerwuj indywidualną lekcję online.',
+  path: '/marketplace',
+})
 
 interface MarketplacePageProps {
   /**

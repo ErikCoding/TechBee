@@ -1,8 +1,12 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { PaymentSuccessClient } from '@/components/payment/payment-success-client'
+import { noIndexMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = noIndexMetadata('Płatność przyjęta')
 
 export default function PaymentSuccessPage() {
   return (

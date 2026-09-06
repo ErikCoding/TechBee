@@ -1,7 +1,12 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/legal/legal-page'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = { title: 'Regulamin' }
+export const metadata: Metadata = pageMetadata({
+  title: 'Regulamin',
+  description: 'Regulamin korzystania z platformy Runbee oraz zasady rezerwacji lekcji technicznych online.',
+  path: '/terms',
+})
 
 export default function TermsPage() {
   return (

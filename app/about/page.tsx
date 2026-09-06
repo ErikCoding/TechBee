@@ -16,8 +16,14 @@ import { Footer } from '@/components/layout/footer'
 import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/shared/reveal'
 import { AnimatedCounter } from '@/components/shared/animated-counter'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = { title: 'O nas' }
+export const metadata: Metadata = pageMetadata({
+  title: 'O Runbee',
+  description:
+    'Runbee to platforma lekcji online, która łączy naukę techniki z doświadczeniem praktyków pracujących w przemyśle.',
+  path: '/about',
+})
 
 const stats = [
   { value: 300, suffix: '+', label: 'zweryfikowanych nauczycieli' },

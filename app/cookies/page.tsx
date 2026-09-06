@@ -1,7 +1,12 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/legal/legal-page'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = { title: 'Polityka cookies' }
+export const metadata: Metadata = pageMetadata({
+  title: 'Polityka cookies',
+  description: 'Informacje o plikach cookies i podobnych technologiach używanych w serwisie Runbee.',
+  path: '/cookies',
+})
 
 export default function CookiesPage() {
   return (

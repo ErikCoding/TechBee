@@ -3,8 +3,14 @@ import { Mail, MapPin, Clock } from 'lucide-react'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { ContactForm } from '@/components/contact/contact-form'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = { title: 'Kontakt' }
+export const metadata: Metadata = pageMetadata({
+  title: 'Kontakt',
+  description:
+    'Skontaktuj się z Runbee w sprawie lekcji technicznych online, współpracy nauczycielskiej lub obsługi konta.',
+  path: '/contact',
+})
 
 const contactInfo = [
   { icon: Mail, label: 'E-mail', value: 'kontakt@techbee.pl' },

@@ -13,12 +13,14 @@ import { EarningsCalculator } from '@/components/teach/earnings-calculator'
 import { getTeachers } from '@/services/teachers.service'
 import { Reveal } from '@/components/shared/reveal'
 import { PLATFORM_COMMISSION_PERCENT } from '@/lib/stripe-config'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Zostań nauczycielem',
   description:
-    'Ucz online w dogodnych godzinach. Ustalasz stawkę i grafik, Runbee zajmuje się płatnościami, kalendarzem i rozliczeniami.',
-}
+    'Ucz techniki online, ustalaj własną stawkę i grafik, a Runbee zajmie się rezerwacjami, płatnościami, lekcjami i rozliczeniami.',
+  path: '/teach',
+})
 
 /** Why a teacher would join — four, all real. */
 const benefits = [

@@ -1,10 +1,14 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { ChatClient } from '@/components/chat/chat-client'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { BackButton } from '@/components/shared/back-button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { noIndexMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = noIndexMetadata('Wiadomości')
 
 /**
  * On mobile the chat is the screen: the page chrome (back link, heading,

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import {
   Star, MapPin, Clock, BadgeCheck, Users, BookOpen,
   CalendarDays, GraduationCap, ArrowLeft, Sparkles, MessageCircle,
@@ -11,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { StarRating } from '@/components/shared/star-rating'
 import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
+import { noIndexMetadata, pageMetadata } from '@/lib/seo'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -20,6 +22,19 @@ interface Props {
 export async function generateStaticParams() {
   const ids = await getAllTeacherIds()
   return ids.map((id) => ({ id }))
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  const teacher = await getTeacherById(id)
+  if (!teacher || !isTeacherApproved(teacher)) return noIndexMetadata('Nauczyciel nie znaleziony')
+
+  return pageMetadata({
+    title: `${teacher.name} — ${teacher.specialty}`,
+    description: `${teacher.name} prowadzi indywidualne lekcje online: ${teacher.specialty}. Stawka ${teacher.hourlyRate} zł/godz., ocena ${teacher.rating.toFixed(1)} na podstawie ${teacher.reviewCount} opinii.`,
+    path: `/teacher/${teacher.id}`,
+    image: teacher.photoUrl ?? '/icon.svg',
+  })
 }
 
 export default async function TeacherProfilePage({ params, searchParams }: Props) {

@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { RequireAuth } from '@/components/auth/require-auth'
@@ -6,6 +7,9 @@ import { BackButton } from '@/components/shared/back-button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { TeacherBookingCalendar } from '@/components/teacher/teacher-booking-calendar'
 import { getTeacherById, isTeacherApproved } from '@/services/teachers.service'
+import { noIndexMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = noIndexMetadata('Rezerwacja lekcji')
 
 interface Props {
   params: Promise<{ id: string }>

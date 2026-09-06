@@ -1,6 +1,10 @@
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { LessonRoomClient } from '@/components/lesson/lesson-room-client'
+import { noIndexMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = noIndexMetadata('Pokój lekcji')
 
 interface Props {
   params: Promise<{ id: string }>

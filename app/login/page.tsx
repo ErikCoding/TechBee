@@ -1,8 +1,9 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { LoginForm } from '@/components/auth/login-form'
+import { noIndexMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = { title: 'Zaloguj się' }
+export const metadata: Metadata = noIndexMetadata('Zaloguj się')
 
 export default function LoginPage() {
   return (
