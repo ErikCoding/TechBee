@@ -1,12 +1,18 @@
 import {
+  type ActionCodeSettings,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
   updateProfile as updateFirebaseProfile,
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { requireEmailVerification } from '@/lib/email-verification'
+import { syncParticipantProfile, toParticipant } from '@/services/chat.service'
+import { syncTeacherPublicIdentity } from '@/services/teachers.service'
 import type { AuthUser, PublicUserRole, UserRole } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -39,6 +45,43 @@ function initialsFor(name: string) {
 
 function isBrowser() {
   return typeof window !== 'undefined'
+}
+
+function verificationActionSettings(): ActionCodeSettings | undefined {
+  if (!isBrowser()) return undefined
+  return {
+    url: `${window.location.origin}/login?verified=1`,
+    handleCodeInApp: false,
+  }
+}
+
+async function sendVerificationEmailCurrentUser(): Promise<void> {
+  if (!auth?.currentUser) return
+  auth.languageCode = 'pl'
+  await sendEmailVerification(auth.currentUser, verificationActionSettings())
+}
+
+async function syncProfileSnapshotsThroughServer(): Promise<boolean> {
+  if (!isBrowser() || !auth?.currentUser) return false
+  try {
+    const idToken = await auth.currentUser.getIdToken()
+    const res = await fetch('/api/profile/sync-public-identity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+async function syncProfileSnapshots(user: AuthUser): Promise<void> {
+  if (isFirebaseConfigured && await syncProfileSnapshotsThroughServer()) return
+  await Promise.allSettled([
+    syncParticipantProfile(toParticipant(user)),
+    syncTeacherPublicIdentity(user),
+  ])
 }
 
 export interface RegisterInput {
@@ -97,7 +140,7 @@ function writeUsers(users: StoredUser[]) {
 
 function toPublicUser(user: StoredUser): AuthUser {
   const { password: _password, ...publicUser } = user
-  return publicUser
+  return { ...publicUser, emailVerified: true }
 }
 
 function ensureSeedData() {
@@ -200,7 +243,9 @@ async function updateUserProfileMock(input: UpdateProfileInput): Promise<AuthUse
   writeUsers(nextUsers)
   const updated = nextUsers.find((u) => u.id === current.id)
   if (!updated) throw new Error('Nie znaleziono profilu użytkownika.')
-  return toPublicUser(updated)
+  const publicUser = toPublicUser(updated)
+  await syncProfileSnapshots(publicUser)
+  return publicUser
 }
 
 // ── Firebase implementation ──────────────────────────────────
@@ -211,6 +256,13 @@ async function fetchFirebaseProfile(uid: string): Promise<AuthUser | null> {
   if (!snap.exists()) return null
   const data = snap.data() as Omit<AuthUser, 'id'>
   return { id: uid, ...data }
+}
+
+async function fetchFirebaseSessionUser(): Promise<AuthUser | null> {
+  if (!auth?.currentUser) return null
+  await reload(auth.currentUser).catch(() => {})
+  const profile = await fetchFirebaseProfile(auth.currentUser.uid)
+  return profile ? { ...profile, emailVerified: auth.currentUser.emailVerified } : null
 }
 
 async function registerFirebase(input: RegisterInput): Promise<AuthUser> {
@@ -233,7 +285,11 @@ async function registerFirebase(input: RegisterInput): Promise<AuthUser> {
     setDoc(doc(db, collections.users, credential.user.uid), { ...profile, createdAt: Date.now() }),
     updateFirebaseProfile(credential.user, { displayName: profile.name }),
   ])
-  return { id: credential.user.uid, ...profile }
+  if (requireEmailVerification) {
+    auth.languageCode = 'pl'
+    await sendEmailVerification(credential.user, verificationActionSettings()).catch(() => {})
+  }
+  return { id: credential.user.uid, ...profile, emailVerified: credential.user.emailVerified }
 }
 
 async function loginFirebase(input: LoginInput): Promise<AuthUser> {
@@ -241,7 +297,7 @@ async function loginFirebase(input: LoginInput): Promise<AuthUser> {
   const credential = await signInWithEmailAndPassword(auth, input.email.trim().toLowerCase(), input.password)
   const profile = await fetchFirebaseProfile(credential.user.uid)
   if (!profile) throw new Error('Nie znaleziono profilu użytkownika.')
-  return profile
+  return { ...profile, emailVerified: credential.user.emailVerified }
 }
 
 async function updateUserProfileFirebase(input: UpdateProfileInput): Promise<AuthUser> {
@@ -262,7 +318,9 @@ async function updateUserProfileFirebase(input: UpdateProfileInput): Promise<Aut
   ])
   const fresh = await fetchFirebaseProfile(auth.currentUser.uid)
   if (!fresh) throw new Error('Nie znaleziono profilu użytkownika.')
-  return fresh
+  const publicUser = { ...fresh, emailVerified: auth.currentUser.emailVerified }
+  await syncProfileSnapshots(publicUser)
+  return publicUser
 }
 
 // ── Public API ────────────────────────────────────────────────
@@ -287,6 +345,16 @@ export async function updateUserProfile(input: UpdateProfileInput): Promise<Auth
   return isFirebaseConfigured ? updateUserProfileFirebase(input) : updateUserProfileMock(input)
 }
 
+export async function resendEmailVerification(): Promise<void> {
+  if (!isFirebaseConfigured || !auth?.currentUser) return
+  await sendVerificationEmailCurrentUser()
+}
+
+export async function refreshEmailVerification(): Promise<AuthUser | null> {
+  if (!isFirebaseConfigured) return getStoredSessionMock()
+  return fetchFirebaseSessionUser()
+}
+
 /** Looks up any user's public profile by id — used by services/family-link.service.ts to show a linked parent/student's name+avatar without duplicating the auth storage logic here. */
 export async function getUserProfileById(userId: string): Promise<AuthUser | null> {
   if (isFirebaseConfigured) return fetchFirebaseProfile(userId)
@@ -307,7 +375,7 @@ export function subscribeToAuthState(callback: (user: AuthUser | null) => void):
         return
       }
       const profile = await fetchFirebaseProfile(firebaseUser.uid)
-      callback(profile)
+      callback(profile ? { ...profile, emailVerified: firebaseUser.emailVerified } : null)
     })
   }
   callback(getStoredSessionMock())

@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { CalendarDays, Clock, Timer, Video, Wallet, CalendarX2, Clock3, MessageSquare } from 'lucide-react'
+import { CalendarDays, Clock, Timer, Wallet, CalendarX2, Clock3, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { MetaStrip } from '@/components/dashboard/dashboard-primitives'
+import { LessonJoinButton } from '@/components/lesson/lesson-join-button'
+import { LessonLiveStatus } from '@/components/lesson/lesson-live-status'
 import type { Lesson } from '@/lib/types'
 
 interface Props {
@@ -50,14 +52,15 @@ export function TeacherNextLesson({ lesson, requestCount }: Props) {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-primary/40 bg-card">
-      <div className="flex items-center gap-2 border-b border-primary/25 bg-accent px-5 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-primary/25 bg-accent px-5 py-2.5">
         <span className="relative flex h-2 w-2" aria-hidden="true">
           <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
         </span>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-accent-foreground">Następna lekcja</p>
+        <LessonLiveStatus lesson={lesson} className="ml-auto max-w-full" />
         {lesson.pendingChange && (
-          <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-warning">
+          <span className="flex items-center gap-1 text-[11px] font-medium text-warning">
             <Clock3 className="h-3 w-3" aria-hidden="true" />
             Prośba o zmianę
           </span>
@@ -88,12 +91,7 @@ export function TeacherNextLesson({ lesson, requestCount }: Props) {
         />
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Link href={joinHref} className="sm:flex-1">
-            <Button className="w-full font-semibold transition-transform hover:-translate-y-0.5">
-              <Video className="h-4 w-4" aria-hidden="true" />
-              Rozpocznij lekcję
-            </Button>
-          </Link>
+          <LessonJoinButton lesson={lesson} href={joinHref} label="Rozpocznij lekcję" className="sm:flex-1" />
           <Link href="/chat" className="sm:w-auto">
             <Button variant="outline" className="w-full sm:w-auto">
               <MessageSquare className="h-4 w-4" aria-hidden="true" />

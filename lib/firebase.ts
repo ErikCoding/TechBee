@@ -64,4 +64,6 @@ export const collections = {
   platformSettings: 'platformSettings',
   /** Processed Stripe webhook event ids — see app/api/stripe/webhook/route.ts's idempotency check (one doc per event.id, written before processing, checked before every write). */
   stripeEvents: 'stripeEvents',
+  /** Short-lived slot locks written by the Stripe webhook while turning paid sessions into lessons, preventing overlapping paid bookings from racing into the same teacher time. */
+  lessonSlotLocks: 'lessonSlotLocks',
 } as const

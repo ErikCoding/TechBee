@@ -9,9 +9,9 @@ const footerLinks = {
     { label: 'BeePoints', href: '/beepoints' },
   ],
   Specjalizacje: [
+    { label: 'Elektryka', href: '/marketplace?category=electrical' },
+    { label: 'Polski', href: '/marketplace?category=polish' },
     { label: 'Programowanie PLC', href: '/marketplace?category=plc' },
-    { label: 'Obróbka CNC', href: '/marketplace?category=cnc' },
-    { label: 'Projektowanie CAD', href: '/marketplace?category=cad' },
     { label: 'Robotyka przemysłowa', href: '/marketplace?category=robotics' },
   ],
   Firma: [
@@ -33,7 +33,7 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1">
             <BeeLogo size="md" />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Połącz się z certyfikowanymi specjalistami technicznymi na praktyczne lekcje online.
+              Połącz się ze zweryfikowanymi nauczycielami na praktyczne lekcje online.
             </p>
           </div>
 
@@ -59,7 +59,7 @@ export function Footer() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 md:flex-row">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Runbee Technologie Sp. z o.o. Wszelkie prawa zastrzeżone.
+            © {new Date().getFullYear()} Runbee. Projekt przed formalnym uruchomieniem działalności.
           </p>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <Link href="/privacy" className="hover:text-foreground transition-colors">Prywatność</Link>

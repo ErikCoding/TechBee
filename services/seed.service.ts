@@ -1,5 +1,5 @@
 import { doc, writeBatch } from 'firebase/firestore'
-import { categoriesData } from '@/data/categories.data'
+import { categoriesData, deprecatedCategoryIds } from '@/data/categories.data'
 import { teachersData } from '@/data/teachers.data'
 import { testimonialsData } from '@/data/testimonials.data'
 import { faqData } from '@/data/faq.data'
@@ -30,6 +30,9 @@ export async function seedFirestoreDemoData(): Promise<SeedResult[]> {
 
   for (const category of categoriesData) {
     batch.set(doc(db, collections.categories, category.id), category)
+  }
+  for (const categoryId of deprecatedCategoryIds) {
+    batch.delete(doc(db, collections.categories, categoryId))
   }
   results.push({ collection: collections.categories, count: categoriesData.length })
 

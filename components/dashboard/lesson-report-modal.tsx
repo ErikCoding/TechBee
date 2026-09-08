@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { BookOpenCheck, ClipboardList, Loader2, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { FormError } from '@/components/ui/form-error'
@@ -18,9 +18,9 @@ interface Props {
 
 function RatingPicker({ label, value, onChange, disabled }: { label: string; value: number; onChange: (n: number) => void; disabled?: boolean }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-foreground">{label}</span>
-      <div className="flex gap-1.5" role="radiogroup" aria-label={label}>
+    <div className="rounded-xl border border-border bg-background/60 px-3 py-3">
+      <span className="text-xs font-semibold text-foreground">{label}</span>
+      <div className="mt-2 flex gap-1.5" role="radiogroup" aria-label={label}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
@@ -31,11 +31,11 @@ function RatingPicker({ label, value, onChange, disabled }: { label: string; val
             onClick={() => onChange(n)}
             disabled={disabled}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-semibold transition-colors disabled:pointer-events-none disabled:opacity-60',
-              value === n ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-muted',
+              'flex h-9 w-9 items-center justify-center rounded-lg border text-xs font-semibold transition-colors disabled:pointer-events-none disabled:opacity-60',
+              value >= n ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-muted',
             )}
           >
-            {n}
+            <Star className={cn('h-3.5 w-3.5', value >= n && 'fill-current')} aria-hidden="true" />
           </button>
         ))}
       </div>
@@ -92,11 +92,25 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
     <Dialog open onOpenChange={(open) => { if (!open && !submitting) onClose() }}>
       <DialogContent showClose={!submitting} className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Raport z lekcji</DialogTitle>
-          <DialogDescription>z {lesson.studentName} · {lesson.date}</DialogDescription>
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
+              <ClipboardList className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <DialogTitle>Raport z lekcji</DialogTitle>
+              <DialogDescription>z {lesson.studentName} · {lesson.date}</DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <DialogBody>
+          <div className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            <div className="flex items-start gap-2">
+              <BookOpenCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+              <p>Ten raport trafi na czat i do zakładki Raporty. Potwierdzenie zwolni płatność dla nauczyciela.</p>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label htmlFor="reportTopic" className="text-xs font-medium text-foreground">Co przerobiliście na lekcji</label>
             <textarea
@@ -109,8 +123,10 @@ export function LessonReportModal({ lesson, onClose, onSubmitted }: Props) {
             />
           </div>
 
-          <RatingPicker label="Ocena postępu ucznia" value={progressRating} onChange={setProgressRating} disabled={submitting} />
-          <RatingPicker label="Zaangażowanie ucznia" value={engagementRating} onChange={setEngagementRating} disabled={submitting} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <RatingPicker label="Postęp ucznia" value={progressRating} onChange={setProgressRating} disabled={submitting} />
+            <RatingPicker label="Zaangażowanie ucznia" value={engagementRating} onChange={setEngagementRating} disabled={submitting} />
+          </div>
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="reportHomework" className="text-xs font-medium text-foreground">Zadanie domowe / co ćwiczyć (opcjonalnie)</label>

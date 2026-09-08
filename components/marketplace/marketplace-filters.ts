@@ -1,4 +1,5 @@
 import type { Teacher } from '@/lib/types'
+import { deprecatedCategoryIds } from '@/data/categories.data'
 
 /**
  * The marketplace's filtering rules, kept out of the components.
@@ -157,9 +158,10 @@ export function filtersFromParams(params: {
   sort?: string
 }): MarketplaceFilters {
   const sort = SORT_OPTIONS.find((o) => o.value === params.sort)?.value ?? 'featured'
+  const category = params.category && !deprecatedCategoryIds.includes(params.category) ? params.category : null
   return {
     query: params.q ?? '',
-    category: params.category ?? null,
+    category,
     maxPrice: params.maxPrice && !Number.isNaN(Number(params.maxPrice)) ? Number(params.maxPrice) : null,
     minRating: params.minRating && !Number.isNaN(Number(params.minRating)) ? Number(params.minRating) : null,
     days: params.days ? params.days.split(',').filter((d) => WEEKDAYS.some((w) => w.value === d)) : [],

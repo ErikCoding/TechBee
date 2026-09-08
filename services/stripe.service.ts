@@ -60,6 +60,7 @@ export async function refreshTeacherStripeStatus(): Promise<TeacherStripeAccount
 export async function startLessonCheckout(input: {
   teacherId: string
   date: string
+  dateIso: string
   time: string
   duration: number
   topic: string

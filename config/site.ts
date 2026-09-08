@@ -5,10 +5,10 @@
 
 export const siteConfig = {
   name: 'Runbee',
-  legalName: 'Runbee Technologie Sp. z o.o.',
+  legalName: 'Runbee',
   tagline: 'Ucz się praktycznych umiejętności przemysłowych od certyfikowanych ekspertów',
   description:
-    'Połącz się z certyfikowanymi specjalistami PLC, CNC, CAD i automatyki przemysłowej na indywidualne lekcje online.',
+    'Połącz się ze zweryfikowanymi nauczycielami automatyki, elektryki, PLC, fizyki, matematyki i języków na indywidualne lekcje online.',
   url: 'https://techbee.pl',
   locale: 'pl-PL',
   currency: {

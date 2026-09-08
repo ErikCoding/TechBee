@@ -9,7 +9,8 @@ import { resolveConfirmingParty } from '@/services/family-link.service'
 import { getOrCreateConversation, sendMessage, sendReportCardMessage, toParticipant, updateReportCardStatus } from '@/services/chat.service'
 import { getUserProfileById } from '@/services/auth.service'
 import { canManageLessonReport, computeReportManagerIds, getReportManagerIds } from '@/lib/report-permissions'
-import type { Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, LessonDisputeReason, LessonReport, LessonReportCard, LessonReportCardStatus, StudentStats, TeacherDashboardData } from '@/lib/types'
+import { slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import type { BookedLessonSlot, Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, LessonDisputeReason, LessonReport, LessonReportCard, LessonReportCardStatus, StudentStats, TeacherDashboardData } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Data-access layer for lessons/bookings.
@@ -122,9 +123,12 @@ async function createBookingMock(input: LessonBookingInput): Promise<Lesson> {
     studentName: input.studentName,
     teacherInitials: input.teacherInitials,
     teacherColor: input.teacherColor,
+    ...(input.teacherPhotoUrl ? { teacherPhotoUrl: input.teacherPhotoUrl } : {}),
     specialty: input.specialty,
     date: input.date,
+    dateIso: input.dateIso,
     time: input.time,
+    scheduledStartAt: input.scheduledStartAt,
     duration: input.duration,
     status: 'pending',
     price: input.price,
@@ -162,6 +166,20 @@ function getParentLessonsMock(parentId?: string): Lesson[] {
   return readLocal<Lesson>(parentBookingsKey(parentId))
 }
 
+function getTeacherBookedLessonSlotsMock(teacherId: string): BookedLessonSlot[] {
+  return readLocal<Lesson>(teacherBookingsKey(teacherId))
+    .filter((lesson) => lesson.status === 'pending' || lesson.status === 'upcoming')
+    .map(({ id, date, dateIso, time, scheduledStartAt, duration, status }) => ({
+      id,
+      date,
+      dateIso,
+      time,
+      scheduledStartAt,
+      duration,
+      status,
+    }))
+}
+
 // ── Firebase ──────────────────────────────────────────────────
 
 function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
@@ -173,9 +191,12 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     studentName: (data.studentName as string) ?? '',
     teacherInitials: data.teacherInitials as string,
     teacherColor: data.teacherColor as string,
+    teacherPhotoUrl: data.teacherPhotoUrl as string | undefined,
     specialty: data.specialty as string,
     date: data.date as string,
+    dateIso: data.dateIso as string | undefined,
     time: data.time as string,
+    scheduledStartAt: data.scheduledStartAt as number | undefined,
     duration: data.duration as number,
     status: (data.status as Lesson['status']) ?? 'upcoming',
     price: data.price as number,
@@ -380,6 +401,15 @@ export async function getLessonById(id: string): Promise<Lesson | undefined> {
   return autoConfirmIfOverdue(lesson)
 }
 
+/** Public-safe occupied-slot feed for the booking calendar. Real mode goes through an admin-backed API that returns only timing/status, never student details. */
+export async function getTeacherBookedLessonSlots(teacherId: string): Promise<BookedLessonSlot[]> {
+  if (!isFirebaseConfigured) return getTeacherBookedLessonSlotsMock(teacherId)
+  const res = await fetch(`/api/teachers/${encodeURIComponent(teacherId)}/availability`, { cache: 'no-store' })
+  const data = await res.json().catch(() => ({}) as { slots?: BookedLessonSlot[] })
+  if (!res.ok || !Array.isArray(data.slots)) return []
+  return data.slots
+}
+
 /** Every lesson with an open dispute, across every teacher/student — the admin disputes queue (see app/admin/disputes). */
 export async function getOpenDisputes(): Promise<Lesson[]> {
   if (isFirebaseConfigured) {
@@ -516,6 +546,18 @@ export async function respondToBookingRequest(lesson: Lesson, decision: 'accepte
 
 /** Either party requests a cancel/reschedule of an upcoming lesson — sits on the doc until the *other* party responds. */
 export async function requestLessonChange(lesson: Lesson, requestedBy: 'student' | 'teacher', change: Omit<LessonChangeRequest, 'requestedBy'>): Promise<void> {
+  if (change.type === 'cancel' && (!change.note || change.note.trim().length < 8)) {
+    throw new Error('Podaj powód odwołania lekcji.')
+  }
+  if (change.type === 'reschedule') {
+    if (!change.newDate || !change.newDateIso || !change.newTime) {
+      throw new Error('Wybierz nowy dzień i godzinę lekcji.')
+    }
+    const booked = (await getTeacherBookedLessonSlots(lesson.teacherId)).filter((slot) => slot.id !== lesson.id)
+    if (slotOverlapsBookedLesson({ dateIso: change.newDateIso, time: change.newTime, duration: lesson.duration, booked })) {
+      throw new Error('Ten termin jest już zajęty. Wybierz inną godzinę.')
+    }
+  }
   const pendingChange: LessonChangeRequest = { ...change, requestedBy }
   if (isFirebaseConfigured && db) {
     await updateDoc(doc(db, collections.lessons, lesson.id), { pendingChange })
@@ -525,11 +567,12 @@ export async function requestLessonChange(lesson: Lesson, requestedBy: 'student'
   const recipientId = requestedBy === 'student' ? lesson.teacherId : lesson.studentId
   const requesterLabel = requestedBy === 'student' ? lesson.studentName : lesson.teacherName
   const actionLabel = change.type === 'cancel' ? 'odwołanie' : 'przełożenie'
+  const noteSuffix = change.note ? ` Powód: ${change.note}` : ''
   createNotification({
     userId: recipientId,
     type: 'lesson',
     title: `Prośba o ${actionLabel} lekcji`,
-    description: `${requesterLabel} prosi o ${actionLabel} lekcji „${lesson.topic}"${change.newDate ? ` na ${change.newDate}${change.newTime ? ` o ${change.newTime}` : ''}` : ''}. Potwierdź lub odrzuć w panelu.`,
+    description: `${requesterLabel} prosi o ${actionLabel} lekcji „${lesson.topic}"${change.newDate ? ` na ${change.newDate}${change.newTime ? ` o ${change.newTime}` : ''}` : ''}.${noteSuffix} Potwierdź lub odrzuć w panelu.`,
   })
 }
 
@@ -550,8 +593,22 @@ export async function respondToLessonChange(lesson: Lesson, decision: 'accepted'
     }
     refunded = true
   } else if (decision === 'accepted' && change.type === 'reschedule') {
+    if (change.newDateIso && change.newTime) {
+      const booked = (await getTeacherBookedLessonSlots(lesson.teacherId)).filter((slot) => slot.id !== lesson.id)
+      if (slotOverlapsBookedLesson({ dateIso: change.newDateIso, time: change.newTime, duration: lesson.duration, booked })) {
+        throw new Error('Ten termin jest już zajęty. Odrzuć prośbę i wybierzcie inną godzinę.')
+      }
+    }
     patch.date = change.newDate ?? lesson.date
+    patch.dateIso = change.newDateIso ?? lesson.dateIso
     patch.time = change.newTime ?? lesson.time
+    if (change.newDateIso && change.newTime) {
+      const minutes = timeToMinutes(change.newTime)
+      if (minutes !== null) {
+        const [year, month, day] = change.newDateIso.split('-').map(Number)
+        patch.scheduledStartAt = new Date(year, month - 1, day, Math.floor(minutes / 60), minutes % 60).getTime()
+      }
+    }
   }
 
   await updateLessonDoc(lesson.id, patch)
@@ -714,7 +771,13 @@ export async function submitLessonReport(lesson: Lesson, report: LessonReport): 
         role: 'student',
       })
       const studentConversationId = await getOrCreateConversation(teacherParticipant, studentParticipant)
-      await sendMessage(studentConversationId, teacherParticipant, `📋 Raport z lekcji „${report.topic}" został wysłany do Twojego rodzica do potwierdzenia.`)
+      const summary = [
+        `Raport z lekcji „${report.topic}" został wysłany do Twojego rodzica do potwierdzenia.`,
+        `Postęp: ${report.progressRating}/5. Zaangażowanie: ${report.engagementRating}/5.`,
+        report.homework ? `Do przećwiczenia: ${report.homework}` : null,
+        report.nextTopic ? `Kolejny temat: ${report.nextTopic}` : null,
+      ].filter(Boolean).join('\n')
+      await sendMessage(studentConversationId, teacherParticipant, summary)
     } catch {
       // best-effort
     }
@@ -905,7 +968,7 @@ export async function submitLessonReview(
   lesson: Lesson,
   rating: number,
   comment: string,
-  author: { id: string; name: string; initials: string; avatarColor: string },
+  author: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
 ): Promise<void> {
   if (lesson.status !== 'completed') return
   if (!(await canStudentReviewTeacher(author.id, lesson.teacherId))) return
@@ -920,6 +983,7 @@ export async function submitLessonReview(
     author: author.name,
     authorInitials: author.initials,
     authorColor: author.avatarColor,
+    authorPhotoUrl: author.photoUrl,
     rating,
     comment,
   })

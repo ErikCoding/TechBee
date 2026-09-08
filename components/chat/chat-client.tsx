@@ -13,6 +13,7 @@ import {
 } from '@/services/chat.service'
 import { getParentLessons, getStudentLessons, getTeacherLessons } from '@/services/lessons.service'
 import { cn } from '@/lib/utils'
+import { prepareChatAttachment } from '@/services/chat-attachments.service'
 import type { ChatConversation, ChatMessage, ChatParticipant, Lesson } from '@/lib/types'
 
 /**
@@ -50,6 +51,8 @@ export function ChatClient() {
   const [query, setQuery] = useState('')
   const [mobileShowThread, setMobileShowThread] = useState(Boolean(preselect))
   const [myLessons, setMyLessons] = useState<Lesson[]>([])
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [composerError, setComposerError] = useState<string | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -159,9 +162,24 @@ export function ChatClient() {
 
   async function handleSend(attachment?: ChatMessage['attachment']) {
     if (!active || !me || (!draft.trim() && !attachment)) return
+    setComposerError(null)
     const text = draft.trim()
     setDraft('')
     await sendMessage(active.id, me, text, attachment)
+  }
+
+  async function handleAttach(file: File) {
+    if (!active || !me) return
+    setUploadingAttachment(true)
+    setComposerError(null)
+    try {
+      const attachment = await prepareChatAttachment(active.id, me.id, file)
+      await handleSend(attachment)
+    } catch (err) {
+      setComposerError(err instanceof Error ? err.message : 'Nie udało się wysłać załącznika.')
+    } finally {
+      setUploadingAttachment(false)
+    }
   }
 
   if (!me) return null
@@ -217,7 +235,9 @@ export function ChatClient() {
               value={draft}
               onChange={setDraft}
               onSend={() => handleSend()}
-              onAttach={(attachment) => handleSend(attachment)}
+              onAttach={handleAttach}
+              uploading={uploadingAttachment}
+              error={composerError}
             />
           </>
         ) : (

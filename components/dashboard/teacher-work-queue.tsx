@@ -221,6 +221,9 @@ export function TeacherWorkQueue({
                         ? ` → ${lesson.pendingChange.newDate} o ${lesson.pendingChange.newTime}`
                         : ''}
                     </p>
+                    {lesson.pendingChange?.note && (
+                      <p className="mt-1 text-xs text-foreground">Powód: {lesson.pendingChange.note}</p>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2 sm:ml-4">
                     <Button

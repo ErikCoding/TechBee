@@ -13,8 +13,8 @@ export const metadata: Metadata = pageMetadata({
 })
 
 const contactInfo = [
-  { icon: Mail, label: 'E-mail', value: 'kontakt@techbee.pl' },
-  { icon: MapPin, label: 'Siedziba', value: 'Warszawa, Polska' },
+  { icon: Mail, label: 'E-mail', value: 'Adres kontaktowy zostanie uzupełniony przed startem' },
+  { icon: MapPin, label: 'Status', value: 'Projekt przed formalną rejestracją działalności' },
   { icon: Clock, label: 'Czas odpowiedzi', value: 'Zwykle w ciągu 1 dnia roboczego' },
 ]
 

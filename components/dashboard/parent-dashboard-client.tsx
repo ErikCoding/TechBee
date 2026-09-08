@@ -6,7 +6,7 @@ import { AlertCircle, ShieldAlert, Settings2, FileText, CalendarDays, Clock3 } f
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useAuth } from '@/lib/auth-context'
 import { getStudentLessons, getParentLessons, lessonToReportCard } from '@/services/lessons.service'
@@ -228,6 +228,7 @@ export function ParentDashboardClient({ initialNotifications }: Props) {
                           card={card}
                           counterpartyName={card.teacherName}
                           counterpartyColor={lesson.teacherColor}
+                          counterpartyPhotoUrl={lesson.teacherPhotoUrl}
                           contextLabel={multipleChildren ? childNameById(lesson.studentId) : undefined}
                           actionable
                           onOpen={() => setOpenCard(card)}
@@ -289,6 +290,7 @@ export function ParentDashboardClient({ initialNotifications }: Props) {
                           card={card}
                           counterpartyName={card.teacherName}
                           counterpartyColor={lesson.teacherColor}
+                          counterpartyPhotoUrl={lesson.teacherPhotoUrl}
                           actionable={isActionableBy(card, user?.id ?? '')}
                           onOpen={() => setOpenCard(card)}
                         />
@@ -323,6 +325,7 @@ export function ParentDashboardClient({ initialNotifications }: Props) {
                     {recentActivity.map((lesson) => (
                       <li key={lesson.id} className="flex items-center gap-3 px-5 py-3">
                         <Avatar className="h-9 w-9 shrink-0">
+                          {lesson.teacherPhotoUrl && <AvatarImage src={lesson.teacherPhotoUrl} alt="" />}
                           <AvatarFallback color={lesson.teacherColor} className="text-[11px]">
                             {lesson.teacherInitials}
                           </AvatarFallback>
@@ -419,4 +422,3 @@ export function ParentDashboardClient({ initialNotifications }: Props) {
     </>
   )
 }
-

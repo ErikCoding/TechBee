@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronRight, Star } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { REPORT_STATUS_CONFIG } from '@/components/reports/report-status'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ interface Props {
   /** Who to show as the counterparty — a student sees the teacher, a teacher sees the student. */
   counterpartyName: string
   counterpartyColor: string
+  counterpartyPhotoUrl?: string
   /** Set on the parent dashboard when several children are linked. */
   contextLabel?: string
   actionable: boolean
@@ -32,6 +33,7 @@ export function ReportRow({
   card,
   counterpartyName,
   counterpartyColor,
+  counterpartyPhotoUrl,
   contextLabel,
   actionable,
   onOpen,
@@ -49,6 +51,7 @@ export function ReportRow({
         )}
       >
         <Avatar className="h-9 w-9 shrink-0">
+          {counterpartyPhotoUrl && <AvatarImage src={counterpartyPhotoUrl} alt="" />}
           <AvatarFallback color={counterpartyColor} className="text-[11px]">
             {counterpartyName.slice(0, 2).toUpperCase()}
           </AvatarFallback>

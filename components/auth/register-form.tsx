@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, UserPlus, AlertCircle, GraduationCap, Wrench, Users } from 'lucide-react'
+import { Loader2, UserPlus, AlertCircle, GraduationCap, Wrench, Users, MailCheck } from 'lucide-react'
 import { AuthShell } from '@/components/auth/auth-shell'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
+import { requireEmailVerification } from '@/lib/email-verification'
 import { cn, dashboardPathForRole } from '@/lib/utils'
 import type { PublicUserRole } from '@/lib/types'
 
@@ -29,6 +30,7 @@ export function RegisterForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [verificationSentTo, setVerificationSentTo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,6 +43,11 @@ export function RegisterForm() {
     setLoading(true)
     try {
       const user = await register({ name, email, password, role })
+      if (requireEmailVerification && user.emailVerified === false) {
+        setVerificationSentTo(user.email)
+        setLoading(false)
+        return
+      }
       router.push(dashboardPathForRole(user.role))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nie udało się utworzyć konta.')
@@ -61,6 +68,22 @@ export function RegisterForm() {
         </>
       }
     >
+      {verificationSentTo ? (
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent">
+            <MailCheck className="h-5 w-5 text-bee-yellow-dark" aria-hidden="true" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Sprawdź skrzynkę</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Wysłaliśmy link potwierdzający na {verificationSentTo}. Konto będzie wpuszczane do panelu dopiero po potwierdzeniu adresu.
+            </p>
+          </div>
+          <Button onClick={() => router.push('/login')} className="w-full font-semibold">
+            Przejdź do logowania
+          </Button>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Account type */}
         <div>
@@ -116,6 +139,7 @@ export function RegisterForm() {
           Utwórz konto
         </Button>
       </form>
+      )}
     </AuthShell>
   )
 }

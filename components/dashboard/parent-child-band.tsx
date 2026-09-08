@@ -2,11 +2,13 @@
 
 import Link from 'next/link'
 import {
-  CalendarDays, Clock, GraduationCap, BookOpen, Wallet, Search, UserPlus, Video,
+  CalendarDays, Clock, GraduationCap, BookOpen, Wallet, Search, UserPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LessonJoinButton } from '@/components/lesson/lesson-join-button'
+import { LessonLiveStatus } from '@/components/lesson/lesson-live-status'
 import { cn } from '@/lib/utils'
 import type { Lesson, LinkedStudentSummary } from '@/lib/types'
 
@@ -115,7 +117,7 @@ export function ParentChildBand({ children, selectedId, onSelect }: Props) {
           <h2 className="truncate text-xl font-bold text-foreground">{selected.name}</h2>
 
           {selected.nextLesson ? (
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5 font-medium text-foreground">
                 <CalendarDays className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                 {selected.nextLesson.date}
@@ -127,7 +129,8 @@ export function ParentChildBand({ children, selectedId, onSelect }: Props) {
               <span className="truncate">
                 · {selected.nextLesson.topic} · {selected.nextLesson.teacherName}
               </span>
-            </p>
+              <LessonLiveStatus lesson={selected.nextLesson} className="max-w-full" />
+            </div>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">Brak zaplanowanych lekcji.</p>
           )}
@@ -135,14 +138,14 @@ export function ParentChildBand({ children, selectedId, onSelect }: Props) {
 
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
           {selected.nextLesson && (
-            <Link
+            <LessonJoinButton
+              lesson={selected.nextLesson}
               href={`/lesson/${selected.nextLesson.id}/room?with=${encodeURIComponent(selected.nextLesson.teacherName)}&topic=${encodeURIComponent(selected.nextLesson.topic)}`}
-            >
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                <Video className="h-3.5 w-3.5" aria-hidden="true" />
-                Podgląd lekcji
-              </Button>
-            </Link>
+              label="Podgląd lekcji"
+              size="sm"
+              variant="outline"
+              className="w-full sm:w-auto"
+            />
           )}
           <Link href={`/marketplace?bookingForId=${selected.id}&bookingForName=${encodeURIComponent(selected.name)}`}>
             <Button size="sm" className="w-full font-semibold sm:w-auto">

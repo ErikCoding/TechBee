@@ -7,6 +7,8 @@ import { BenefitsSection } from '@/components/landing/benefits-section'
 import { ProductExperienceSection } from '@/components/landing/product-experience-section'
 import { CtaSection } from '@/components/landing/cta-section'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Homepage composition.
  *

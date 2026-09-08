@@ -1,8 +1,9 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore'
+import { deprecatedCategoryIds } from '@/data/categories.data'
 import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { createNotification } from '@/services/notifications.service'
-import type { ReviewItem, Teacher, TeacherApplicationInput } from '@/lib/types'
+import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapshot } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Data-access layer for teachers.
@@ -21,7 +22,7 @@ import type { ReviewItem, Teacher, TeacherApplicationInput } from '@/lib/types'
 // ─────────────────────────────────────────────────────────────
 
 export function isTeacherApproved(t: Teacher): boolean {
-  return (t.status ?? 'approved') === 'approved'
+  return (t.status ?? 'approved') === 'approved' && !deprecatedCategoryIds.includes(t.categoryId)
 }
 
 export interface SubmitReviewInput {
@@ -31,8 +32,17 @@ export interface SubmitReviewInput {
   author: string
   authorInitials: string
   authorColor: string
+  authorPhotoUrl?: string
   rating: number
   comment: string
+}
+
+type TeacherPublicIdentity = {
+  id: string
+  name: string
+  initials: string
+  avatarColor: string
+  photoUrl?: string
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -114,10 +124,63 @@ function buildReviewItem(input: SubmitReviewInput): ReviewItem {
     author: input.author,
     authorInitials: input.authorInitials,
     authorColor: input.authorColor,
+    ...(input.authorPhotoUrl ? { authorPhotoUrl: input.authorPhotoUrl } : {}),
     rating: input.rating,
     date: new Date().toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
     comment: input.comment,
     createdAt: Date.now(),
+  }
+}
+
+function syncReviewsWithPublicIdentity(reviews: ReviewItem[], profile: TeacherPublicIdentity): { reviews: ReviewItem[]; changed: boolean } {
+  let changed = false
+  const next = reviews.map((review) => {
+    if (review.authorId !== profile.id) return review
+    const { authorPhotoUrl: _oldPhotoUrl, ...reviewWithoutPhoto } = review
+    changed = true
+    return {
+      ...reviewWithoutPhoto,
+      author: profile.name,
+      authorInitials: profile.initials,
+      authorColor: profile.avatarColor,
+      ...(profile.photoUrl ? { authorPhotoUrl: profile.photoUrl } : {}),
+    }
+  })
+  return { reviews: next, changed }
+}
+
+function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
+  return {
+    name: teacher.name,
+    initials: teacher.initials,
+    avatarColor: teacher.avatarColor,
+    ...(teacher.photoUrl ? { photoUrl: teacher.photoUrl } : {}),
+    specialty: teacher.specialty,
+    categoryId: teacher.categoryId,
+    hourlyRate: teacher.hourlyRate,
+    location: teacher.location,
+    experience: teacher.experience,
+    bio: teacher.bio,
+    shortBio: teacher.shortBio,
+    skills: teacher.skills,
+    languages: teacher.languages,
+    availability: teacher.availability,
+    ...(teacher.availabilityStart ? { availabilityStart: teacher.availabilityStart } : {}),
+    ...(teacher.availabilityEnd ? { availabilityEnd: teacher.availabilityEnd } : {}),
+    featured: teacher.featured,
+    responseTime: teacher.responseTime,
+    completionRate: teacher.completionRate,
+  }
+}
+
+function restoreProfileFromSnapshot(teacher: Teacher, previous: TeacherProfileSnapshot): Teacher {
+  const { photoUrl: _oldPhotoUrl, previousProfile: _oldPreviousProfile, verificationKind: _oldVerificationKind, ...withoutDraftMeta } = teacher
+  return {
+    ...withoutDraftMeta,
+    ...previous,
+    ...(previous.photoUrl ? { photoUrl: previous.photoUrl } : {}),
+    status: 'approved',
+    verified: true,
   }
 }
 
@@ -149,6 +212,8 @@ function buildTeacherFromApplication(
   const photoUrl = 'photoUrl' in input
     ? input.photoUrl?.trim()
     : authUser.photoUrl ?? existing?.photoUrl
+  const previousProfile = existing?.previousProfile
+    ?? (existing && (existing.status ?? 'approved') === 'approved' ? snapshotTeacherProfile(existing) : undefined)
 
   return {
     id: authUser.id,
@@ -175,12 +240,14 @@ function buildTeacherFromApplication(
     availabilityStart: input.availabilityStart,
     availabilityEnd: input.availabilityEnd,
     verified: false,
-    featured: false,
+    featured: existing?.featured ?? false,
     responseTime: existing?.responseTime ?? '< 24 godz.',
     completionRate: existing?.completionRate ?? 100,
     status: 'pending',
     authUserId: authUser.id,
     submittedAt: Date.now(),
+    verificationKind: previousProfile ? 'profile_update' : 'new_profile',
+    ...(previousProfile ? { previousProfile } : {}),
   }
 }
 
@@ -211,7 +278,15 @@ function getApplicationsMock(status: Teacher['status']): Teacher[] {
 function reviewApplicationMock(id: string, decision: 'approved' | 'rejected') {
   const list = readApplicationsMock()
   writeApplicationsMock(
-    list.map((t) => (t.id === id ? { ...t, status: decision, verified: decision === 'approved' ? true : t.verified } : t)),
+    list.map((t) => {
+      if (t.id !== id) return t
+      if (decision === 'approved') {
+        const { previousProfile: _previousProfile, verificationKind: _verificationKind, ...approved } = t
+        return { ...approved, status: 'approved', verified: true }
+      }
+      if (t.previousProfile) return restoreProfileFromSnapshot(t, t.previousProfile)
+      return { ...t, status: 'rejected', verified: t.verified }
+    }),
   )
 }
 
@@ -228,6 +303,43 @@ function setFeaturedMock(id: string, featured: boolean) {
 
 function deleteTeacherMock(id: string) {
   writeApplicationsMock(readApplicationsMock().filter((t) => t.id !== id))
+}
+
+function syncTeacherPublicIdentityMock(profile: TeacherPublicIdentity): void {
+  const list = readApplicationsMock()
+  let changed = false
+  const next = list.map((teacher) => {
+    const reviewSync = syncReviewsWithPublicIdentity(teacher.reviews ?? [], profile)
+    const isOwnTeacherProfile = teacher.authUserId === profile.id || teacher.id === profile.id
+    if (!isOwnTeacherProfile && !reviewSync.changed) return teacher
+    changed = true
+    const identityPatch = isOwnTeacherProfile
+      ? {
+          name: profile.name,
+          initials: profile.initials,
+          avatarColor: profile.avatarColor,
+          ...(profile.photoUrl ? { photoUrl: profile.photoUrl } : { photoUrl: undefined }),
+        }
+      : {}
+    return {
+      ...teacher,
+      ...identityPatch,
+      reviews: reviewSync.reviews,
+    }
+  })
+  if (changed) writeApplicationsMock(next)
+  if (!isBrowser()) return
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i)
+    if (!key?.startsWith('techbee.teachers.reviews.')) continue
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(key) ?? '[]') as ReviewItem[]
+      const reviewSync = syncReviewsWithPublicIdentity(stored, profile)
+      if (reviewSync.changed) window.localStorage.setItem(key, JSON.stringify(reviewSync.reviews))
+    } catch {
+      // Ignore one malformed local override instead of blocking profile save.
+    }
+  }
 }
 
 // Static demo teachers (teachersData) aren't backed by any mutable store, so
@@ -271,10 +383,19 @@ function findReviewMock(teacherId: string, authorId: string): ReviewItem | undef
 // ── Firebase ──────────────────────────────────────────────────
 
 async function allTeachersFirebase(): Promise<Teacher[]> {
-  if (!db) return teachersData.filter(isTeacherApproved)
-  const snap = await getDocs(collection(db, collections.teachers))
-  if (!snap.empty) return snap.docs.map((d) => d.data() as Teacher).filter(isTeacherApproved)
-  return teachersData.filter(isTeacherApproved)
+  if (!db) return []
+  const snap = await getDocs(query(collection(db, collections.teachers), where('status', '==', 'approved')))
+  return snap.docs.map((d) => d.data() as Teacher).filter(isTeacherApproved)
+}
+
+function subscribeTeachersFirebase(callback: (teachers: Teacher[]) => void): () => void {
+  if (!db) {
+    callback([])
+    return () => {}
+  }
+  return onSnapshot(query(collection(db, collections.teachers), where('status', '==', 'approved')), (snap) => {
+    callback(snap.docs.map((d) => d.data() as Teacher).filter(isTeacherApproved))
+  })
 }
 
 async function submitApplicationFirebase(
@@ -286,7 +407,10 @@ async function submitApplicationFirebase(
   const existingSnap = await getDoc(ref)
   const existing = existingSnap.exists() ? (existingSnap.data() as Teacher) : undefined
   const teacher = buildTeacherFromApplication(input, authUser, existing)
-  await setDoc(ref, teacher)
+  // Merge keeps server-owned fields such as `stripe` intact. A full
+  // overwrite would try to remove them and Firestore rules correctly block
+  // that when a teacher resubmits a profile/rate change from the client.
+  await setDoc(ref, teacher, { merge: true })
   return teacher
 }
 
@@ -304,7 +428,30 @@ async function getApplicationsFirebase(status: Teacher['status']): Promise<Teach
 
 async function reviewApplicationFirebase(id: string, decision: 'approved' | 'rejected'): Promise<void> {
   if (!db) return
-  await updateDoc(doc(db, collections.teachers, id), decision === 'approved' ? { status: 'approved', verified: true } : { status: 'rejected' })
+  const ref = doc(db, collections.teachers, id)
+  const snap = await getDoc(ref)
+  const teacher = snap.exists() ? (snap.data() as Teacher) : undefined
+  if (decision === 'approved') {
+    await updateDoc(ref, {
+      status: 'approved',
+      verified: true,
+      previousProfile: deleteField(),
+      verificationKind: deleteField(),
+    })
+  } else if (teacher?.previousProfile) {
+    await updateDoc(ref, {
+      ...restoreProfileFromSnapshot(teacher, teacher.previousProfile),
+      photoUrl: teacher.previousProfile.photoUrl ?? deleteField(),
+      previousProfile: deleteField(),
+      verificationKind: deleteField(),
+    })
+  } else {
+    await updateDoc(ref, {
+      status: 'rejected',
+      previousProfile: deleteField(),
+      verificationKind: deleteField(),
+    })
+  }
   // `id` is the applicant's own Firestore doc id, which is their real auth uid.
   createNotification({
     userId: id,
@@ -312,15 +459,16 @@ async function reviewApplicationFirebase(id: string, decision: 'approved' | 'rej
     title: decision === 'approved' ? 'Zgłoszenie zaakceptowane!' : 'Zgłoszenie odrzucone',
     description: decision === 'approved'
       ? 'Twój profil nauczyciela został zweryfikowany i jest teraz widoczny w giełdzie.'
-      : 'Twoje zgłoszenie zostało odrzucone. Popraw dane w panelu i wyślij je ponownie.',
+      : teacher?.previousProfile
+        ? 'Zmiana profilu została odrzucona. Poprzednia zatwierdzona wersja profilu pozostaje aktywna.'
+        : 'Twoje zgłoszenie zostało odrzucone. Popraw dane w panelu i wyślij je ponownie.',
   })
 }
 
 async function allTeachersForAdminFirebase(): Promise<Teacher[]> {
-  if (!db) return teachersData
+  if (!db) return []
   const snap = await getDocs(collection(db, collections.teachers))
-  if (!snap.empty) return snap.docs.map((d) => d.data() as Teacher)
-  return teachersData
+  return snap.docs.map((d) => d.data() as Teacher)
 }
 
 async function setFeaturedFirebase(id: string, featured: boolean) {
@@ -331,6 +479,32 @@ async function setFeaturedFirebase(id: string, featured: boolean) {
 async function deleteTeacherFirebase(id: string) {
   if (!db) return
   await deleteDoc(doc(db, collections.teachers, id))
+}
+
+async function syncTeacherPublicIdentityFirebase(profile: TeacherPublicIdentity): Promise<void> {
+  if (!db) return
+  const ownRef = doc(db, collections.teachers, profile.id)
+  const [ownSnap, teachersSnap] = await Promise.all([
+    getDoc(ownRef),
+    getDocs(collection(db, collections.teachers)),
+  ])
+  const writes: Promise<void>[] = []
+  if (ownSnap.exists()) {
+    writes.push(updateDoc(ownRef, {
+      name: profile.name,
+      initials: profile.initials,
+      avatarColor: profile.avatarColor,
+      photoUrl: profile.photoUrl ?? '',
+    }))
+  }
+  for (const teacherDoc of teachersSnap.docs) {
+    const teacher = teacherDoc.data() as Teacher
+    const reviewSync = syncReviewsWithPublicIdentity(teacher.reviews ?? [], profile)
+    if (reviewSync.changed) {
+      writes.push(updateDoc(teacherDoc.ref, { reviews: reviewSync.reviews }))
+    }
+  }
+  await Promise.all(writes)
 }
 
 /**
@@ -382,6 +556,16 @@ export async function getTeachers(): Promise<Teacher[]> {
   return isFirebaseConfigured ? allTeachersFirebase() : allTeachersMock()
 }
 
+/** Live approved-teacher list for client views such as the marketplace. */
+export function subscribeTeachers(callback: (teachers: Teacher[]) => void): () => void {
+  if (isFirebaseConfigured) return subscribeTeachersFirebase(callback)
+  let cancelled = false
+  getTeachers().then((teachers) => {
+    if (!cancelled) callback(teachers)
+  })
+  return () => { cancelled = true }
+}
+
 export async function getTeacherById(id: string): Promise<Teacher | undefined> {
   if (isFirebaseConfigured && db) {
     try {
@@ -398,6 +582,10 @@ export async function getTeacherById(id: string): Promise<Teacher | undefined> {
 }
 
 export async function getFeaturedTeachers(): Promise<Teacher[]> {
+  if (isFirebaseConfigured && db) {
+    const snap = await getDocs(query(collection(db, collections.teachers), where('status', '==', 'approved'), where('featured', '==', true), limit(3)))
+    return snap.docs.map((d) => d.data() as Teacher).filter(isTeacherApproved)
+  }
   return (await getTeachers()).filter((t) => t.featured)
 }
 
@@ -411,6 +599,10 @@ export async function getTeacherReviews(id: string): Promise<ReviewItem[]> {
 }
 
 export async function getAllTeacherIds(): Promise<string[]> {
+  if (isFirebaseConfigured && db) {
+    const snap = await getDocs(query(collection(db, collections.teachers), where('status', '==', 'approved')))
+    return snap.docs.map((d) => d.id)
+  }
   return teachersData.map((t) => t.id)
 }
 
@@ -450,6 +642,11 @@ export async function setTeacherFeatured(id: string, featured: boolean): Promise
 /** Admin-only: permanently remove a teacher profile from the giełda. */
 export async function deleteTeacherProfile(id: string): Promise<void> {
   return isFirebaseConfigured ? deleteTeacherFirebase(id) : deleteTeacherMock(id)
+}
+
+/** Updates only identity fields that are safe to publish immediately, without putting the teacher's professional profile back into verification. */
+export async function syncTeacherPublicIdentity(profile: TeacherPublicIdentity): Promise<void> {
+  return isFirebaseConfigured ? syncTeacherPublicIdentityFirebase(profile) : syncTeacherPublicIdentityMock(profile)
 }
 
 /**

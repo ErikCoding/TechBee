@@ -9,8 +9,10 @@ interface Props {
   value: string
   onChange: (value: string) => void
   onSend: () => void
-  onAttach: (attachment: NonNullable<ChatMessage['attachment']>) => void
+  onAttach: (file: File) => void
   disabled?: boolean
+  uploading?: boolean
+  error?: string | null
 }
 
 /**
@@ -26,7 +28,7 @@ interface Props {
  * is classified by extension and dispatched through the same
  * `sendMessage` attachment payload.
  */
-export function ChatComposer({ value, onChange, onSend, onAttach, disabled }: Props) {
+export function ChatComposer({ value, onChange, onSend, onAttach, disabled, uploading, error }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -38,12 +40,7 @@ export function ChatComposer({ value, onChange, onSend, onAttach, disabled }: Pr
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-    const kind: NonNullable<ChatMessage['attachment']>['kind'] =
-      ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext) ? 'image' :
-      ext === 'pdf' ? 'pdf' :
-      ext === 'zip' ? 'zip' : 'doc'
-    onAttach({ name: file.name, size: `${(file.size / 1024).toFixed(0)} KB`, kind })
+    onAttach(file)
     e.target.value = ''
   }
 
@@ -69,10 +66,10 @@ export function ChatComposer({ value, onChange, onSend, onAttach, disabled }: Pr
           size="icon"
           className="h-9 w-9 shrink-0 rounded-xl"
           onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
+          disabled={disabled || uploading}
           aria-label="Dodaj załącznik"
         >
-          <Paperclip className="h-4 w-4" aria-hidden="true" />
+          <Paperclip className={uploading ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} aria-hidden="true" />
         </Button>
 
         <textarea
@@ -88,7 +85,7 @@ export function ChatComposer({ value, onChange, onSend, onAttach, disabled }: Pr
           rows={1}
           placeholder="Napisz wiadomość…"
           aria-label="Treść wiadomości"
-          disabled={disabled}
+          disabled={disabled || uploading}
           className="max-h-[120px] min-h-9 flex-1 resize-none bg-transparent py-2 text-base text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60 md:text-sm"
         />
 
@@ -96,15 +93,16 @@ export function ChatComposer({ value, onChange, onSend, onAttach, disabled }: Pr
           type="submit"
           size="icon"
           className="h-9 w-9 shrink-0 rounded-xl transition-transform hover:scale-105 disabled:hover:scale-100"
-          disabled={disabled || !value.trim()}
+          disabled={disabled || uploading || !value.trim()}
           aria-label="Wyślij wiadomość"
         >
           <Send className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
       <p className="mt-1.5 hidden px-1 text-[10px] text-muted-foreground md:block">
-        Enter wysyła · Shift + Enter nowa linia
+        {uploading ? 'Wysyłanie załącznika...' : 'Enter wysyła · Shift + Enter nowa linia'}
       </p>
+      {error && <p className="mt-1.5 px-1 text-xs text-destructive">{error}</p>}
     </form>
   )
 }

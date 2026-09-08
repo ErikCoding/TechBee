@@ -1,8 +1,8 @@
 import { BadgeCheck, ShieldCheck, Wallet, Users, Star, Layers } from 'lucide-react'
 import { PLATFORM_COMMISSION_PERCENT } from '@/lib/stripe-config'
 import { Reveal } from '@/components/shared/reveal'
-import { getTeachers } from '@/services/teachers.service'
 import { getCategories } from '@/services/categories.service'
+import { getPublicPlatformStats } from '@/services/public-stats.service'
 
 /**
  * Why use Runbee — four real advantages, no more.
@@ -51,16 +51,12 @@ const benefits = [
 ]
 
 export async function BenefitsSection() {
-  const [teachers, categories] = await Promise.all([getTeachers(), getCategories()])
-  const verifiedCount = teachers.filter((t) => t.verified).length
-  const avgRating = teachers.length
-    ? teachers.reduce((sum, t) => sum + t.rating, 0) / teachers.length
-    : 0
+  const [platformStats, categories] = await Promise.all([getPublicPlatformStats(), getCategories()])
 
   const stats = [
-    { icon: BadgeCheck, value: String(verifiedCount), label: 'zweryfikowanych nauczycieli' },
-    { icon: Star, value: avgRating.toFixed(1), label: 'średnia ocena na giełdzie' },
-    { icon: Layers, value: String(categories.length), label: 'dziedzin technicznych' },
+    { icon: BadgeCheck, value: String(platformStats.verifiedTeachers), label: 'zweryfikowanych nauczycieli' },
+    { icon: Star, value: platformStats.avgRating.toFixed(1), label: 'średnia ocena na giełdzie' },
+    { icon: Layers, value: String(categories.length), label: 'dziedzin nauki' },
   ]
 
   return (

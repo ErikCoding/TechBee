@@ -18,6 +18,14 @@ service firebase.storage {
       allow delete: if isOwner(userId);
     }
 
+    match /chat-attachments/{userId}/{conversationId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId)
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('(image|application|text)/.*');
+      allow update, delete: if isOwner(userId);
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

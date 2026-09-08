@@ -19,7 +19,8 @@ import { Reveal } from '@/components/shared/reveal'
  * section into a listing page.
  */
 export async function TeachersPreviewSection() {
-  const [teachers, featured] = await Promise.all([getTeachers(), getFeaturedTeachers()])
+  const featured = await getFeaturedTeachers()
+  const teachers = featured.length >= 3 ? featured : await getTeachers()
   const preview = (featured.length >= 3 ? featured : teachers).slice(0, 3)
   if (preview.length === 0) return null
 

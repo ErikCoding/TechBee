@@ -16,6 +16,7 @@ export type AuthUser = {
   name: string
   firstName: string
   email: string
+  emailVerified?: boolean
   role: UserRole
   initials: string
   avatarColor: string
@@ -30,6 +31,28 @@ export type Category = {
   teacherCount: number
   lessonCount: number
   colorClass: string
+}
+
+export type TeacherProfileSnapshot = {
+  name: string
+  initials: string
+  avatarColor: string
+  photoUrl?: string
+  specialty: string
+  categoryId: string
+  hourlyRate: number
+  location: string
+  experience: number
+  bio: string
+  shortBio: string
+  skills: string[]
+  languages: string[]
+  availability: string[]
+  availabilityStart?: string
+  availabilityEnd?: string
+  featured: boolean
+  responseTime: string
+  completionRate: number
 }
 
 export type ReviewItem = {
@@ -56,6 +79,7 @@ export type ReviewItem = {
   author: string
   authorInitials: string
   authorColor: string
+  authorPhotoUrl?: string
   rating: number
   /** Human-readable date, kept for display. `createdAt`/`updatedAt` below are the machine-readable ones. */
   date: string
@@ -100,6 +124,9 @@ export type Teacher = {
   /** Firebase Auth uid of the teacher who submitted this profile — set for real applications, absent on legacy demo entries. */
   authUserId?: string
   submittedAt?: number
+  /** `profile_update` means `previousProfile` can be shown in admin as "before" while this doc holds the requested "after". */
+  verificationKind?: 'new_profile' | 'profile_update'
+  previousProfile?: TeacherProfileSnapshot
   /** Stripe Connect Express account info — see TeacherStripeAccount below. */
   stripe?: TeacherStripeAccount
 }
@@ -154,6 +181,7 @@ export type LessonChangeRequest = {
   type: 'cancel' | 'reschedule'
   requestedBy: 'student' | 'teacher'
   newDate?: string
+  newDateIso?: string
   newTime?: string
   note?: string
 }
@@ -191,9 +219,14 @@ export type Lesson = {
   studentName: string
   teacherInitials: string
   teacherColor: string
+  teacherPhotoUrl?: string
   specialty: string
   date: string
+  /** Machine-readable local date (YYYY-MM-DD). New lessons use this for conflict checks and join windows; old docs fall back to parsing `date`. */
+  dateIso?: string
   time: string
+  /** Epoch ms for the scheduled local start time. New lessons set it explicitly so countdowns do not depend on display text. */
+  scheduledStartAt?: number
   duration: number
   status: LessonStatus
   price: number
@@ -416,6 +449,7 @@ export type Notification = {
   description: string
   date: string
   read: boolean
+  actionHref?: string
 }
 
 export type AdminStats = {
@@ -461,7 +495,7 @@ export type ChatMessage = {
   text: string
   time: string
   createdAt: number
-  attachment?: { name: string; size: string; kind: 'pdf' | 'image' | 'zip' | 'doc' }
+  attachment?: { name: string; size: string; kind: 'pdf' | 'image' | 'zip' | 'doc'; url?: string; storagePath?: string; contentType?: string }
   /** Present instead of (rendered in place of) a normal text bubble — see components/chat/report-card-message.tsx. */
   reportCard?: LessonReportCard
 }
@@ -481,17 +515,22 @@ export type LessonBookingInput = {
   teacherName: string
   teacherInitials: string
   teacherColor: string
+  teacherPhotoUrl?: string
   specialty: string
   studentId: string
   studentName: string
   date: string
+  dateIso?: string
   time: string
+  scheduledStartAt?: number
   duration: number
   price: number
   topic: string
   /** Who's actually paying — omit for a student booking themselves; pass the parent's identity when a linked parent books/pays on the student's behalf (see components/parent/book-for-student-button.tsx). */
   payer?: { id: string; role: 'student' | 'parent' }
 }
+
+export type BookedLessonSlot = Pick<Lesson, 'id' | 'date' | 'dateIso' | 'time' | 'scheduledStartAt' | 'duration' | 'status'>
 
 /** A short-lived, single-use code a student generates so a parent can link their own account as a supervising guardian (see services/family-link.service.ts). */
 export type StudentLinkCode = {

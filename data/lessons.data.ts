@@ -4,11 +4,11 @@ import type { Lesson, StudentStats, TeacherDashboardData } from '@/lib/types'
 // to the signed-in user (student or teacher).
 export const studentLessonsData: Lesson[] = [
   { id: 'l1', teacherId: '1', studentId: 'u3', teacherName: 'Marek Kowalski', studentName: 'Filip Nowicki', teacherInitials: 'MK', teacherColor: '#3B82F6', specialty: 'Programowanie PLC', date: 'Jutro', time: '14:00', duration: 60, status: 'upcoming', price: 180, topic: 'Siemens S7-1500 — schemat bloków funkcyjnych' },
-  { id: 'l2', teacherId: '4', studentId: 'u3', teacherName: 'Krzysztof Zieliński', studentName: 'Filip Nowicki', teacherInitials: 'KZ', teacherColor: '#8B5CF6', specialty: 'Projektowanie CAD', date: '31 lip', time: '10:00', duration: 90, status: 'pending', price: 225, topic: 'SolidWorks — projektowanie blach' },
+  { id: 'l2', teacherId: '3', studentId: 'u3', teacherName: 'Krzysztof Zieliński', studentName: 'Filip Nowicki', teacherInitials: 'KZ', teacherColor: '#8B5CF6', specialty: 'Fizyka', date: '31 lip', time: '10:00', duration: 90, status: 'pending', price: 225, topic: 'Mechanika — zasady dynamiki Newtona' },
   { id: 'l3', teacherId: '1', studentId: 'u3', teacherName: 'Marek Kowalski', studentName: 'Filip Nowicki', teacherInitials: 'MK', teacherColor: '#3B82F6', specialty: 'Programowanie PLC', date: '25 lip', time: '14:00', duration: 60, status: 'completed', price: 180, topic: 'Konfiguracja sieci PROFINET' },
-  { id: 'l4', teacherId: '4', studentId: 'u3', teacherName: 'Krzysztof Zieliński', studentName: 'Filip Nowicki', teacherInitials: 'KZ', teacherColor: '#8B5CF6', specialty: 'Projektowanie CAD', date: '22 lip', time: '10:00', duration: 60, status: 'completed', price: 150, topic: 'SolidWorks — konstrukcje spawane' },
+  { id: 'l4', teacherId: '3', studentId: 'u3', teacherName: 'Krzysztof Zieliński', studentName: 'Filip Nowicki', teacherInitials: 'KZ', teacherColor: '#8B5CF6', specialty: 'Fizyka', date: '22 lip', time: '10:00', duration: 60, status: 'completed', price: 150, topic: 'Prąd stały — obwody i prawa Kirchhoffa' },
   { id: 'l5', teacherId: '5', studentId: 'u3', teacherName: 'Julia Kamińska', studentName: 'Filip Nowicki', teacherInitials: 'JK', teacherColor: '#EF4444', specialty: 'Robotyka przemysłowa', date: '18 lip', time: '16:00', duration: 90, status: 'completed', price: 300, topic: 'KUKA KRL — podstawy programowania trajektorii' },
-  { id: 'l6', teacherId: '2', studentId: 'u3', teacherName: 'Anna Wiśniewska', studentName: 'Filip Nowicki', teacherInitials: 'AW', teacherColor: '#10B981', specialty: 'Obróbka CNC', date: '10 lip', time: '09:00', duration: 60, status: 'cancelled', price: 160, topic: 'Frezowanie 5-osiowe — strategie osi pochylenia' },
+  { id: 'l6', teacherId: '2', studentId: 'u3', teacherName: 'Anna Wiśniewska', studentName: 'Filip Nowicki', teacherInitials: 'AW', teacherColor: '#10B981', specialty: 'Język polski', date: '10 lip', time: '09:00', duration: 60, status: 'cancelled', price: 160, topic: 'Rozprawka — argumentacja i kompozycja' },
 ]
 
 // Same lessons, from the teacher's ("Marek Kowalski", catalog id '1') side —
@@ -31,9 +31,9 @@ export const studentStatsData: StudentStats = {
   techCoins: 1200,
   progressByCategory: [
     { category: 'Programowanie PLC', progress: 68, color: '#3B82F6' },
-    { category: 'Projektowanie CAD', progress: 52, color: '#8B5CF6' },
+    { category: 'Fizyka', progress: 52, color: '#8B5CF6' },
     { category: 'Robotyka przemysłowa', progress: 30, color: '#EF4444' },
-    { category: 'Obróbka CNC', progress: 15, color: '#10B981' },
+    { category: 'Polski', progress: 15, color: '#10B981' },
   ],
 }
 

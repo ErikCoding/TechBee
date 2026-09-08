@@ -4,7 +4,9 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import {
   loginUser,
   logoutUser,
+  refreshEmailVerification,
   registerUser,
+  resendEmailVerification,
   subscribeToAuthState,
   updateUserProfile,
   type LoginInput,
@@ -21,6 +23,8 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<AuthUser>
   register: (input: RegisterInput) => Promise<AuthUser>
   updateProfile: (input: UpdateProfileInput) => Promise<AuthUser>
+  resendVerification: () => Promise<void>
+  refreshVerification: () => Promise<AuthUser | null>
   logout: () => Promise<void>
 }
 
@@ -62,6 +66,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return updated
   }, [])
 
+  const resendVerification = useCallback(async () => {
+    await resendEmailVerification()
+  }, [])
+
+  const refreshVerification = useCallback(async () => {
+    const fresh = await refreshEmailVerification()
+    setUser(fresh)
+    setStatus(fresh ? 'authenticated' : 'unauthenticated')
+    return fresh
+  }, [])
+
   const logout = useCallback(async () => {
     await logoutUser()
     setUser(null)
@@ -69,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, status, login, register, updateProfile, logout }}>
+    <AuthContext.Provider value={{ user, status, login, register, updateProfile, resendVerification, refreshVerification, logout }}>
       {children}
     </AuthContext.Provider>
   )

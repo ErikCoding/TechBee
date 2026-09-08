@@ -4,18 +4,20 @@ import { siteConfig } from '@/config/site'
 export const siteUrl = new URL(siteConfig.url)
 
 export const defaultSeoDescription =
-  'Runbee łączy uczniów z praktykami przemysłu na indywidualne lekcje online z PLC, CNC, CAD, robotyki i automatyki.'
+  'Runbee łączy uczniów ze zweryfikowanymi nauczycielami na indywidualne lekcje online z automatyki, elektryki, PLC, fizyki, matematyki, polskiego i angielskiego.'
 
 export const seoKeywords = [
-  'korepetycje techniczne',
+  'korepetycje online',
   'lekcje PLC online',
-  'kurs CNC online',
-  'nauka CAD',
+  'korepetycje z elektryki',
+  'korepetycje z polskiego',
+  'korepetycje z angielskiego',
+  'korepetycje z matematyki',
+  'korepetycje z fizyki',
   'automatyka przemysłowa',
   'robotyka',
   'nauczyciel PLC',
-  'nauczyciel CNC',
-  'szkolenia techniczne online',
+  'zweryfikowani nauczyciele online',
 ]
 
 export const publicSeoRoutes = [
@@ -102,4 +104,3 @@ export function pageMetadata({
     },
   }
 }
-

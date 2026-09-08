@@ -17,6 +17,9 @@ import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/shared/reveal'
 import { AnimatedCounter } from '@/components/shared/animated-counter'
 import { pageMetadata } from '@/lib/seo'
+import { getPublicPlatformStats } from '@/services/public-stats.service'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = pageMetadata({
   title: 'O Runbee',
@@ -24,12 +27,6 @@ export const metadata: Metadata = pageMetadata({
     'Runbee to platforma lekcji online, która łączy naukę techniki z doświadczeniem praktyków pracujących w przemyśle.',
   path: '/about',
 })
-
-const stats = [
-  { value: 300, suffix: '+', label: 'zweryfikowanych nauczycieli' },
-  { value: 8400, suffix: '+', label: 'aktywnych uczniów' },
-  { value: 47000, suffix: '+', label: 'zrealizowanych lekcji' },
-]
 
 const principles = [
   {
@@ -76,7 +73,14 @@ const process = [
   },
 ]
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const liveStats = await getPublicPlatformStats()
+  const stats = [
+    { value: liveStats.verifiedTeachers, suffix: '', label: 'zweryfikowanych nauczycieli' },
+    { value: liveStats.activeStudents, suffix: '', label: 'aktywnych uczniów' },
+    { value: liveStats.completedLessons, suffix: '', label: 'zrealizowanych lekcji' },
+  ]
+
   return (
     <>
       <div className="dark">
@@ -99,7 +103,7 @@ export default function AboutPage() {
                     className="animate-fade-in-up mt-5 max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg"
                     style={{ animationDelay: '130ms' }}
                   >
-                    PLC, CNC, CAD, robotyka i automatyka wymagają rozmowy z kimś, kto naprawdę
+                    PLC, elektryka, fizyka, języki i automatyka wymagają rozmowy z kimś, kto naprawdę
                     rozwiązywał takie problemy. Runbee porządkuje ten kontakt w jednej platformie
                     lekcji online.
                   </p>

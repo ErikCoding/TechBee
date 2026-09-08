@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { ArrowLeft, Menu, X } from 'lucide-react'
 import { BeeLogo } from '@/components/shared/bee-logo'
 import { adminNavItems } from '@/components/admin/admin-nav-items'
+import { useAdminPendingCounts } from '@/components/admin/use-admin-pending-counts'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils'
 export function AdminMobileNav() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const counts = useAdminPendingCounts()
 
   // Close the drawer automatically whenever the route changes (link tap).
   useEffect(() => {
@@ -64,6 +66,7 @@ export function AdminMobileNav() {
               {adminNavItems.map((item) => {
                 const Icon = item.icon
                 const isActive = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href)
+                const count = item.badgeKey && counts ? counts[item.badgeKey] : 0
                 return (
                   <Link
                     key={item.href}
@@ -71,10 +74,16 @@ export function AdminMobileNav() {
                     className={cn(
                       'flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground',
                       isActive ? 'bg-muted text-foreground' : 'text-muted-foreground',
+                      count > 0 && !isActive && 'bg-warning-surface/45 text-foreground',
                     )}
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
-                    {item.label}
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {count > 0 && (
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                        {count}
+                      </span>
+                    )}
                   </Link>
                 )
               })}

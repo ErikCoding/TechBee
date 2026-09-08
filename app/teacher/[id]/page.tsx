@@ -196,6 +196,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                   {teacher.reviews.map((review) => (
                     <article key={review.id} className="flex items-start gap-3 px-5 py-4">
                       <Avatar className="h-9 w-9 shrink-0">
+                        {review.authorPhotoUrl && <AvatarImage src={review.authorPhotoUrl} alt="" />}
                         <AvatarFallback color={review.authorColor} className="text-xs">
                           {review.authorInitials}
                         </AvatarFallback>

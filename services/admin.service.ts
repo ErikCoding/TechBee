@@ -32,11 +32,14 @@ type StoredUserProfile = {
 }
 
 type CompletedLessonRow = {
+  status?: 'pending' | 'upcoming' | 'completed' | 'cancelled'
   price?: number
   priceGrosze?: number
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
   completedAt?: number
+  scheduledStartAt?: number
+  duration?: number
 }
 
 function isSameMonth(ts: number, ref: Date): boolean {
@@ -72,9 +75,13 @@ function computePlatformRevenue(lessons: CompletedLessonRow[]) {
     return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount, platformFee, teacherAmount }
   })
 
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  const activeLessonsToday = lessons.filter((l) => l.completedAt && l.completedAt >= todayStart.getTime()).length
+  const nowMs = Date.now()
+  const activeLessonsToday = lessons.filter((l) => (
+    l.status === 'upcoming' &&
+    Boolean(l.scheduledStartAt) &&
+    nowMs >= l.scheduledStartAt! &&
+    nowMs <= l.scheduledStartAt! + ((l.duration ?? 60) + 15) * 60 * 1000
+  )).length
 
   return { monthlyRevenue, revenueChange, revenueChart, activeLessonsToday }
 }
@@ -84,7 +91,7 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
   const [usersSnap, pendingApplications, completedLessonsSnap] = await Promise.all([
     getDocs(collection(db, collections.users)),
     getPendingTeacherApplications(),
-    getDocs(query(collection(db, collections.lessons), where('status', '==', 'completed'))),
+    getDocs(collection(db, collections.lessons)),
   ])
 
   const users = usersSnap.docs.map((d) => d.data() as StoredUserProfile)

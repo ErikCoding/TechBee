@@ -6,6 +6,9 @@ import { getOrigin } from '@/lib/request-origin'
 import { splitPayment, toGrosze, STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { collections } from '@/lib/firebase'
+import { BOOKING_WINDOW_DAYS } from '@/lib/availability'
+import { LESSON_BUFFER_MINUTES, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import type { BookedLessonSlot } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Starts payment for a specific lesson slot. A Lesson doc is
@@ -28,6 +31,7 @@ interface CheckoutRequestBody {
   idToken?: string
   teacherId?: string
   date?: string
+  dateIso?: string
   time?: string
   duration?: number
   topic?: string
@@ -47,8 +51,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe żądanie.' }, { status: 400 })
   }
 
-  const { teacherId, date, time, duration, topic, studentId, studentName, payer } = body
-  if (!teacherId || !date || !time || !duration || !topic?.trim() || !studentId || !studentName) {
+  const { teacherId, date, dateIso, time, duration, topic, studentId, studentName, payer } = body
+  if (!teacherId || !date || !dateIso || !time || !duration || !topic?.trim() || !studentId || !studentName) {
     return NextResponse.json({ error: 'Brak wymaganych danych rezerwacji.' }, { status: 400 })
   }
   if (!ALLOWED_DURATIONS.includes(duration)) {
@@ -68,10 +72,55 @@ export async function POST(request: Request) {
 
   const teacherSnap = await adminDb!.collection(collections.teachers).doc(teacherId).get()
   const teacher = teacherSnap.data() as
-    | { name?: string; initials?: string; avatarColor?: string; specialty?: string; hourlyRate?: number; status?: string }
+    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; hourlyRate?: number; status?: string; availability?: string[]; availabilityStart?: string; availabilityEnd?: string }
     | undefined
   if (!teacher || !teacher.hourlyRate || (teacher.status && teacher.status !== 'approved')) {
     return NextResponse.json({ error: 'Nie znaleziono tego nauczyciela.' }, { status: 404 })
+  }
+
+  const requestedStart = timeToMinutes(time)
+  const availabilityStart = timeToMinutes(teacher.availabilityStart ?? '09:00')
+  const availabilityEnd = timeToMinutes(teacher.availabilityEnd ?? '17:00')
+  const requestedDate = new Date(`${dateIso}T12:00:00`)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const latestDate = new Date(today)
+  latestDate.setDate(today.getDate() + BOOKING_WINDOW_DAYS)
+  const weekdayCode = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][requestedDate.getDay()]
+  const teacherAvailability = teacher.availability ?? []
+  if (
+    requestedStart === null ||
+    availabilityStart === null ||
+    availabilityEnd === null ||
+    Number.isNaN(requestedDate.getTime()) ||
+    requestedDate <= today ||
+    requestedDate > latestDate ||
+    !teacherAvailability.includes(weekdayCode) ||
+    requestedStart < availabilityStart ||
+    requestedStart + duration + LESSON_BUFFER_MINUTES > availabilityEnd
+  ) {
+    return NextResponse.json({ error: 'Ten termin nie mieści się już w dostępności nauczyciela.' }, { status: 409 })
+  }
+
+  const activeLessons = await adminDb!
+    .collection(collections.lessons)
+    .where('teacherId', '==', teacherId)
+    .where('status', 'in', ['pending', 'upcoming'])
+    .get()
+  const bookedSlots: BookedLessonSlot[] = activeLessons.docs.map((doc) => {
+    const lesson = doc.data() as BookedLessonSlot
+    return {
+      id: doc.id,
+      date: lesson.date,
+      dateIso: lesson.dateIso,
+      time: lesson.time,
+      scheduledStartAt: lesson.scheduledStartAt,
+      duration: lesson.duration,
+      status: lesson.status,
+    }
+  })
+  if (slotOverlapsBookedLesson({ dateIso, time, duration, booked: bookedSlots })) {
+    return NextResponse.json({ error: 'Ten termin jest już zajęty. Wybierz inną godzinę.' }, { status: 409 })
   }
 
   // Authoritative price — recomputed server-side, never trusted from the client.
@@ -79,6 +128,8 @@ export async function POST(request: Request) {
   const priceGrosze = toGrosze(pricePln)
   const paymentSettings = await getPlatformPaymentSettings()
   const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(priceGrosze, paymentSettings.commissionPercent)
+  const [year, month, day] = dateIso.split('-').map(Number)
+  const scheduledStartAt = new Date(year, month - 1, day, Math.floor(requestedStart / 60), requestedStart % 60).getTime()
 
   try {
     const origin = getOrigin(request)
@@ -100,13 +151,16 @@ export async function POST(request: Request) {
         teacherName: teacher.name ?? '',
         teacherInitials: teacher.initials ?? '',
         teacherColor: teacher.avatarColor ?? '#F4B400',
+        teacherPhotoUrl: teacher.photoUrl ?? '',
         specialty: teacher.specialty ?? '',
         studentId,
         studentName,
         payerId,
         payerRole,
         date,
+        dateIso,
         time,
+        scheduledStartAt: String(scheduledStartAt),
         duration: String(duration),
         topic: topic.trim(),
         priceGrosze: String(priceGrosze),

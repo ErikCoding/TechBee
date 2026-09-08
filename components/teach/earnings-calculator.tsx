@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Info } from 'lucide-react'
-import { PLATFORM_COMMISSION_PERCENT, splitPayment, toGrosze, fromGrosze } from '@/lib/stripe-config'
+import { splitPayment, toGrosze, fromGrosze } from '@/lib/stripe-config'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
   minRate: number
   maxRate: number
   medianRate: number
+  /** Current platform commission read from admin-controlled payment settings. */
+  commissionPercent: number
   /**
    * `split` puts inputs and result side by side — right for a wide,
    * full-width section. `stacked` leads with the result and drops the
@@ -24,8 +26,7 @@ interface Props {
  *
  * The page used to assert "najlepsi nauczyciele zarabiają 15 000 zł+
  * miesięcznie" and "zatrzymujesz 80%" — the first was invented, and the
- * second was simply wrong: `PLATFORM_COMMISSION_PERCENT` is 15, so the
- * teacher keeps 85%.
+ * second could drift from the admin-configured rate.
  *
  * A calculator replaces both. It promises nothing about demand; it
  * answers "if I charge this and teach that often, what lands in my
@@ -33,15 +34,16 @@ interface Props {
  * the Stripe transfer uses, so the number shown here is the number that
  * would actually be paid out.
  */
-export function EarningsCalculator({ minRate, maxRate, medianRate, layout = 'split' }: Props) {
+export function EarningsCalculator({ minRate, maxRate, medianRate, commissionPercent, layout = 'split' }: Props) {
   const [rate, setRate] = useState(medianRate)
   const [lessonsPerWeek, setLessonsPerWeek] = useState(5)
 
   const monthlyLessons = lessonsPerWeek * 4
   const grossGrosze = toGrosze(rate) * monthlyLessons
-  const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(grossGrosze)
+  const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(grossGrosze, commissionPercent)
 
   const pln = (grosze: number) => `${Math.round(fromGrosze(grosze)).toLocaleString('pl-PL')} zł`
+  const commissionLabel = commissionPercent.toLocaleString('pl-PL', { maximumFractionDigits: 2 })
   const stacked = layout === 'stacked'
 
   return (
@@ -116,7 +118,7 @@ export function EarningsCalculator({ minRate, maxRate, medianRate, layout = 'spl
               <dd className="font-medium tabular-nums text-foreground">{pln(grossGrosze)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Prowizja Runbee ({PLATFORM_COMMISSION_PERCENT}%)</dt>
+              <dt className="text-muted-foreground">Prowizja Runbee ({commissionLabel}%)</dt>
               <dd className="font-medium tabular-nums text-muted-foreground">−{pln(platformFeeGrosze)}</dd>
             </div>
           </dl>

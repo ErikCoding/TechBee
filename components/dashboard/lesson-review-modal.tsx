@@ -72,6 +72,7 @@ export function LessonReviewModal({ lesson, onClose, onSubmitted }: Props) {
         name: user.name,
         initials: user.initials,
         avatarColor: user.avatarColor,
+        photoUrl: user.photoUrl,
       })
       onSubmitted()
     } catch {

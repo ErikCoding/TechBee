@@ -165,19 +165,24 @@ export function ChatMessageList({ messages, me, participant, viewerRole }: Props
                   {m.text && <p className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</p>}
 
                   {m.attachment && AttachmentIcon && (
-                    <div
+                    <a
+                      href={m.attachment.url}
+                      target={m.attachment.url ? '_blank' : undefined}
+                      rel={m.attachment.url ? 'noreferrer' : undefined}
                       className={cn(
                         'mt-2 flex items-center gap-2 rounded-xl border px-3 py-2',
+                        m.attachment.url && 'transition-colors hover:bg-background/20',
                         mine ? 'border-primary-foreground/20 bg-primary-foreground/10' : 'border-border bg-muted/50',
                       )}
+                      aria-disabled={!m.attachment.url}
                     >
                       <AttachmentIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium">{m.attachment.name}</p>
                         <p className="text-[10px] opacity-70">{m.attachment.size}</p>
                       </div>
-                      <Download className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                    </div>
+                      {m.attachment.url && <Download className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />}
+                    </a>
                   )}
 
                   {/* One timestamp per run instead of one per message. */}

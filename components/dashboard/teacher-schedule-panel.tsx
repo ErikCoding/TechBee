@@ -1,11 +1,11 @@
 'use client'
 
-import Link from 'next/link'
-import { CalendarClock, Video, CalendarX2, Clock3 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { CalendarClock, CalendarX2, Clock3 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Panel, PanelFooterLink } from '@/components/dashboard/dashboard-primitives'
+import { LessonJoinButton } from '@/components/lesson/lesson-join-button'
+import { LessonLiveStatus } from '@/components/lesson/lesson-live-status'
 import type { Lesson } from '@/lib/types'
 
 interface Props {
@@ -48,6 +48,7 @@ export function TeacherSchedulePanel({ lessons }: Props) {
                   <p className="truncate text-xs text-muted-foreground">
                     {lesson.studentName} · {lesson.date} o {lesson.time} · {lesson.duration} min
                   </p>
+                  <LessonLiveStatus lesson={lesson} className="mt-1 max-w-full" />
                   {lesson.pendingChange && (
                     <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-warning">
                       <Clock3 className="h-3 w-3" aria-hidden="true" />
@@ -58,12 +59,13 @@ export function TeacherSchedulePanel({ lessons }: Props) {
               </div>
               <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
                 <span className="text-sm font-bold text-primary">{lesson.price} zł</span>
-                <Link href={`/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.studentName)}&topic=${encodeURIComponent(lesson.topic)}`}>
-                  <Button size="sm" variant="outline" className="h-8 text-xs font-semibold">
-                    <Video className="h-3 w-3" aria-hidden="true" />
-                    Rozpocznij
-                  </Button>
-                </Link>
+                <LessonJoinButton
+                  lesson={lesson}
+                  href={`/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.studentName)}&topic=${encodeURIComponent(lesson.topic)}`}
+                  label="Rozpocznij"
+                  size="sm"
+                  variant="outline"
+                />
               </div>
             </li>
           ))}

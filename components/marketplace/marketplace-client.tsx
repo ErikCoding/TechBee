@@ -7,6 +7,7 @@ import { TeacherCard } from '@/components/shared/teacher-card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { MarketplaceFilterPanel } from '@/components/marketplace/marketplace-filter-panel'
+import { subscribeTeachers } from '@/services/teachers.service'
 import {
   applyFilters, sortTeachers, countActiveFilters, deriveFacets, filtersToParams,
   EMPTY_FILTERS, SORT_OPTIONS, WEEKDAYS,
@@ -41,10 +42,13 @@ interface MarketplaceClientProps {
  */
 export function MarketplaceClient({ teachers, categories, initialFilters, bookingFor }: MarketplaceClientProps) {
   const router = useRouter()
+  const [liveTeachers, setLiveTeachers] = useState<Teacher[]>(teachers)
   const [filters, setFilters] = useState<MarketplaceFilters>(initialFilters)
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  const facets = useMemo(() => deriveFacets(teachers), [teachers])
+  useEffect(() => subscribeTeachers(setLiveTeachers), [])
+
+  const facets = useMemo(() => deriveFacets(liveTeachers), [liveTeachers])
 
   // Keep the URL in step with the controls so a filtered view is shareable
   // and the back button works. `replace` avoids stacking a history entry
@@ -62,23 +66,23 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
   }, [])
 
   const results = useMemo(
-    () => sortTeachers(applyFilters(teachers, filters), filters.sort),
-    [teachers, filters],
+    () => sortTeachers(applyFilters(liveTeachers, filters), filters.sort),
+    [liveTeachers, filters],
   )
 
   /** Counts for each category under the *other* active filters, so options that would return nothing are visibly dead. */
   const categoryCounts = useMemo(() => {
-    const withoutCategory = applyFilters(teachers, { ...filters, category: null })
+    const withoutCategory = applyFilters(liveTeachers, { ...filters, category: null })
     const counts: Record<string, number> = {}
     for (const cat of categories) {
       counts[cat.id] = withoutCategory.filter((t) => t.categoryId === cat.id).length
     }
     return counts
-  }, [teachers, categories, filters, categories.length])
+  }, [liveTeachers, categories, filters, categories.length])
 
   const totalUnfilteredByCategory = useMemo(
-    () => applyFilters(teachers, { ...filters, category: null }).length,
-    [teachers, filters],
+    () => applyFilters(liveTeachers, { ...filters, category: null }).length,
+    [liveTeachers, filters],
   )
 
   const activeCount = countActiveFilters(filters)

@@ -11,15 +11,29 @@ import { uploadProfilePhoto } from '@/services/profile-photo.service'
 interface Props {
   value?: string
   onChange: (value: string) => void
+  onCommit?: (value: string) => Promise<void> | void
   initials: string
   avatarColor: string
 }
 
-export function ProfilePhotoPicker({ value, onChange, initials, avatarColor }: Props) {
+export function ProfilePhotoPicker({ value, onChange, onCommit, initials, avatarColor }: Props) {
   const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [committing, setCommitting] = useState(false)
+
+  async function commit(value: string) {
+    if (!onCommit) return
+    setCommitting(true)
+    try {
+      await onCommit(value)
+    } catch {
+      setError('Zdjęcie zostało przygotowane, ale nie udało się zapisać profilu. Spróbuj kliknąć „Zapisz profil”.')
+    } finally {
+      setCommitting(false)
+    }
+  }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -42,7 +56,9 @@ export function ProfilePhotoPicker({ value, onChange, initials, avatarColor }: P
     }
     setUploading(true)
     try {
-      onChange(await uploadProfilePhoto(user.id, file))
+      const nextUrl = await uploadProfilePhoto(user.id, file)
+      onChange(nextUrl)
+      await commit(nextUrl)
     } catch {
       setError('Nie udało się przetworzyć zdjęcia. Spróbuj użyć pliku JPG, PNG albo WebP.')
     } finally {
@@ -50,6 +66,13 @@ export function ProfilePhotoPicker({ value, onChange, initials, avatarColor }: P
       e.target.value = ''
     }
   }
+
+  async function handleRemove() {
+    onChange('')
+    await commit('')
+  }
+
+  const busy = uploading || committing
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -71,12 +94,12 @@ export function ProfilePhotoPicker({ value, onChange, initials, avatarColor }: P
               className="hidden"
               onChange={handleFile}
             />
-            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={busy}>
               <ImagePlus className="h-4 w-4" aria-hidden="true" />
-              {uploading ? 'Przetwarzanie...' : 'Dodaj zdjęcie'}
+              {uploading ? 'Przetwarzanie...' : committing ? 'Zapisywanie...' : 'Dodaj zdjęcie'}
             </Button>
             {value && (
-              <Button type="button" variant="ghost" onClick={() => onChange('')}>
+              <Button type="button" variant="ghost" onClick={handleRemove} disabled={busy}>
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Usuń
               </Button>
@@ -97,7 +120,7 @@ export function ProfilePhotoPicker({ value, onChange, initials, avatarColor }: P
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder="https://..."
-          disabled={uploading}
+          disabled={busy}
         />
       </div>
     </div>

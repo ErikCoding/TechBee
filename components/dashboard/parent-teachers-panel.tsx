@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { GraduationCap, MessageSquare, ChevronRight } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Panel } from '@/components/dashboard/dashboard-primitives'
 import type { Lesson } from '@/lib/types'
@@ -18,6 +18,7 @@ type TeacherSummary = {
   name: string
   initials: string
   color: string
+  photoUrl?: string
   specialty: string
   lessonCount: number
   completedCount: number
@@ -50,6 +51,7 @@ export function ParentTeachersPanel({ lessons, childName }: Props) {
         name: lesson.teacherName,
         initials: lesson.teacherInitials,
         color: lesson.teacherColor,
+        photoUrl: lesson.teacherPhotoUrl,
         specialty: lesson.specialty,
         lessonCount: 1,
         completedCount: lesson.status === 'completed' ? 1 : 0,
@@ -73,6 +75,7 @@ export function ParentTeachersPanel({ lessons, childName }: Props) {
           {teachers.map((teacher) => (
             <li key={teacher.id} className="flex items-center gap-3 px-5 py-3">
               <Avatar className="h-9 w-9 shrink-0">
+                {teacher.photoUrl && <AvatarImage src={teacher.photoUrl} alt="" />}
                 <AvatarFallback color={teacher.color} className="text-[11px]">{teacher.initials}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">

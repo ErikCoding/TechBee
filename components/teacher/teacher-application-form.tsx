@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, CheckCircle2, Clock, Loader2, Send, Sparkles, UserRound } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock, Loader2, Save, Send, Sparkles, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -50,6 +50,7 @@ export function TeacherApplicationForm() {
   const [existing, setExisting] = useState<Teacher | null>(null)
   const [loaded, setLoaded] = useState(false)
 
+  const [displayName, setDisplayName] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [specialty, setSpecialty] = useState('')
@@ -66,15 +67,19 @@ export function TeacherApplicationForm() {
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
     Promise.all([getCategories(), getTeacherApplication(user.id)]).then(([cats, app]) => {
       setCategories(cats)
+      setDisplayName(user.name)
       if (app) {
         setExisting(app)
         setPhotoUrl(app.photoUrl ?? user.photoUrl ?? '')
-        setCategoryId(app.categoryId)
+        setCategoryId(cats.some((cat) => cat.id === app.categoryId) ? app.categoryId : cats[0]?.id ?? '')
         setSpecialty(app.specialty)
         setHourlyRate(String(app.hourlyRate))
         setLocation(app.location)
@@ -92,22 +97,48 @@ export function TeacherApplicationForm() {
       }
       setLoaded(true)
     })
-  }, [user])
+  }, [user?.id])
 
   function toggleDay(code: string) {
     setAvailability((prev) => (prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]))
+  }
+
+  async function savePublicProfile(nextPhotoUrl = photoUrl) {
+    if (!user) throw new Error('Musisz być zalogowany, aby zapisać profil.')
+    const name = displayName.trim()
+    if (!name) throw new Error('Podaj imię i nazwisko widoczne na profilu.')
+    return updateProfile({ name, photoUrl: nextPhotoUrl.trim() || undefined })
+  }
+
+  async function handleSavePublicProfile() {
+    setProfileSaving(true)
+    setProfileError(null)
+    setProfileSaved(false)
+    try {
+      await savePublicProfile()
+      setProfileSaved(true)
+      router.refresh()
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Nie udało się zapisać profilu.')
+    } finally {
+      setProfileSaving(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!user) return
     setSubmitting(true)
+    setProfileError(null)
     try {
-      const profileUser = photoUrl.trim() !== (user.photoUrl ?? '')
-        ? await updateProfile({ name: user.name, photoUrl })
+      const trimmedName = displayName.trim()
+      const trimmedPhotoUrl = photoUrl.trim()
+      const identityChanged = trimmedName !== user.name || trimmedPhotoUrl !== (user.photoUrl ?? '')
+      const profileUser = identityChanged
+        ? await savePublicProfile()
         : user
       await submitTeacherApplication(toParticipant(profileUser), {
-        photoUrl: photoUrl.trim() || undefined,
+        photoUrl: trimmedPhotoUrl || undefined,
         categoryId,
         specialty: specialty.trim(),
         hourlyRate: Number(hourlyRate) || 0,
@@ -122,6 +153,9 @@ export function TeacherApplicationForm() {
         availabilityEnd,
       })
       setSubmitted(true)
+      router.refresh()
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Nie udało się zapisać zmian.')
     } finally {
       setSubmitting(false)
     }
@@ -137,7 +171,7 @@ export function TeacherApplicationForm() {
         <CheckCircle2 className="mx-auto h-10 w-10 text-bee-yellow-dark" aria-hidden="true" />
         <h2 className="mt-3 text-lg font-semibold text-accent-foreground">Zgłoszenie wysłane!</h2>
         <p className="mt-1 text-sm text-accent-foreground/80">
-          Twój profil czeka teraz na weryfikację przez administratora. Po akceptacji pojawisz się w giełdzie nauczycieli.
+          Dane zawodowe czekają teraz na weryfikację przez administratora. Zdjęcie i nazwa konta zostały zapisane osobno.
         </p>
         <Button onClick={() => router.push('/dashboard/teacher')} className="mt-5 font-semibold">
           Wróć do panelu
@@ -159,14 +193,77 @@ export function TeacherApplicationForm() {
         </div>
       )}
 
-      <FormSection icon={UserRound} title="Prezentacja profilu">
-        <ProfilePhotoPicker
-          value={photoUrl}
-          onChange={setPhotoUrl}
-          initials={user?.initials ?? existing?.initials ?? '??'}
-          avatarColor={user?.avatarColor ?? existing?.avatarColor ?? '#F4B400'}
-        />
+      <FormSection icon={UserRound} title="Zdjęcie i dane konta">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
+          <div className="flex flex-col gap-4">
+            <ProfilePhotoPicker
+              value={photoUrl}
+              onChange={(url) => {
+                setPhotoUrl(url)
+                setProfileSaved(false)
+                setProfileError(null)
+              }}
+              onCommit={async (url) => {
+                setProfileSaving(true)
+                setProfileError(null)
+                setProfileSaved(false)
+                try {
+                  await savePublicProfile(url)
+                  setProfileSaved(true)
+                  router.refresh()
+                } catch (error) {
+                  setProfileError(error instanceof Error ? error.message : 'Nie udało się zapisać profilu.')
+                  throw error
+                } finally {
+                  setProfileSaving(false)
+                }
+              }}
+              initials={user?.initials ?? existing?.initials ?? '??'}
+              avatarColor={user?.avatarColor ?? existing?.avatarColor ?? '#F4B400'}
+            />
 
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="displayName" className="text-xs font-medium text-foreground">Imię i nazwisko na profilu</label>
+              <Input
+                id="displayName"
+                required
+                value={displayName}
+                onChange={(e) => {
+                  setDisplayName(e.target.value)
+                  setProfileSaved(false)
+                  setProfileError(null)
+                }}
+                placeholder="np. Marek Kowalski"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-background/60 p-4">
+            <p className="text-sm font-semibold text-foreground">Zapis bez weryfikacji</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Zdjęcie i nazwa konta odświeżą się od razu w panelu, czacie oraz publicznym profilu nauczyciela.
+            </p>
+            <Button
+              type="button"
+              onClick={handleSavePublicProfile}
+              disabled={profileSaving}
+              className="mt-4 w-full font-semibold"
+            >
+              {profileSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Zapisz profil
+            </Button>
+            {profileSaved && (
+              <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-success-surface px-3 py-2 text-xs font-medium text-success-on-surface">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                Zapisano i odświeżono dane.
+              </p>
+            )}
+            {profileError && <p className="mt-3 text-xs font-medium text-destructive">{profileError}</p>}
+          </div>
+        </div>
+      </FormSection>
+
+      <FormSection icon={Sparkles} title="Profil na giełdzie - wymaga weryfikacji">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="categoryId" className="text-xs font-medium text-foreground">Kategoria specjalizacji</label>
@@ -206,9 +303,7 @@ export function TeacherApplicationForm() {
           <label htmlFor="shortBio" className="text-xs font-medium text-foreground">Krótki opis na giełdzie</label>
           <Textarea id="shortBio" required rows={2} value={shortBio} onChange={(e) => setShortBio(e.target.value)} placeholder="Jedno-dwa zdania podsumowujące Twoje doświadczenie." />
         </div>
-      </FormSection>
 
-      <FormSection icon={Sparkles} title="Doświadczenie i umiejętności">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="bio" className="text-xs font-medium text-foreground">Pełny opis profilu</label>
           <Textarea id="bio" required rows={5} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Opisz swoje doświadczenie, certyfikaty i to, czego mogą nauczyć się Twoi uczniowie." />
@@ -269,13 +364,15 @@ export function TeacherApplicationForm() {
               <Input id="availabilityEnd" type="time" required value={availabilityEnd} onChange={(e) => setAvailabilityEnd(e.target.value)} />
             </div>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">Kalendarz generuje godzinne terminy tylko w wybranym zakresie i aktywnych dniach.</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Kalendarz pokazuje tylko terminy, w których mieści się cała lekcja oraz 15 minut zapasu po niej.
+          </p>
         </div>
       </FormSection>
 
       <Button type="submit" disabled={submitting} className="mt-1 font-semibold">
         {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-        Wyślij zgłoszenie do weryfikacji
+        Wyślij dane zawodowe do weryfikacji
       </Button>
     </form>
   )

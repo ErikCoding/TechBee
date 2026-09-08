@@ -8,9 +8,9 @@ import { getCategories } from '@/services/categories.service'
 import { pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
-  title: 'Giełda nauczycieli technicznych',
+  title: 'Giełda nauczycieli',
   description:
-    'Znajdź zweryfikowanego nauczyciela PLC, CNC, CAD, robotyki lub automatyki i zarezerwuj indywidualną lekcję online.',
+    'Znajdź zweryfikowanego nauczyciela automatyki, elektryki, PLC, fizyki, matematyki, polskiego lub angielskiego i zarezerwuj indywidualną lekcję online.',
   path: '/marketplace',
 })
 

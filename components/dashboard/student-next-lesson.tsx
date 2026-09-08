@@ -3,8 +3,10 @@
 import Link from 'next/link'
 import { CalendarDays, Clock, Timer, Video, RefreshCw, Search, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MetaStrip } from '@/components/dashboard/dashboard-primitives'
+import { LessonJoinButton } from '@/components/lesson/lesson-join-button'
+import { LessonLiveStatus } from '@/components/lesson/lesson-live-status'
 import type { Lesson } from '@/lib/types'
 
 interface Props {
@@ -54,14 +56,15 @@ export function StudentNextLesson({ lesson, pendingCount, onManage }: Props) {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-primary/40 bg-card">
-      <div className="flex items-center gap-2 border-b border-primary/25 bg-accent px-5 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-primary/25 bg-accent px-5 py-2.5">
         <span className="relative flex h-2 w-2" aria-hidden="true">
           <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
         </span>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-accent-foreground">Najbliższa lekcja</p>
+        <LessonLiveStatus lesson={lesson} className="ml-auto max-w-full" />
         {lesson.pendingChange && (
-          <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-warning">
+          <span className="flex items-center gap-1 text-[11px] font-medium text-warning">
             <Clock3 className="h-3 w-3" aria-hidden="true" />
             Zmiana u nauczyciela
           </span>
@@ -71,6 +74,7 @@ export function StudentNextLesson({ lesson, pendingCount, onManage }: Props) {
       <div className="flex flex-col gap-5 px-5 py-5 sm:px-6">
         <div className="flex items-start gap-3.5">
           <Avatar className="h-12 w-12 shrink-0">
+            {lesson.teacherPhotoUrl && <AvatarImage src={lesson.teacherPhotoUrl} alt="" />}
             <AvatarFallback color={lesson.teacherColor}>{lesson.teacherInitials}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
@@ -93,12 +97,7 @@ export function StudentNextLesson({ lesson, pendingCount, onManage }: Props) {
         />
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Link href={joinHref} className="sm:flex-1">
-            <Button className="w-full font-semibold transition-transform hover:-translate-y-0.5">
-              <Video className="h-4 w-4" aria-hidden="true" />
-              Dołącz do lekcji
-            </Button>
-          </Link>
+          <LessonJoinButton lesson={lesson} href={joinHref} label="Dołącz do lekcji" className="sm:flex-1" />
           {!lesson.pendingChange && (
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => onManage(lesson)}>
               <RefreshCw className="h-4 w-4" aria-hidden="true" />

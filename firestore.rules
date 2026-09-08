@@ -129,6 +129,9 @@ service cloud.firestore {
       // done here, because it is a schema migration, not a rules tweak.
       allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['stripe'])
         && ((isOwner(teacherId) && request.resource.data.status == 'pending')
+          || (isOwner(teacherId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'initials', 'avatarColor', 'photoUrl'])
+            && request.resource.data.status == resource.data.status)
           || isAdmin()
           || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviews', 'rating', 'reviewCount'])
@@ -319,6 +322,15 @@ service cloud.firestore {
     // app/api/stripe/webhook/route.ts) — purely an internal dedupe
     // record, never read or written by any client.
     match /stripeEvents/{id} {
+      allow read, write: if false;
+    }
+
+    // ── Internal lesson slot locks ──
+    // Written only by the trusted Stripe webhook while creating a paid
+    // lesson, to prevent overlapping paid sessions from racing into the
+    // same teacher time. The booking UI gets public-safe occupied slots
+    // through app/api/teachers/{teacherId}/availability instead.
+    match /lessonSlotLocks/{id} {
       allow read, write: if false;
     }
 

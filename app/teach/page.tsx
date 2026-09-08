@@ -12,7 +12,7 @@ import { TeacherDashboardPreview } from '@/components/teach/teacher-dashboard-pr
 import { EarningsCalculator } from '@/components/teach/earnings-calculator'
 import { getTeachers } from '@/services/teachers.service'
 import { Reveal } from '@/components/shared/reveal'
-import { PLATFORM_COMMISSION_PERCENT } from '@/lib/stripe-config'
+import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
@@ -22,12 +22,16 @@ export const metadata: Metadata = pageMetadata({
   path: '/teach',
 })
 
+export const dynamic = 'force-dynamic'
+
 /** Why a teacher would join — four, all real. */
-const benefits = [
+function buildBenefits(commissionPercent: number) {
+  const teacherShare = (100 - commissionPercent).toLocaleString('pl-PL', { maximumFractionDigits: 2 })
+  return [
   {
     icon: Wallet,
     title: 'Ty ustalasz stawkę',
-    description: `Sam decydujesz, ile kosztuje Twoja godzina, i zmieniasz to kiedy chcesz. U Ciebie zostaje ${100 - PLATFORM_COMMISSION_PERCENT}% kwoty lekcji.`,
+    description: `Sam decydujesz, ile kosztuje Twoja godzina, i zmieniasz to kiedy chcesz. U Ciebie zostaje ${teacherShare}% kwoty lekcji.`,
   },
   {
     icon: CalendarRange,
@@ -47,7 +51,8 @@ const benefits = [
     description:
       'Twój profil trafia do giełdy z filtrami po dziedzinie, cenie i dostępności. Nie musisz szukać uczniów.',
   },
-]
+  ]
+}
 
 /** Onboarding, in the order it actually happens. */
 const steps = [
@@ -122,10 +127,14 @@ const tools = [
  * computes with `splitPayment` — the same function the real Stripe
  * transfer uses), and nothing decorative anywhere.
  *
- * Every figure comes from the catalogue or `PLATFORM_COMMISSION_PERCENT`.
+ * Every figure comes from the catalogue or admin-controlled payment settings.
  */
 export default async function TeachPage() {
-  const teachers = await getTeachers()
+  const [teachers, paymentSettings] = await Promise.all([
+    getTeachers(),
+    getPlatformPaymentSettings(),
+  ])
+  const benefits = buildBenefits(paymentSettings.commissionPercent)
   const rates = teachers.map((t) => t.hourlyRate).sort((a, b) => a - b)
   const minRate = rates[0] ?? 80
   const maxRate = rates[rates.length - 1] ?? 300
@@ -232,6 +241,7 @@ export default async function TeachPage() {
                   minRate={minRate}
                   maxRate={maxRate}
                   medianRate={medianRate}
+                  commissionPercent={paymentSettings.commissionPercent}
                   layout="stacked"
                 />
               </Reveal>

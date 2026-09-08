@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { HeroSearch } from '@/components/landing/hero-search'
 import { getCategories } from '@/services/categories.service'
 import { getTeachers } from '@/services/teachers.service'
+import { getPublicPlatformStats } from '@/services/public-stats.service'
 
 /**
  * The homepage hero keeps the existing black Runbee identity while
@@ -16,11 +17,7 @@ import { getTeachers } from '@/services/teachers.service'
  * decorative pattern.
  */
 export async function HeroSection() {
-  const [categories, teachers] = await Promise.all([getCategories(), getTeachers()])
-  const verifiedCount = teachers.filter((t) => t.verified).length
-  const avgRating = teachers.length
-    ? teachers.reduce((sum, t) => sum + t.rating, 0) / teachers.length
-    : 0
+  const [categories, stats] = await Promise.all([getCategories(), getPublicPlatformStats()])
   const trustSignals = [
     { icon: BadgeCheck, label: 'Zweryfikowani praktycy' },
     { icon: Video, label: 'Lekcje online' },
@@ -48,7 +45,7 @@ export async function HeroSection() {
             className="animate-fade-in-up text-xs font-semibold uppercase tracking-wide text-primary"
             style={{ animationDelay: '40ms' }}
           >
-            Giełda nauczycieli technicznych
+            Giełda nauczycieli
           </p>
 
           <h1
@@ -100,7 +97,7 @@ export async function HeroSection() {
           <div
             className="animate-fade-in-up mt-8 flex flex-wrap gap-2.5"
             style={{ animationDelay: '280ms' }}
-            aria-label={`${verifiedCount} zweryfikowanych nauczycieli, ${categories.length} dziedzin technicznych`}
+            aria-label={`${stats.verifiedTeachers} zweryfikowanych nauczycieli, ${categories.length} dziedzin nauki`}
           >
             {trustSignals.map((signal) => {
               const Icon = signal.icon
@@ -141,14 +138,25 @@ export async function HeroSection() {
                   <BadgeCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                   Nauczyciele
                 </dt>
-                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{verifiedCount}</dd>
+                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.verifiedTeachers}</dd>
               </div>
               <div className="rounded-lg border border-border bg-card/80 p-3">
                 <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Star className="h-3.5 w-3.5 fill-primary stroke-none" aria-hidden="true" />
                   Średnia ocena
                 </dt>
-                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{avgRating.toFixed(1)}</dd>
+                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.avgRating.toFixed(1)}</dd>
+              </div>
+            </dl>
+
+            <dl className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-card/80 p-3">
+                <dt className="text-xs text-muted-foreground">Zarezerwowane</dt>
+                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.bookedLessons}</dd>
+              </div>
+              <div className="rounded-lg border border-border bg-card/80 p-3">
+                <dt className="text-xs text-muted-foreground">Teraz na lekcji</dt>
+                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.liveLessonsNow}</dd>
               </div>
             </dl>
 

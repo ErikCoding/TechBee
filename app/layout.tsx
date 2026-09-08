@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: siteUrl,
   applicationName: siteConfig.name,
   title: {
-    default: 'Runbee — lekcje techniczne online z praktykami przemysłu',
+    default: 'Runbee — lekcje online ze zweryfikowanymi nauczycielami',
     template: `%s | ${siteConfig.name}`,
   },
   description: defaultSeoDescription,
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'Runbee — lekcje techniczne online z praktykami przemysłu',
+    title: 'Runbee — lekcje online ze zweryfikowanymi nauczycielami',
     description: defaultSeoDescription,
     url: absoluteUrl('/'),
     siteName: siteConfig.name,
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'Runbee — lekcje techniczne online z praktykami przemysłu',
+    title: 'Runbee — lekcje online ze zweryfikowanymi nauczycielami',
     description: defaultSeoDescription,
     images: ['/icon.svg'],
   },
@@ -90,13 +90,6 @@ export default function RootLayout({
         alternateName: 'TechBee',
         url: siteConfig.url,
         logo: absoluteUrl('/icon.svg'),
-        contactPoint: {
-          '@type': 'ContactPoint',
-          email: 'kontakt@techbee.pl',
-          contactType: 'customer support',
-          areaServed: 'PL',
-          availableLanguage: ['pl'],
-        },
         sameAs: [siteConfig.url],
       },
       {

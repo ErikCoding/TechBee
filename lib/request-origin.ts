@@ -2,11 +2,14 @@
 // Best-effort absolute origin for a Next.js Route Handler request —
 // used to build Stripe redirect URLs (Checkout success/cancel, Connect
 // onboarding return/refresh) that have to be full URLs, not paths.
-// There's no NEXT_PUBLIC_APP_URL in this project yet, so this is
-// derived straight from the incoming request instead of adding one.
+// Production should use an explicit public URL. Falling back to the
+// incoming request keeps local Stripe testing working on localhost.
 // ─────────────────────────────────────────────────────────────
 
 export function getOrigin(request: Request): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.APP_URL?.trim()
+  if (configured) return configured.replace(/\/$/, '')
+
   const headerOrigin = request.headers.get('origin')
   if (headerOrigin) return headerOrigin
 

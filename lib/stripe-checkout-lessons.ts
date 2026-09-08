@@ -2,10 +2,31 @@ import 'server-only'
 import type Stripe from 'stripe'
 import { adminDb } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
+import { stripe } from '@/lib/stripe'
+import { LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
 import type { Lesson } from '@/lib/types'
 
 function paidCheckoutSession(session: Stripe.Checkout.Session): boolean {
   return session.status === 'complete' && session.payment_status === 'paid'
+}
+
+function slotLockIds(teacherId: string, dateIso: string, time: string, duration: number): string[] {
+  const start = timeToMinutes(time)
+  if (start === null) return []
+  const ids: string[] = []
+  for (let m = start; m < start + duration + LESSON_BUFFER_MINUTES; m += 15) {
+    ids.push(`${teacherId}__${dateIso}__${minutesToTime(m).replace(':', '-')}`)
+  }
+  return ids
+}
+
+async function refundPaidSession(session: Stripe.Checkout.Session) {
+  const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
+  if (!paymentIntentId || !stripe) return
+  await stripe.refunds.create({
+    payment_intent: paymentIntentId,
+    metadata: { reason: 'lesson_slot_unavailable_after_payment', checkoutSessionId: session.id },
+  })
 }
 
 /**
@@ -18,8 +39,9 @@ function paidCheckoutSession(session: Stripe.Checkout.Session): boolean {
  */
 export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Session): Promise<string | null> {
   if (!adminDb) return null
+  const database = adminDb
 
-  const existing = await adminDb.collection(collections.lessons).where('stripeCheckoutSessionId', '==', session.id).limit(1).get()
+  const existing = await database.collection(collections.lessons).where('stripeCheckoutSessionId', '==', session.id).limit(1).get()
   if (!existing.empty) return existing.docs[0].id
 
   if (!paidCheckoutSession(session)) return null
@@ -32,6 +54,8 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
 
   const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
   const now = Date.now()
+  const duration = Number(m.duration ?? 60)
+  const scheduledStartAt = Number(m.scheduledStartAt)
   const lesson: Omit<Lesson, 'id'> = {
     teacherId: m.teacherId,
     studentId: m.studentId,
@@ -39,10 +63,13 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     studentName: m.studentName ?? '',
     teacherInitials: m.teacherInitials ?? '',
     teacherColor: m.teacherColor || '#F4B400',
+    ...(m.teacherPhotoUrl ? { teacherPhotoUrl: m.teacherPhotoUrl } : {}),
     specialty: m.specialty ?? '',
     date: m.date ?? '',
+    ...(m.dateIso ? { dateIso: m.dateIso } : {}),
     time: m.time ?? '',
-    duration: Number(m.duration ?? 60),
+    ...(Number.isFinite(scheduledStartAt) && scheduledStartAt > 0 ? { scheduledStartAt } : {}),
+    duration,
     status: 'pending',
     price: Math.round(Number(m.priceGrosze)) / 100,
     topic: m.topic ?? '',
@@ -55,12 +82,56 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     platformFeeGrosze: Number(m.platformFeeGrosze ?? 0),
     teacherAmountGrosze: Number(m.teacherAmountGrosze ?? 0),
     stripeCheckoutSessionId: session.id,
-    stripePaymentIntentId: paymentIntentId,
+    ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
   }
 
-  const ref = await adminDb.collection(collections.lessons).add(lesson)
+  const lockIds = m.dateIso && m.time ? slotLockIds(m.teacherId, m.dateIso, m.time, duration) : []
+  const ref = database.collection(collections.lessons).doc()
+  const lessonId = await database.runTransaction(async (tx) => {
+    if (lockIds.length > 0) {
+      const lockRefs = lockIds.map((id) => database.collection(collections.lessonSlotLocks).doc(id))
+      const lockSnaps = await Promise.all(lockRefs.map((lockRef) => tx.get(lockRef)))
+      for (const lockSnap of lockSnaps) {
+        if (!lockSnap.exists) continue
+        const lockedLessonId = lockSnap.data()?.lessonId
+        if (typeof lockedLessonId !== 'string') return null
+        const lockedLessonSnap = await tx.get(database.collection(collections.lessons).doc(lockedLessonId))
+        if (!lockedLessonSnap.exists) continue
+        const lockedLesson = { id: lockedLessonSnap.id, ...lockedLessonSnap.data() } as Lesson
+        if (slotOverlapsBookedLesson({ dateIso: m.dateIso, time: m.time, duration, booked: [lockedLesson] })) {
+          return null
+        }
+      }
+      for (const lockRef of lockRefs) {
+        tx.set(lockRef, {
+          teacherId: m.teacherId,
+          dateIso: m.dateIso,
+          time: m.time,
+          checkoutSessionId: session.id,
+          lessonId: ref.id,
+          createdAt: now,
+        })
+      }
+    }
+    tx.set(ref, lesson)
+    return ref.id
+  })
 
-  await adminDb.collection(collections.notifications).add({
+  if (!lessonId) {
+    await refundPaidSession(session)
+    await database.collection(collections.notifications).add({
+      userId: m.payerId || m.studentId,
+      type: 'payment',
+      title: 'Termin został zajęty',
+      description: `Płatność za lekcję „${m.topic}" została zwrócona, ponieważ ktoś zarezerwował ten termin chwilę wcześniej. Wybierz inną godzinę.`,
+      date: new Date(now).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
+      read: false,
+      createdAt: now,
+    })
+    return null
+  }
+
+  await database.collection(collections.notifications).add({
     userId: m.teacherId,
     type: 'lesson',
     title: 'Nowa opłacona rezerwacja',
@@ -70,6 +141,6 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     createdAt: now,
   })
 
-  console.log(`[stripe/checkout] Created lesson ${ref.id} from checkout session ${session.id}`)
-  return ref.id
+  console.log(`[stripe/checkout] Created lesson ${lessonId} from checkout session ${session.id}`)
+  return lessonId
 }

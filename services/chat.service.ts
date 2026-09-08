@@ -92,6 +92,7 @@ function readAllMock(): StoredConversation[] {
 function writeAllMock(list: StoredConversation[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  window.dispatchEvent(new Event('storage'))
 }
 
 function toSummaryMock(conv: StoredConversation, viewerId: string): ChatConversation {
@@ -169,6 +170,34 @@ function markReadMock(conversationId: string, viewerId: string) {
   if (idx === -1) return
   list[idx] = { ...list[idx], unread: { ...list[idx].unread, [viewerId]: 0 } }
   writeAllMock(list)
+}
+
+function mergeParticipantProfile(existing: ChatParticipant | undefined, participant: ChatParticipant): ChatParticipant {
+  const next: ChatParticipant = {
+    ...existing,
+    ...participant,
+  }
+  if (!participant.photoUrl) {
+    delete next.photoUrl
+  }
+  return next
+}
+
+async function syncParticipantProfileMock(participant: ChatParticipant): Promise<void> {
+  const list = readAllMock()
+  let changed = false
+  const next = list.map((conv) => {
+    if (!conv.participantIds.includes(participant.id)) return conv
+    changed = true
+    return {
+      ...conv,
+      participants: {
+        ...conv.participants,
+        [participant.id]: mergeParticipantProfile(conv.participants[participant.id], participant),
+      },
+    }
+  })
+  if (changed) writeAllMock(next)
 }
 
 /**
@@ -323,6 +352,18 @@ async function markReadFirebase(conversationId: string, viewerId: string) {
   await updateDoc(doc(db, collections.conversations, conversationId), { [`unread.${viewerId}`]: 0 })
 }
 
+async function syncParticipantProfileFirebase(participant: ChatParticipant): Promise<void> {
+  if (!db) return
+  const snap = await getDocs(query(collection(db, collections.conversations), where('participantIds', 'array-contains', participant.id)))
+  const patch = {
+    ...participant,
+    photoUrl: participant.photoUrl ?? '',
+  }
+  await Promise.all(
+    snap.docs.map((conversation) => updateDoc(conversation.ref, { [`participants.${participant.id}`]: patch })),
+  )
+}
+
 async function sendReportCardFirebase(conversationId: string, sender: ChatParticipant, card: LessonReportCard): Promise<string> {
   if (!db) throw new Error('Firebase nie jest skonfigurowane.')
   const convRef = doc(db, collections.conversations, conversationId)
@@ -387,6 +428,11 @@ export async function sendMessage(conversationId: string, sender: ChatParticipan
 export async function markConversationRead(conversationId: string, viewerId: string): Promise<void> {
   if (isFirebaseConfigured) return markReadFirebase(conversationId, viewerId)
   markReadMock(conversationId, viewerId)
+}
+
+/** Updates the stored name/avatar snapshot in every existing conversation for this user. */
+export async function syncParticipantProfile(participant: ChatParticipant): Promise<void> {
+  return isFirebaseConfigured ? syncParticipantProfileFirebase(participant) : syncParticipantProfileMock(participant)
 }
 
 /** Delivers a lesson report as a rich, interactive chat message instead of a dashboard list entry — see components/chat/report-card-message.tsx. Returns the new message's id, needed later to flip its status (confirmed/disputed/resolved). */

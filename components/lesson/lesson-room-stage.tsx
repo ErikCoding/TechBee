@@ -12,9 +12,10 @@ import {
   VideoTrack,
 } from '@livekit/components-react'
 import { ConnectionState, Track } from 'livekit-client'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Send, X, ScreenShare, ScreenShareOff } from 'lucide-react'
+import { CheckCircle2, Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Send, X, ScreenShare, ScreenShareOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatDurationClock, LESSON_END_WARNING_MINUTES } from '@/lib/lesson-time'
 import { cn, formatChatTime } from '@/lib/utils'
 
 interface Props {
@@ -22,7 +23,10 @@ interface Props {
   topic?: string
   /** Display name for the other party, used only in the "waiting for them to join" state before they've connected. */
   waitingForLabel?: string
+  scheduledEndAtMs?: number
+  autoEndAtMs?: number
   onLeave: () => void
+  onEndLesson: () => void
 }
 
 function initialsOf(name: string | undefined): string {
@@ -41,7 +45,7 @@ function formatElapsed(totalSeconds: number): string {
  * used below (useLocalParticipant, useTracks, useChat, ...) work: they
  * all read from the room context that component provides.
  */
-export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: Props) {
+export function LessonRoomStage({ lessonId, topic, waitingForLabel, scheduledEndAtMs, autoEndAtMs, onLeave, onEndLesson }: Props) {
   const room = useRoomContext()
   const connectionState = useConnectionState(room)
   const {
@@ -59,6 +63,7 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
   const [chatOpen, setChatOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [elapsed, setElapsed] = useState(0)
+  const [now, setNow] = useState(Date.now())
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   const isConnected = connectionState === ConnectionState.Connected
@@ -69,9 +74,18 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
 
   useEffect(() => {
     if (!isConnected) return
-    const timer = setInterval(() => setElapsed((s) => s + 1), 1000)
+    const timer = setInterval(() => {
+      setElapsed((s) => s + 1)
+      setNow(Date.now())
+    }, 1000)
     return () => clearInterval(timer)
   }, [isConnected])
+
+  useEffect(() => {
+    if (!autoEndAtMs || now < autoEndAtMs) return
+    room.disconnect()
+    onEndLesson()
+  }, [autoEndAtMs, now, onEndLesson, room])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -106,6 +120,12 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
     onLeave()
   }
 
+  function handleEndLesson() {
+    if (!window.confirm('Zakończyć lekcję na stałe? Po tym kroku wróci ona do panelu jako zakończona i nauczyciel będzie mógł wysłać raport.')) return
+    room.disconnect()
+    onEndLesson()
+  }
+
   function sendMessage() {
     if (!draft.trim()) return
     send(draft.trim()).catch(() => {})
@@ -122,8 +142,24 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
           <span className={cn('h-2 w-2 rounded-full', isConnected ? 'bg-emerald-400' : 'animate-pulse bg-yellow-400')} aria-hidden="true" />
           {isConnected ? `Połączono · ${formatElapsed(elapsed)}` : 'Łączenie…'}
         </div>
-        <div className="text-white/50">Sala lekcji #{lessonId.slice(-6)}</div>
+        <div className="flex items-center gap-3 text-white/50">
+          {scheduledEndAtMs && now < scheduledEndAtMs && (
+            <span>Planowy koniec za {formatDurationClock(scheduledEndAtMs - now)}</span>
+          )}
+          {autoEndAtMs && (
+            <span className={cn(autoEndAtMs - now <= LESSON_END_WARNING_MINUTES * 60 * 1000 && 'text-primary')}>
+              Sala zamknie się za {formatDurationClock(autoEndAtMs - now)}
+            </span>
+          )}
+          <span>Sala lekcji #{lessonId.slice(-6)}</span>
+        </div>
       </div>
+
+      {autoEndAtMs && autoEndAtMs - now <= LESSON_END_WARNING_MINUTES * 60 * 1000 && (
+        <div className="mx-4 mb-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-center text-xs text-primary">
+          Zostało mniej niż {LESSON_END_WARNING_MINUTES} minut do automatycznego zamknięcia sali.
+        </div>
+      )}
 
       {/* Video stage — height-bounded (not min-height) so it never pushes the
           controls off-screen, and every camera tile uses object-contain
@@ -306,9 +342,18 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, onLeave }: P
           type="button"
           onClick={handleLeave}
           className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 transition-colors hover:bg-red-600"
-          aria-label="Zakończ lekcję"
+          aria-label="Opuść lekcję"
         >
           <PhoneOff className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={handleEndLesson}
+          className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold text-[#0A0A0A] transition-colors hover:bg-white/90"
+          aria-label="Zakończ lekcję na stałe"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Zakończ lekcję
         </button>
       </div>
     </div>

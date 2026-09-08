@@ -3,14 +3,16 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import {
-  CalendarDays, CheckCircle2, XCircle, Circle, Clock3, RefreshCw, Star, Search, Video,
+  CalendarDays, CheckCircle2, XCircle, Circle, Clock3, RefreshCw, Star, Search,
   ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ShowMoreButton, COLLAPSED_ROWS } from '@/components/dashboard/collapsible-list-controls'
 import { SegmentedTabs, PanelFooterLink } from '@/components/dashboard/dashboard-primitives'
+import { LessonJoinButton } from '@/components/lesson/lesson-join-button'
+import { LessonLiveStatus } from '@/components/lesson/lesson-live-status'
 import { cn } from '@/lib/utils'
 import type { Lesson } from '@/lib/types'
 
@@ -91,6 +93,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
+                      {lesson.teacherPhotoUrl && <AvatarImage src={lesson.teacherPhotoUrl} alt="" />}
                       <AvatarFallback color={lesson.teacherColor} className="text-sm">
                         {lesson.teacherInitials}
                       </AvatarFallback>
@@ -100,6 +103,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                       <p className="truncate text-xs text-muted-foreground">
                         {lesson.teacherName} · {lesson.date} o {lesson.time} · {lesson.duration} min
                       </p>
+                      <LessonLiveStatus lesson={lesson} className="mt-1 max-w-full" />
                       {lesson.pendingChange && (
                         <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-warning">
                           <Clock3 className="h-3 w-3" aria-hidden="true" />
@@ -116,12 +120,13 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                         Zarządzaj
                       </Button>
                     )}
-                    <Link href={`/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.teacherName)}&topic=${encodeURIComponent(lesson.topic)}`}>
-                      <Button size="sm" variant="outline" className="h-8 text-xs font-semibold">
-                        <Video className="h-3 w-3" aria-hidden="true" />
-                        Dołącz
-                      </Button>
-                    </Link>
+                    <LessonJoinButton
+                      lesson={lesson}
+                      href={`/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.teacherName)}&topic=${encodeURIComponent(lesson.topic)}`}
+                      label="Dołącz"
+                      size="sm"
+                      variant="outline"
+                    />
                   </div>
                 </li>
               ))}
@@ -143,6 +148,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                 <li key={lesson.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
+                      {lesson.teacherPhotoUrl && <AvatarImage src={lesson.teacherPhotoUrl} alt="" />}
                       <AvatarFallback color={lesson.teacherColor} className="text-sm">
                         {lesson.teacherInitials}
                       </AvatarFallback>
@@ -185,6 +191,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         <Avatar className="h-10 w-10 shrink-0">
+                          {lesson.teacherPhotoUrl && <AvatarImage src={lesson.teacherPhotoUrl} alt="" />}
                           <AvatarFallback color={lesson.teacherColor} className="text-sm">
                             {lesson.teacherInitials}
                           </AvatarFallback>

@@ -22,20 +22,24 @@ export function UserProfileForm() {
     setPhotoUrl(user.photoUrl ?? '')
   }, [user])
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function saveProfile(nextPhotoUrl = photoUrl) {
     if (!user) return
     setSaving(true)
     setSaved(false)
     setError(null)
     try {
-      await updateProfile({ name, photoUrl })
+      await updateProfile({ name, photoUrl: nextPhotoUrl })
       setSaved(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nie udało się zapisać profilu.')
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await saveProfile()
   }
 
   if (!user) return null
@@ -45,6 +49,7 @@ export function UserProfileForm() {
       <ProfilePhotoPicker
         value={photoUrl}
         onChange={setPhotoUrl}
+        onCommit={(nextUrl) => saveProfile(nextUrl)}
         initials={user.initials}
         avatarColor={user.avatarColor}
       />

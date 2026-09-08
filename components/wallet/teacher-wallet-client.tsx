@@ -46,12 +46,17 @@ export function TeacherWalletClient() {
   const [amount, setAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [walletError, setWalletError] = useState<string | null>(null)
 
   async function load() {
     if (!user) return
+    setWalletError(null)
     const [application, wallet] = await Promise.all([
       getTeacherApplication(user.id),
-      getTeacherWallet().catch(() => null),
+      getTeacherWallet().catch((err) => {
+        setWalletError(err instanceof Error ? err.message : 'Nie udało się pobrać portfela.')
+        return null
+      }),
     ])
     setStripeStatus(application?.stripe ?? {})
     if (wallet) {
@@ -110,6 +115,12 @@ export function TeacherWalletClient() {
 
   return (
     <>
+      {walletError && (
+        <div className="mb-4 rounded-2xl border border-warning/30 bg-warning-surface px-4 py-3 text-sm text-warning-on-surface">
+          {walletError} Portfel działa dopiero po ustawieniu Firebase Admin, Stripe i publicznego adresu aplikacji w środowisku produkcyjnym.
+        </div>
+      )}
+
       {/* Balance card — balance + at-a-glance stats unified in one panel instead of a separate grid below it */}
       <div className="animate-fade-in-up overflow-hidden rounded-2xl bg-primary">
         <div className="flex flex-col gap-6 p-8 lg:flex-row lg:items-end lg:justify-between">

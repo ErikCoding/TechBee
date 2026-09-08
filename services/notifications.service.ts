@@ -22,6 +22,7 @@ export interface CreateNotificationInput {
   type: NotificationType
   title: string
   description: string
+  actionHref?: string
 }
 
 const NOTIFICATIONS_DELETED_KEY = 'techbee.notifications.deleted'
@@ -56,6 +57,7 @@ async function createNotificationFirebase(input: CreateNotificationInput): Promi
     type: input.type,
     title: input.title,
     description: input.description,
+    ...(input.actionHref ? { actionHref: input.actionHref } : {}),
     read: false,
     createdAt: Date.now(),
   })
@@ -100,7 +102,7 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
   return snap.docs
     .filter((d) => !deleted.has(d.id))
     .map((d) => {
-      const data = d.data() as { type: NotificationType; title: string; description: string; read: boolean; createdAt: number }
+      const data = d.data() as { type: NotificationType; title: string; description: string; read: boolean; createdAt: number; actionHref?: string }
       return {
         id: d.id,
         type: data.type,
@@ -108,6 +110,7 @@ async function getNotificationsFirebase(userId?: string): Promise<Notification[]
         description: data.description,
         date: formatChatTime(data.createdAt),
         read: data.read || read.has(d.id),
+        actionHref: data.actionHref,
         _createdAt: data.createdAt,
       }
     })

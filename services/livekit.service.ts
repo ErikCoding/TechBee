@@ -11,6 +11,12 @@ export interface LiveKitTokenResult {
   url: string
 }
 
+export interface LiveLessonRoomStatus {
+  configured: boolean
+  active: boolean
+  participantCount: number
+}
+
 interface RequestTokenInput {
   lessonId: string
   identity: string
@@ -39,4 +45,19 @@ export async function requestLiveKitToken(input: RequestTokenInput): Promise<Liv
     throw new Error(typeof data.error === 'string' ? data.error : 'Nie udało się dołączyć do lekcji.')
   }
   return data as LiveKitTokenResult
+}
+
+export async function getLiveLessonRoomStatus(lessonId: string): Promise<LiveLessonRoomStatus> {
+  const res = await fetch('/api/livekit/room-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lessonId }),
+  })
+  const data = await res.json().catch(() => ({}) as Record<string, unknown>)
+  if (!res.ok) return { configured: false, active: false, participantCount: 0 }
+  return {
+    configured: Boolean(data.configured),
+    active: Boolean(data.active),
+    participantCount: typeof data.participantCount === 'number' ? data.participantCount : 0,
+  }
 }

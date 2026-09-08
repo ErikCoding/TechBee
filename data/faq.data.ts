@@ -13,11 +13,11 @@ export const faqData: FaqItem[] = [
   },
   {
     question: 'Jak wyglądają lekcje?',
-    answer: 'Lekcje są indywidualne i odbywają się przez wbudowaną platformę wideo, udostępnianie ekranu oraz cyfrową tablicę. Temat i cele nauki ustalacie z wyprzedzeniem. Większość lekcji trwa 60 albo 90 minut. Sesje można nagrać do późniejszej powtórki.',
+    answer: 'Lekcje są indywidualne i odbywają się przez wbudowaną platformę wideo z możliwością udostępniania ekranu. Temat i cele nauki ustalacie z wyprzedzeniem. Lekcja trwa 60 albo 90 minut, a system dolicza bufor po spotkaniu, żeby kolejne rezerwacje się nie nakładały.',
   },
   {
-    question: 'Czym są BeeCoins i jak działają płatności?',
-    answer: 'BeeCoins to waluta platformy. Doładowujesz portfel złotówkami, kartą lub przelewem i wymieniasz środki na BeeCoins. Lekcje są rozliczane w BeeCoins, co chroni obie strony: nauczyciele otrzymują płatność terminowo, a uczniowie mają pełną przejrzystość cen.',
+    question: 'Jak działają płatności?',
+    answer: 'Uczeń albo rodzic opłaca konkretną rezerwację przez Stripe. Nauczyciel otrzymuje środki dopiero po zakończonej lekcji i potwierdzonym raporcie. Jeśli raport zostanie zakwestionowany, płatność czeka na rozstrzygnięcie sporu przez administratora.',
   },
   {
     question: 'Czym są BeePoints i jak je zdobywać?',
@@ -25,11 +25,11 @@ export const faqData: FaqItem[] = [
   },
   {
     question: 'Czy mogę zostać nauczycielem na Runbee?',
-    answer: 'Tak — jeśli masz co najmniej 3 lata praktycznego doświadczenia przemysłowego w specjalizacji technicznej, zachęcamy do zgłoszenia. Samodzielnie ustalasz stawkę, grafik i dostępność. Najlepsi nauczyciele zarabiają 15 000 zł+ miesięcznie, pracując na część etatu.',
+    answer: 'Tak — jeśli masz praktyczne doświadczenie przemysłowe w specjalizacji technicznej, możesz wysłać zgłoszenie z panelu nauczyciela. Samodzielnie ustalasz stawkę, grafik i dostępność, a profil trafia na giełdę dopiero po weryfikacji przez administratora.',
   },
   {
     question: 'Co jeśli nie będę zadowolony z lekcji?',
-    answer: 'Oferujemy gwarancję satysfakcji. Jeśli lekcja nie spełni oczekiwań, skontaktuj się z naszym wsparciem w ciągu 24 godzin, a zwrócimy pełną kwotę w BeeCoins bez dodatkowych pytań. Satysfakcja uczniów jest naszym priorytetem.',
+    answer: 'Po lekcji nauczyciel wysyła raport. Uczeń albo rodzic może go potwierdzić lub zgłosić zastrzeżenie. Przy sporze administrator widzi opis obu stron i decyduje, czy zwolnić płatność nauczycielowi, czy zwrócić ją płatnikowi.',
   },
   {
     question: 'Czy nauczyciele oferują lekcje próbne?',

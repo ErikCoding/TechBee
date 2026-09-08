@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
-import { categoriesData } from '@/data/categories.data'
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { categoriesData, deprecatedCategoryIds } from '@/data/categories.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import type { Category } from '@/lib/types'
 
@@ -10,22 +10,42 @@ import type { Category } from '@/lib/types'
 // until then.
 // ─────────────────────────────────────────────────────────────
 
+const deprecatedCategoryIdSet = new Set(deprecatedCategoryIds)
+
+function sortCategories(categories: Category[]): Category[] {
+  return [...categories].sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+}
+
 export async function getCategories(): Promise<Category[]> {
   if (isFirebaseConfigured && db) {
-    const snap = await getDocs(collection(db, collections.categories))
-    if (!snap.empty) {
-      const stored = snap.docs.map((d) => d.data() as Category)
-      const storedIds = new Set(stored.map((c) => c.id))
-      return [...stored, ...categoriesData.filter((c) => !storedIds.has(c.id))]
-    }
+    const [snap, teachersSnap] = await Promise.all([
+      getDocs(collection(db, collections.categories)),
+      getDocs(query(collection(db, collections.teachers), where('status', '==', 'approved'))),
+    ])
+    const currentIds = new Set(categoriesData.map((c) => c.id))
+    const storedExtras = snap.docs
+      .map((d) => d.data() as Category)
+      .filter((category) => !currentIds.has(category.id) && !deprecatedCategoryIdSet.has(category.id))
+    const approvedTeachers = teachersSnap.docs.map((d) => d.data() as { categoryId?: string; lessons?: number })
+    const countFor = (categoryId: string) => ({
+      teacherCount: approvedTeachers.filter((t) => t.categoryId === categoryId).length,
+      lessonCount: approvedTeachers.filter((t) => t.categoryId === categoryId).reduce((sum, t) => sum + (t.lessons ?? 0), 0),
+    })
+    return sortCategories([...categoriesData, ...storedExtras].map((category) => ({
+      ...category,
+      ...countFor(category.id),
+    })))
   }
-  return categoriesData
+  return sortCategories(categoriesData)
 }
 
 export async function getCategoryById(id: string): Promise<Category | undefined> {
+  if (deprecatedCategoryIdSet.has(id)) return undefined
+  const current = categoriesData.find((c) => c.id === id)
+  if (current) return current
   if (isFirebaseConfigured && db) {
     const snap = await getDoc(doc(db, collections.categories, id))
     if (snap.exists()) return snap.data() as Category
   }
-  return categoriesData.find((c) => c.id === id)
+  return undefined
 }

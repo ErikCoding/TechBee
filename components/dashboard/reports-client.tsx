@@ -140,7 +140,7 @@ export function ReportsClient() {
   function counterparty(entry: Entry) {
     return user!.role === 'teacher'
       ? { name: entry.card.studentName, color: entry.lesson.teacherColor }
-      : { name: entry.card.teacherName, color: entry.lesson.teacherColor }
+      : { name: entry.card.teacherName, color: entry.lesson.teacherColor, photoUrl: entry.lesson.teacherPhotoUrl }
   }
 
   const visibleSettled = historyExpanded ? groups.settled : groups.settled.slice(0, COLLAPSED_ROWS)
@@ -168,6 +168,7 @@ export function ReportsClient() {
                   card={entry.card}
                   counterpartyName={other.name}
                   counterpartyColor={other.color}
+                  counterpartyPhotoUrl={other.photoUrl}
                   contextLabel={entry.studentLabel}
                   actionable
                   onOpen={() => setOpenCard(entry.card)}
@@ -198,6 +199,7 @@ export function ReportsClient() {
                   card={entry.card}
                   counterpartyName={other.name}
                   counterpartyColor={other.color}
+                  counterpartyPhotoUrl={other.photoUrl}
                   contextLabel={entry.studentLabel}
                   actionable={false}
                   onOpen={() => setOpenCard(entry.card)}
@@ -220,6 +222,7 @@ export function ReportsClient() {
                   card={entry.card}
                   counterpartyName={other.name}
                   counterpartyColor={other.color}
+                  counterpartyPhotoUrl={other.photoUrl}
                   contextLabel={entry.studentLabel}
                   actionable={false}
                   onOpen={() => setOpenCard(entry.card)}
@@ -249,4 +252,3 @@ export function ReportsClient() {
     </div>
   )
 }
-
