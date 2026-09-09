@@ -4,15 +4,22 @@ import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import { ensureLessonForCheckoutSession } from '@/lib/stripe-checkout-lessons'
-import type { PayoutRecord } from '@/lib/types'
+import { alreadyProcessed, markProcessed } from '@/lib/stripe-webhook-shared'
 
 // ─────────────────────────────────────────────────────────────
-// The one place a booking actually becomes "paid" — everything else
-// (the /payment/success redirect, the client) is just display. Stripe
-// signature-verified, idempotent (see the stripeEvents dedupe check
-// below), and the only writer of payment-integrity Lesson fields (see
-// firestore.rules: lessons/{id} blocks clients from touching those
-// fields directly).
+// The "Your account" event destination — the one place a booking
+// actually becomes "paid" — everything else (the /payment/success
+// redirect, the client) is just display. Stripe signature-verified,
+// idempotent (see the stripeEvents dedupe check below), and the only
+// writer of payment-integrity Lesson fields (see firestore.rules:
+// lessons/{id} blocks clients from touching those fields directly).
+//
+// Split from app/api/stripe/webhook/connect: Checkout Sessions,
+// Charges and Refunds created by this app all live on the platform's
+// own Stripe account, so their events route to a "Your account"
+// destination — a different signing secret than the payout.* events,
+// which live on each teacher's Connected account (see the comment in
+// that file for why Stripe requires two separate destinations here).
 //
 // Events handled (checked against the current Stripe API — nothing
 // assumed from the original prompt's wording):
@@ -25,22 +32,10 @@ import type { PayoutRecord } from '@/lib/types'
 //                                    the ones this app triggers itself)
 //   transfer.created            → logged only (informational; the transfer/refund
 //                                    routes already write stripeTransferId themselves)
-//   payout.created / payout.updated / payout.paid / payout.failed
-//                                    → updates the matching payouts/{id} doc
 //   account.updated             → logged only, see handleAccountUpdated for why
 // ─────────────────────────────────────────────────────────────
 
 export const runtime = 'nodejs'
-
-async function alreadyProcessed(eventId: string): Promise<boolean> {
-  const snap = await adminDb!.collection(collections.stripeEvents).doc(eventId).get()
-  return snap.exists
-}
-
-/** Written only AFTER a handler completes successfully — if a handler throws partway through, Stripe's retry (we return 500) hits this same event id again, and since every handler below is itself idempotent (checks for an existing lesson/payout doc first), reprocessing is safe. Marking "processed" before running would make a failed-then-retried event silently skip forever instead. */
-async function markProcessed(eventId: string): Promise<void> {
-  await adminDb!.collection(collections.stripeEvents).doc(eventId).set({ processedAt: Date.now() })
-}
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   await ensureLessonForCheckoutSession(session)
@@ -54,13 +49,6 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
   const doc = snap.docs[0]
   if (doc.data().paymentStatus === 'refunded') return // already handled by our own refund route
   await doc.ref.update({ paymentStatus: 'refunded', status: 'cancelled' })
-}
-
-async function handlePayoutStatusChange(payout: Stripe.Payout) {
-  const snap = await adminDb!.collection(collections.payouts).where('stripePayoutId', '==', payout.id).limit(1).get()
-  if (snap.empty) return
-  const status = payout.status as PayoutRecord['status']
-  await snap.docs[0].ref.update({ status, ...(payout.failure_message ? { failureMessage: payout.failure_message } : {}) })
 }
 
 async function handleAccountUpdated(account: Stripe.Account) {
@@ -116,12 +104,6 @@ export async function POST(request: Request) {
         break
       case 'charge.refunded':
         await handleChargeRefunded(event.data.object as Stripe.Charge)
-        break
-      case 'payout.paid':
-      case 'payout.failed':
-      case 'payout.created':
-      case 'payout.updated':
-        await handlePayoutStatusChange(event.data.object as Stripe.Payout)
         break
       case 'account.updated':
         await handleAccountUpdated(event.data.object as Stripe.Account)

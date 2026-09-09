@@ -14,6 +14,18 @@ import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
 import { noIndexMetadata, pageMetadata } from '@/lib/seo'
 
+// This page reads `searchParams` (bookingForId/bookingForName — the
+// "book for this student" deep link from a parent's dashboard), which
+// requires per-request rendering. Combined with `generateStaticParams`
+// below, that combination throws `DYNAMIC_SERVER_USAGE` in production
+// (Next.js can't reconcile "pre-render this statically" with "this
+// specific render depends on the incoming request's query string").
+// Forcing dynamic rendering — same fix already used on app/page.tsx,
+// app/teach/page.tsx and app/about/page.tsx — resolves it: every
+// request renders fresh (fine here, teacher profiles already need to
+// reflect live rating/price/availability anyway).
+export const dynamic = 'force-dynamic'
+
 interface Props {
   params: Promise<{ id: string }>
   searchParams: Promise<{ bookingForId?: string; bookingForName?: string }>
