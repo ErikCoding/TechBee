@@ -290,7 +290,7 @@ export function TeacherApplicationForm() {
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="hourlyRate" className="text-xs font-medium text-foreground">Stawka (zł)</label>
-              <Input id="hourlyRate" type="number" min={20} required value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} />
+              <Input id="hourlyRate" type="number" min={5} required value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="experience" className="text-xs font-medium text-foreground">Doświadczenie</label>
