@@ -27,6 +27,30 @@ import type { BookedLessonSlot } from '@/lib/types'
 
 const ALLOWED_DURATIONS = [60, 90]
 
+// Stripe metadata values are capped at 500 characters each. Most fields
+// here are short user-entered strings and never came close, but teacher
+// photos can be a problem: Firebase Storage isn't enabled everywhere yet
+// (see .env.example — NEXT_PUBLIC_ENABLE_FIREBASE_STORAGE), so some
+// teachers have their photo stored as an inline base64 `data:image/...`
+// URI directly in Firestore instead of a short hosted URL — tens of
+// thousands of characters, which made every checkout for that teacher
+// fail with a 500 (`checkout.sessions.create` throwing "Metadata values
+// can have up to 500 characters..."). Truncating a data: URI would just
+// produce broken/corrupted image data, so it's dropped entirely instead:
+// the resulting Lesson doc simply won't have a cached teacherPhotoUrl,
+// and every place that renders it already falls back to the initials
+// avatar (see components/ui/avatar.tsx AvatarFallback usage throughout).
+const METADATA_MAX_LENGTH = 480
+
+function safeMetaText(value: string): string {
+  return value.length > METADATA_MAX_LENGTH ? value.slice(0, METADATA_MAX_LENGTH) : value
+}
+
+function safeMetaPhotoUrl(url: string | undefined): string {
+  if (!url || url.length > METADATA_MAX_LENGTH) return ''
+  return url
+}
+
 interface CheckoutRequestBody {
   idToken?: string
   teacherId?: string
@@ -148,13 +172,13 @@ export async function POST(request: Request) {
       ],
       metadata: {
         teacherId,
-        teacherName: teacher.name ?? '',
+        teacherName: safeMetaText(teacher.name ?? ''),
         teacherInitials: teacher.initials ?? '',
         teacherColor: teacher.avatarColor ?? '#F4B400',
-        teacherPhotoUrl: teacher.photoUrl ?? '',
-        specialty: teacher.specialty ?? '',
+        teacherPhotoUrl: safeMetaPhotoUrl(teacher.photoUrl),
+        specialty: safeMetaText(teacher.specialty ?? ''),
         studentId,
-        studentName,
+        studentName: safeMetaText(studentName),
         payerId,
         payerRole,
         date,
@@ -162,7 +186,7 @@ export async function POST(request: Request) {
         time,
         scheduledStartAt: String(scheduledStartAt),
         duration: String(duration),
-        topic: topic.trim(),
+        topic: safeMetaText(topic.trim()),
         priceGrosze: String(priceGrosze),
         commissionPercent: String(paymentSettings.commissionPercent),
         platformFeeGrosze: String(platformFeeGrosze),
