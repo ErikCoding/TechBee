@@ -5,11 +5,11 @@ import type { FaqItem } from '@/lib/types'
 export const faqData: FaqItem[] = [
   {
     question: 'Jak Runbee pomaga znaleźć odpowiedniego nauczyciela?',
-    answer: 'Przeglądasz nauczycieli według specjalizacji, lokalizacji, języka i dostępności. Każdy profil zawiera doświadczenie przemysłowe, certyfikaty, opinie uczniów i wprowadzenie wideo. Przed rezerwacją możesz wysłać wiadomość, aby upewnić się, że to dobry wybór.',
+    answer: 'Przeglądasz nauczycieli według specjalizacji, lokalizacji, języka i dostępności. Każdy profil zawiera realne doświadczenie zawodowe, certyfikaty, opinie uczniów i wprowadzenie wideo. Przed rezerwacją możesz wysłać wiadomość, aby upewnić się, że to dobry wybór.',
   },
   {
-    question: 'Czy nauczyciele Runbee to prawdziwi profesjonaliści z przemysłu?',
-    answer: 'Tak. Każdy nauczyciel na Runbee jest weryfikowany pod kątem realnego doświadczenia przemysłowego: sprawdzamy historię zatrudnienia, certyfikaty i przeprowadzamy rozmowę techniczną na żywo przed dopuszczeniem do nauczania. Nie akceptujemy osób, które mają wyłącznie akademickie doświadczenie bez praktyki w terenie.',
+    question: 'Czy nauczyciele Runbee to prawdziwi profesjonaliści w swojej dziedzinie?',
+    answer: 'Tak. Każdy nauczyciel na Runbee jest weryfikowany pod kątem realnego doświadczenia zawodowego: sprawdzamy historię zatrudnienia, certyfikaty i przeprowadzamy rozmowę weryfikacyjną na żywo przed dopuszczeniem do nauczania. Nie akceptujemy osób, które mają wyłącznie akademickie doświadczenie bez praktyki w swojej dziedzinie.',
   },
   {
     question: 'Jak wyglądają lekcje?',
@@ -25,7 +25,7 @@ export const faqData: FaqItem[] = [
   },
   {
     question: 'Czy mogę zostać nauczycielem na Runbee?',
-    answer: 'Tak — jeśli masz praktyczne doświadczenie przemysłowe w specjalizacji technicznej, możesz wysłać zgłoszenie z panelu nauczyciela. Samodzielnie ustalasz stawkę, grafik i dostępność, a profil trafia na giełdę dopiero po weryfikacji przez administratora.',
+    answer: 'Tak — jeśli masz praktyczne doświadczenie zawodowe w swojej dziedzinie, możesz wysłać zgłoszenie z panelu nauczyciela. Samodzielnie ustalasz stawkę, grafik i dostępność, a profil trafia na giełdę dopiero po weryfikacji przez administratora.',
   },
   {
     question: 'Co jeśli nie będę zadowolony z lekcji?',

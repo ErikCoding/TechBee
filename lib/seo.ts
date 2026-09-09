@@ -4,19 +4,17 @@ import { siteConfig } from '@/config/site'
 export const siteUrl = new URL(siteConfig.url)
 
 export const defaultSeoDescription =
-  'Runbee łączy uczniów ze zweryfikowanymi nauczycielami na indywidualne lekcje online z automatyki, elektryki, PLC, fizyki, matematyki, polskiego i angielskiego.'
+  'Runbee łączy uczniów ze zweryfikowanymi nauczycielami na indywidualne lekcje online z różnych dziedzin, w tym matematyki, fizyki, polskiego i angielskiego.'
 
 export const seoKeywords = [
   'korepetycje online',
-  'lekcje PLC online',
-  'korepetycje z elektryki',
+  'lekcje online',
   'korepetycje z polskiego',
   'korepetycje z angielskiego',
   'korepetycje z matematyki',
   'korepetycje z fizyki',
-  'automatyka przemysłowa',
-  'robotyka',
-  'nauczyciel PLC',
+  'nauczyciel online',
+  'indywidualne lekcje online',
   'zweryfikowani nauczyciele online',
 ]
 

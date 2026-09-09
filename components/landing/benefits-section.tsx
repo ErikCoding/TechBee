@@ -29,7 +29,7 @@ const benefits = [
     icon: BadgeCheck,
     title: 'Zweryfikowani praktycy',
     description:
-      'Każdy nauczyciel przechodzi ręczną weryfikację doświadczenia przemysłowego, zanim jego profil trafi na giełdę.',
+      'Każdy nauczyciel przechodzi ręczną weryfikację doświadczenia, zanim jego profil trafi na giełdę.',
   },
   {
     icon: ShieldCheck,

@@ -6,10 +6,10 @@
 export const siteConfig = {
   name: 'Runbee',
   legalName: 'Runbee',
-  tagline: 'Ucz się praktycznych umiejętności przemysłowych od certyfikowanych ekspertów',
+  tagline: 'Ucz się praktycznych umiejętności od zweryfikowanych praktyków',
   description:
-    'Połącz się ze zweryfikowanymi nauczycielami automatyki, elektryki, PLC, fizyki, matematyki i języków na indywidualne lekcje online.',
-  url: 'https://techbee.pl',
+    'Połącz się ze zweryfikowanymi nauczycielami z różnych dziedzin na indywidualne lekcje online.',
+  url: 'https://runbee.pl',
   locale: 'pl-PL',
   currency: {
     code: 'PLN',

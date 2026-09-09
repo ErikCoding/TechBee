@@ -18,7 +18,7 @@ import { pageMetadata } from '@/lib/seo'
 export const metadata: Metadata = pageMetadata({
   title: 'Zostań nauczycielem',
   description:
-    'Ucz techniki online, ustalaj własną stawkę i grafik, a Runbee zajmie się rezerwacjami, płatnościami, lekcjami i rozliczeniami.',
+    'Ucz online, ustalaj własną stawkę i grafik, a Runbee zajmie się rezerwacjami, płatnościami, lekcjami i rozliczeniami.',
   path: '/teach',
 })
 
@@ -160,7 +160,7 @@ export default async function TeachPage() {
                   className="animate-fade-in-up mt-4 text-balance text-3xl font-bold leading-[1.15] tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]"
                   style={{ animationDelay: '100ms' }}
                 >
-                  Ucz techniki online, na własnych warunkach
+                  Ucz online, na własnych warunkach
                 </h1>
 
                 <p
@@ -267,7 +267,7 @@ export default async function TeachPage() {
                 Cztery kroki do pierwszej lekcji
               </h2>
               <p className="mt-3 leading-relaxed text-muted-foreground">
-                Wymagamy co najmniej trzech lat praktycznego doświadczenia przemysłowego
+                Wymagamy co najmniej trzech lat praktycznego doświadczenia zawodowego
                 w Twojej specjalizacji.
               </p>
             </Reveal>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Banknote, Clock3, Loader2, Percent, Save, SendHorizonal, ShieldCheck, WalletCards } from 'lucide-react'
+import { Banknote, ChevronDown, Clock3, Loader2, Percent, Save, SendHorizonal, ShieldCheck, WalletCards } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getPlatformWallet, updatePlatformCommission } from '@/services/admin.service'
@@ -12,6 +12,12 @@ function pln(grosze: number | null | undefined) {
   return `${(grosze / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
 }
 
+// Shown collapsed by default so the panel doesn't force a long scroll —
+// most of the time an admin only needs to eyeball the very latest
+// activity. The full list (already capped server-side, see
+// app/api/admin/platform-wallet/route.ts) stays one click away.
+const COLLAPSED_ENTRY_COUNT = 4
+
 export function AdminPlatformWallet() {
   const [summary, setSummary] = useState<PlatformWalletSummary | null>(null)
   const [entries, setEntries] = useState<PlatformWalletEntry[]>([])
@@ -19,6 +25,7 @@ export function AdminPlatformWallet() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [entriesExpanded, setEntriesExpanded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -147,21 +154,36 @@ export function AdminPlatformWallet() {
               {entries.length === 0 ? (
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">Brak opłaconych lekcji.</p>
               ) : (
-                <div className="divide-y divide-border">
-                  {entries.map((entry) => (
-                    <div key={entry.lessonId} className="grid gap-2 px-4 py-3 text-xs sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-foreground">{entry.topic}</p>
-                        <p className="truncate text-muted-foreground">{entry.studentName} → {entry.teacherName}</p>
+                <>
+                  <div className="divide-y divide-border">
+                    {(entriesExpanded ? entries : entries.slice(0, COLLAPSED_ENTRY_COUNT)).map((entry) => (
+                      <div key={entry.lessonId} className="grid gap-2 px-4 py-3 text-xs sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-foreground">{entry.topic}</p>
+                          <p className="truncate text-muted-foreground">{entry.studentName} → {entry.teacherName}</p>
+                        </div>
+                        <p className="tabular-nums text-muted-foreground">Obrót {pln(entry.grossGrosze)}</p>
+                        <p className="tabular-nums text-success-on-surface">Runbee {pln(entry.platformFeeGrosze)}</p>
+                        <p className="tabular-nums text-muted-foreground">
+                          {entry.transferStatus === 'sent' ? 'Transfer wysłany' : 'Czeka na raport'} · {pln(entry.teacherAmountGrosze)}
+                        </p>
                       </div>
-                      <p className="tabular-nums text-muted-foreground">Obrót {pln(entry.grossGrosze)}</p>
-                      <p className="tabular-nums text-success-on-surface">Runbee {pln(entry.platformFeeGrosze)}</p>
-                      <p className="tabular-nums text-muted-foreground">
-                        {entry.transferStatus === 'sent' ? 'Transfer wysłany' : 'Czeka na raport'} · {pln(entry.teacherAmountGrosze)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                  {entries.length > COLLAPSED_ENTRY_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setEntriesExpanded((prev) => !prev)}
+                      className="flex w-full items-center justify-center gap-1.5 border-t border-border bg-muted/20 px-4 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                    >
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 transition-transform duration-200 ${entriesExpanded ? 'rotate-180' : ''}`}
+                        aria-hidden="true"
+                      />
+                      {entriesExpanded ? 'Zwiń' : `Pokaż więcej (${entries.length - COLLAPSED_ENTRY_COUNT})`}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>

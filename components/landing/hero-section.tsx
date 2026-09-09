@@ -52,7 +52,7 @@ export async function HeroSection() {
             className="animate-fade-in-up mt-5 text-balance text-4xl font-bold leading-[1.08] tracking-tight text-foreground sm:text-[2.65rem] md:text-[3.15rem] lg:text-[3.75rem]"
             style={{ animationDelay: '100ms' }}
           >
-            Znajdź nauczyciela techniki, który uczy{' '}
+            Znajdź nauczyciela, który uczy{' '}
             <span className="text-primary">z własnego doświadczenia</span>
           </h1>
 

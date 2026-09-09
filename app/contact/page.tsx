@@ -8,7 +8,7 @@ import { pageMetadata } from '@/lib/seo'
 export const metadata: Metadata = pageMetadata({
   title: 'Kontakt',
   description:
-    'Skontaktuj się z Runbee w sprawie lekcji technicznych online, współpracy nauczycielskiej lub obsługi konta.',
+    'Skontaktuj się z Runbee w sprawie lekcji online, współpracy nauczycielskiej lub obsługi konta.',
   path: '/contact',
 })
 

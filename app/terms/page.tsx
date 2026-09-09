@@ -4,7 +4,7 @@ import { pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
   title: 'Regulamin',
-  description: 'Regulamin korzystania z platformy Runbee oraz zasady rezerwacji lekcji technicznych online.',
+  description: 'Regulamin korzystania z platformy Runbee oraz zasady rezerwacji lekcji online.',
   path: '/terms',
 })
 

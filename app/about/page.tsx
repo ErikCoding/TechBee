@@ -3,8 +3,8 @@ import Link from 'next/link'
 import {
   ArrowRight,
   BookOpenCheck,
+  Briefcase,
   ClipboardCheck,
-  Factory,
   GraduationCap,
   SearchCheck,
   ShieldCheck,
@@ -24,16 +24,16 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = pageMetadata({
   title: 'O Runbee',
   description:
-    'Runbee to platforma lekcji online, która łączy naukę techniki z doświadczeniem praktyków pracujących w przemyśle.',
+    'Runbee to platforma lekcji online, która łączy naukę z doświadczeniem praktyków — ludzi, którzy naprawdę robią to, czego uczą.',
   path: '/about',
 })
 
 const principles = [
   {
-    icon: Factory,
+    icon: Briefcase,
     title: 'Najpierw praktyka',
     description:
-      'Runbee powstało dla osób, które chcą uczyć się od ludzi pracujących z realnymi maszynami, projektami i wdrożeniami.',
+      'Runbee powstało dla osób, które chcą uczyć się od ludzi z realnym, praktycznym doświadczeniem w swojej dziedzinie.',
   },
   {
     icon: ShieldCheck,
@@ -97,15 +97,14 @@ export default async function AboutPage() {
                     className="animate-fade-in-up mt-4 text-balance text-3xl font-bold leading-[1.15] tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]"
                     style={{ animationDelay: '70ms' }}
                   >
-                    Łączymy naukę techniki z doświadczeniem z przemysłu
+                    Łączymy naukę z realnym doświadczeniem praktyków
                   </h1>
                   <p
                     className="animate-fade-in-up mt-5 max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg"
                     style={{ animationDelay: '130ms' }}
                   >
-                    PLC, elektryka, fizyka, języki i automatyka wymagają rozmowy z kimś, kto naprawdę
-                    rozwiązywał takie problemy. Runbee porządkuje ten kontakt w jednej platformie
-                    lekcji online.
+                    Niezależnie od dziedziny, najlepiej uczy ktoś, kto naprawdę rozwiązywał podobne
+                    problemy. Runbee porządkuje ten kontakt w jednej platformie lekcji online.
                   </p>
                   <div
                     className="animate-fade-in-up mt-8 flex flex-col gap-3 sm:flex-row"
@@ -204,16 +203,15 @@ export default async function AboutPage() {
                   id="mission-heading"
                   className="mt-3 text-balance text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl"
                 >
-                  Wiedza techniczna powinna być dostępna od ludzi, którzy naprawdę ją stosują
+                  Wiedza powinna być dostępna od ludzi, którzy naprawdę ją stosują
                 </h2>
               </Reveal>
 
               <Reveal delay={100} className="space-y-5 text-base leading-relaxed text-muted-foreground">
                 <p>
-                  W wielu obszarach technicznych najcenniejsza wiedza nie mieści się w kursie wideo
-                  ani w instrukcji producenta. Pojawia się przy uruchomieniu linii, diagnozie awarii,
-                  doborze narzędzia, ustawieniu procesu albo projekcie, który musi zadziałać w realnym
-                  zakładzie.
+                  W wielu dziedzinach najcenniejsza wiedza nie mieści się w kursie wideo ani w
+                  podręczniku. Pojawia się w codziennej pracy — przy rozwiązywaniu realnych problemów
+                  i podejmowaniu decyzji, których nie da się nauczyć inaczej niż w praktyce.
                 </p>
                 <p>
                   Runbee daje tej wiedzy miejsce: uczeń może znaleźć specjalistę, umówić lekcję i

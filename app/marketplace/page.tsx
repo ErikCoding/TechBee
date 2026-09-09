@@ -10,7 +10,7 @@ import { pageMetadata } from '@/lib/seo'
 export const metadata: Metadata = pageMetadata({
   title: 'Giełda nauczycieli',
   description:
-    'Znajdź zweryfikowanego nauczyciela automatyki, elektryki, PLC, fizyki, matematyki, polskiego lub angielskiego i zarezerwuj indywidualną lekcję online.',
+    'Znajdź zweryfikowanego nauczyciela z dowolnej dziedziny i zarezerwuj indywidualną lekcję online.',
   path: '/marketplace',
 })
 
