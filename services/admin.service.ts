@@ -161,7 +161,7 @@ async function getIdToken(): Promise<string | undefined> {
   return auth?.currentUser?.getIdToken().catch(() => undefined)
 }
 
-async function adminJson<T>(path: string, method: 'POST' | 'PATCH', body: Record<string, unknown> = {}): Promise<T> {
+async function adminJson<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown> = {}): Promise<T> {
   const idToken = await getIdToken()
   const res = await fetch(path, {
     method,
@@ -181,4 +181,27 @@ export async function getPlatformWallet(): Promise<{ summary: PlatformWalletSumm
 
 export async function updatePlatformCommission(commissionPercent: number): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
   return adminJson('/api/admin/platform-wallet', 'PATCH', { commissionPercent })
+}
+
+export interface AdminConversationRow {
+  id: string
+  participantNames: string[]
+  lastMessage: string
+  lastMessageAt: number
+}
+
+/** Clears only sandbox (Stripe test-mode) bookings — see app/api/admin/reset-sandbox-stripe/route.ts. Leaves every real/live lesson and all chat history untouched. */
+export async function resetSandboxStripeData(): Promise<{ deletedLessons: number; deletedSlotLocks: number }> {
+  return adminJson('/api/admin/reset-sandbox-stripe', 'POST')
+}
+
+/** Every conversation on the platform, newest first — admin-only, goes through the trusted server since firestore.rules only lets a conversation's own participants read it directly. */
+export async function listAdminConversations(): Promise<AdminConversationRow[]> {
+  const data = await adminJson<{ conversations: AdminConversationRow[] }>('/api/admin/conversations', 'POST')
+  return data.conversations
+}
+
+/** Permanently deletes one conversation and every message in it. */
+export async function deleteAdminConversation(conversationId: string): Promise<{ deletedMessages: number }> {
+  return adminJson(`/api/admin/conversations/${conversationId}`, 'DELETE')
 }
