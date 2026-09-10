@@ -16,10 +16,23 @@ async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextRes
   return { uid }
 }
 
+// Whichever Stripe key this server is currently running with decides
+// what "real" means here — `sk_test_...` on localhost (sandbox testing),
+// `sk_live_...` on the deployed site. Comparing against a Lesson's own
+// `livemode` (see the doc comment on that field in lib/types.ts) keeps
+// the two dashboards showing only their own activity from the one
+// shared Firestore project, without needing a second Firebase project
+// just to separate test bookings from real ones.
+const CURRENT_ENV_IS_LIVE = Boolean(process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_'))
+
 async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
   const settings = await getPlatformPaymentSettings()
   const lessonsSnap = await adminDb!.collection(collections.lessons).get()
-  const lessons = lessonsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lesson, 'id'>) }))
+  const allLessons = lessonsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lesson, 'id'>) }))
+  // Lessons created before this field existed have no `livemode` at all —
+  // treated as test-mode, since anything from before the real Stripe
+  // switch can only have been a sandbox booking.
+  const lessons = allLessons.filter((lesson) => Boolean(lesson.livemode) === CURRENT_ENV_IS_LIVE)
   const paid = lessons.filter((lesson) => lesson.paymentStatus === 'paid')
   const refunded = lessons.filter((lesson) => lesson.paymentStatus === 'refunded')
 

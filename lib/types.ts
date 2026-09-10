@@ -285,6 +285,19 @@ export type Lesson = {
   stripeTransferId?: string
   /** Set if this lesson's payment was refunded (booking rejected, or a dispute resolved for the payer). */
   stripeRefundId?: string
+  /**
+   * Copied straight from the Stripe Checkout Session's own `livemode` flag
+   * at creation time (see ensureLessonForCheckoutSession) — `true` for a
+   * real card charge, `false` for one made with sandbox/test-mode keys
+   * (e.g. from `npm run dev` on localhost, which reads the `sk_test_...`
+   * key in .env.local). Lets the admin platform-wallet panel show sandbox
+   * activity while testing locally without ever mixing it into the
+   * production dashboard's real revenue numbers — see
+   * app/api/admin/platform-wallet/route.ts. Older lessons created before
+   * this field existed are undefined, which the wallet route treats as
+   * test-mode (they can only be pre-launch sandbox bookings anyway).
+   */
+  livemode?: boolean
 }
 
 /** Stripe Connect Express account info for a teacher — stored on `teachers/{authUserId}.stripe` (see services/teachers.service.ts). Synced from real Stripe account data by app/api/stripe/connect/* and the `account.updated` webhook event; never written from the client. */

@@ -83,6 +83,10 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     teacherAmountGrosze: Number(m.teacherAmountGrosze ?? 0),
     stripeCheckoutSessionId: session.id,
     ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+    // See the Lesson.livemode doc comment (lib/types.ts) — this is what
+    // lets the admin wallet panel separate real revenue from sandbox
+    // testing without needing a second Firebase project.
+    livemode: Boolean(session.livemode),
   }
 
   const lockIds = m.dateIso && m.time ? slotLockIds(m.teacherId, m.dateIso, m.time, duration) : []
