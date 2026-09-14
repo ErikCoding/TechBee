@@ -1,7 +1,7 @@
 import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore'
-import { deprecatedCategoryIds } from '@/data/categories.data'
 import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects, teacherMatchesCategory } from '@/lib/teacher-categories'
 import { createNotification } from '@/services/notifications.service'
 import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapshot } from '@/lib/types'
 
@@ -22,7 +22,7 @@ import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapsh
 // ─────────────────────────────────────────────────────────────
 
 export function isTeacherApproved(t: Teacher): boolean {
-  return (t.status ?? 'approved') === 'approved' && !deprecatedCategoryIds.includes(t.categoryId)
+  return (t.status ?? 'approved') === 'approved' && getTeacherCategoryIds(t).length > 0
 }
 
 export interface SubmitReviewInput {
@@ -157,6 +157,8 @@ function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
     ...(teacher.photoUrl ? { photoUrl: teacher.photoUrl } : {}),
     specialty: teacher.specialty,
     categoryId: teacher.categoryId,
+    categoryIds: getTeacherCategoryIds(teacher),
+    customSubjects: normalizeTeacherCustomSubjects(teacher.customSubjects),
     hourlyRate: teacher.hourlyRate,
     location: teacher.location,
     experience: teacher.experience,
@@ -214,6 +216,11 @@ function buildTeacherFromApplication(
     : authUser.photoUrl ?? existing?.photoUrl
   const previousProfile = existing?.previousProfile
     ?? (existing && (existing.status ?? 'approved') === 'approved' ? snapshotTeacherProfile(existing) : undefined)
+  const selectedCategoryIds = normalizeTeacherCategoryIds(input.categoryId, input.categoryIds)
+  const primaryCategoryId = selectedCategoryIds.includes(input.categoryId)
+    ? input.categoryId
+    : selectedCategoryIds[0] ?? input.categoryId
+  const customSubjects = normalizeTeacherCustomSubjects(input.customSubjects)
 
   return {
     id: authUser.id,
@@ -222,7 +229,9 @@ function buildTeacherFromApplication(
     avatarColor: authUser.avatarColor,
     ...(photoUrl ? { photoUrl } : {}),
     specialty: input.specialty,
-    categoryId: input.categoryId,
+    categoryId: primaryCategoryId,
+    categoryIds: selectedCategoryIds,
+    customSubjects,
     rating: existing?.rating ?? 0,
     reviewCount: existing?.reviewCount ?? 0,
     hourlyRate: input.hourlyRate,
@@ -590,7 +599,7 @@ export async function getFeaturedTeachers(): Promise<Teacher[]> {
 }
 
 export async function getTeachersByCategory(categoryId: string): Promise<Teacher[]> {
-  return (await getTeachers()).filter((t) => t.categoryId === categoryId)
+  return (await getTeachers()).filter((t) => teacherMatchesCategory(t, categoryId))
 }
 
 export async function getTeacherReviews(id: string): Promise<ReviewItem[]> {
@@ -601,9 +610,11 @@ export async function getTeacherReviews(id: string): Promise<ReviewItem[]> {
 export async function getAllTeacherIds(): Promise<string[]> {
   if (isFirebaseConfigured && db) {
     const snap = await getDocs(query(collection(db, collections.teachers), where('status', '==', 'approved')))
-    return snap.docs.map((d) => d.id)
+    return snap.docs
+      .filter((d) => isTeacherApproved(d.data() as Teacher))
+      .map((d) => d.id)
   }
-  return teachersData.map((t) => t.id)
+  return teachersData.filter(isTeacherApproved).map((t) => t.id)
 }
 
 /** The signed-in teacher's own application/profile, whatever its status — used to render their dashboard banner. */

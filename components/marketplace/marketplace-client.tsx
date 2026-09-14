@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { MarketplaceFilterPanel } from '@/components/marketplace/marketplace-filter-panel'
 import { subscribeTeachers } from '@/services/teachers.service'
+import { teacherMatchesCategory } from '@/lib/teacher-categories'
 import {
   applyFilters, sortTeachers, countActiveFilters, deriveFacets, filtersToParams,
   EMPTY_FILTERS, SORT_OPTIONS, WEEKDAYS,
@@ -75,7 +76,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
     const withoutCategory = applyFilters(liveTeachers, { ...filters, category: null })
     const counts: Record<string, number> = {}
     for (const cat of categories) {
-      counts[cat.id] = withoutCategory.filter((t) => t.categoryId === cat.id).length
+      counts[cat.id] = withoutCategory.filter((t) => teacherMatchesCategory(t, cat.id)).length
     }
     return counts
   }, [liveTeachers, categories, filters, categories.length])

@@ -11,7 +11,9 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { StarRating } from '@/components/shared/star-rating'
 import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
+import { getCategories } from '@/services/categories.service'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
+import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { noIndexMetadata, pageMetadata } from '@/lib/seo'
 
 // This page reads `searchParams` (bookingForId/bookingForName — the
@@ -52,9 +54,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function TeacherProfilePage({ params, searchParams }: Props) {
   const { id } = await params
   const { bookingForId, bookingForName } = await searchParams
-  const teacher = await getTeacherById(id)
+  const [teacher, categories] = await Promise.all([getTeacherById(id), getCategories()])
   if (!teacher || !isTeacherApproved(teacher)) notFound()
   const bookingFor = bookingForId && bookingForName ? { id: bookingForId, name: bookingForName } : undefined
+  const categoryMap = new Map(categories.map((category) => [category.id, category.name]))
+  const teacherCategories = [
+    ...getTeacherCategoryIds(teacher).map((categoryId) => categoryMap.get(categoryId) ?? categoryId),
+    ...getTeacherCustomSubjects(teacher),
+  ]
 
   const dayLabels = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz']
   const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -96,6 +103,13 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                   )}
                 </div>
                 <p className="mt-1 text-muted-foreground">{teacher.specialty}</p>
+                {teacherCategories.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {teacherCategories.map((category) => (
+                      <Badge key={category} variant="secondary">{category}</Badge>
+                    ))}
+                  </div>
+                )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1.5">

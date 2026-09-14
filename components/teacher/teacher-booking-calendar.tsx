@@ -17,6 +17,7 @@ import type { BookedLessonSlot, Teacher } from '@/lib/types'
 
 interface Props {
   teacher: Teacher
+  subjects: { id: string; name: string; custom?: boolean }[]
   /** Set when a parent is booking on behalf of a linked student (see app/teacher/[id]/book/page.tsx) — the student is charged the lesson, the parent pays for it. */
   bookingFor?: { id: string; name: string }
 }
@@ -26,12 +27,14 @@ const DURATIONS = [
   { minutes: 90, label: '90 min' },
 ]
 
-export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
+export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props) {
   const { user } = useAuth()
   const router = useRouter()
+  const normalizedSubjects = subjects.length ? subjects : [{ id: teacher.categoryId, name: teacher.specialty }]
 
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [selectedSubjectId, setSelectedSubjectId] = useState(normalizedSubjects[0]?.id ?? teacher.categoryId)
   const [duration, setDuration] = useState(60)
   const [topic, setTopic] = useState('')
   const [bookedSlots, setBookedSlots] = useState<BookedLessonSlot[]>([])
@@ -72,6 +75,8 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
   }, [days, selectedDayIndex, selectedSlot])
 
   const selectedDay = days[selectedDayIndex]
+  const selectedSubject = normalizedSubjects.find((subject) => subject.id === selectedSubjectId) ?? normalizedSubjects[0]
+  const selectedSubjectCategoryId = selectedSubject?.custom ? undefined : selectedSubject?.id
   const price = Math.round((teacher.hourlyRate / 60) * duration)
 
   function selectedStartAt(): number | undefined {
@@ -102,6 +107,8 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
           time: selectedSlot,
           duration,
           topic: topic.trim(),
+          subjectCategoryId: selectedSubjectCategoryId,
+          specialty: selectedSubject?.name ?? teacher.specialty,
           studentId: bookingFor?.id ?? user.id,
           studentName: bookingFor?.name ?? user.name,
           payer: bookingFor ? { id: user.id, role: 'parent' } : undefined,
@@ -115,7 +122,8 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
         teacherInitials: teacher.initials,
         teacherColor: teacher.avatarColor,
         teacherPhotoUrl: teacher.photoUrl,
-        specialty: teacher.specialty,
+        subjectCategoryId: selectedSubjectCategoryId,
+        specialty: selectedSubject?.name ?? teacher.specialty,
         studentId: bookingFor?.id ?? user.id,
         studentName: bookingFor?.name ?? user.name,
         date: selectedDay.dayLabel,
@@ -149,7 +157,7 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
         <CheckCircle2 className="mx-auto h-10 w-10 text-success-on-surface" aria-hidden="true" />
         <h2 className="mt-3 text-lg font-semibold text-foreground">Prośba o rezerwację wysłana!</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {selectedDay.dayLabel} o {selectedSlot} z {teacher.name} · {duration} min · {price} zł
+          {selectedDay.dayLabel} o {selectedSlot} z {teacher.name} · {selectedSubject?.name ?? teacher.specialty} · {duration} min · {price} zł
           {bookingFor ? ` · dla ${bookingFor.name}` : ''}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -186,10 +194,42 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
             </div>
           </div>
 
-          {/* Step 1 — Date picker */}
+          {/* Step 1 — Subject picker */}
+          {normalizedSubjects.length > 1 && (
+            <div className="px-5 py-5">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">1</span>
+                <h2 className="text-sm font-semibold text-foreground">Wybierz przedmiot</h2>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {normalizedSubjects.map((subject) => {
+                  const active = selectedSubjectId === subject.id
+                  return (
+                    <button
+                      key={subject.id}
+                      type="button"
+                      onClick={() => setSelectedSubjectId(subject.id)}
+                      aria-pressed={active}
+                      className={cn(
+                        'flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                        active
+                          ? 'border-primary bg-accent font-semibold text-accent-foreground'
+                          : 'border-border bg-background text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      <span>{subject.name}</span>
+                      {active && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Step 2 — Date picker */}
           <div className="px-5 py-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">1</span>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{normalizedSubjects.length > 1 ? 2 : 1}</span>
               <h2 className="text-sm font-semibold text-foreground">Wybierz dzień</h2>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -212,10 +252,10 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
             </div>
           </div>
 
-          {/* Step 2 — Time slots */}
+          {/* Step 3 — Time slots */}
           <div className="px-5 py-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">2</span>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{normalizedSubjects.length > 1 ? 3 : 2}</span>
               <h2 className="text-sm font-semibold text-foreground">Wybierz godzinę — {selectedDay.dayLabel}</h2>
               {loadingSlots && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden="true" />}
             </div>
@@ -252,10 +292,10 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
             )}
           </div>
 
-          {/* Step 3 — Duration */}
+          {/* Step 4 — Duration */}
           <div className="px-5 py-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">3</span>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{normalizedSubjects.length > 1 ? 4 : 3}</span>
               <h2 className="text-sm font-semibold text-foreground">Długość lekcji</h2>
             </div>
             <div className="flex gap-2">
@@ -277,10 +317,10 @@ export function TeacherBookingCalendar({ teacher, bookingFor }: Props) {
             </div>
           </div>
 
-          {/* Step 4 — Topic */}
+          {/* Step 5 — Topic */}
           <div className="px-5 py-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">4</span>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{normalizedSubjects.length > 1 ? 5 : 4}</span>
               <h2 className="text-sm font-semibold text-foreground">Czego dotyczy lekcja?</h2>
             </div>
             <Textarea

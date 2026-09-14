@@ -64,6 +64,8 @@ export async function startLessonCheckout(input: {
   time: string
   duration: number
   topic: string
+  subjectCategoryId?: string
+  specialty: string
   studentId: string
   studentName: string
   payer?: { id: string; role: 'student' | 'parent' }

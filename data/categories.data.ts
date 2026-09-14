@@ -1,7 +1,7 @@
 import type { Category } from '@/lib/types'
 
 // Mock data — will be swapped for a Firestore `categories` collection.
-// Keep IDs stable: they're used as query params and foreign keys on Teacher.categoryId.
+// Keep IDs stable: they're used as query params and teacher category keys.
 export const deprecatedCategoryIds = ['cad', 'cnc']
 
 export const categoriesData: Category[] = [
@@ -24,6 +24,24 @@ export const categoriesData: Category[] = [
     colorClass: 'bg-cyan-500/10 text-cyan-500 dark:text-cyan-400',
   },
   {
+    id: 'biology',
+    name: 'Biologia',
+    icon: 'Dna',
+    description: 'Matura, genetyka, anatomia i ekologia',
+    teacherCount: 0,
+    lessonCount: 0,
+    colorClass: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  },
+  {
+    id: 'chemistry',
+    name: 'Chemia',
+    icon: 'FlaskConical',
+    description: 'Chemia ogólna, organiczna, zadania i matura',
+    teacherCount: 0,
+    lessonCount: 0,
+    colorClass: 'bg-violet-500/10 text-violet-500 dark:text-violet-400',
+  },
+  {
     id: 'electrical',
     name: 'Elektryka',
     icon: 'Zap',
@@ -42,6 +60,15 @@ export const categoriesData: Category[] = [
     colorClass: 'bg-sky-500/10 text-sky-500 dark:text-sky-400',
   },
   {
+    id: 'geography',
+    name: 'Geografia',
+    icon: 'Globe2',
+    description: 'Matura, mapy, klimat, geografia fizyczna i społeczna',
+    teacherCount: 0,
+    lessonCount: 0,
+    colorClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  },
+  {
     id: 'scada',
     name: 'HMI i SCADA',
     icon: 'Monitor',
@@ -49,6 +76,15 @@ export const categoriesData: Category[] = [
     teacherCount: 24,
     lessonCount: 590,
     colorClass: 'bg-rose-500/10 text-rose-500 dark:text-rose-400',
+  },
+  {
+    id: 'history',
+    name: 'Historia',
+    icon: 'Landmark',
+    description: 'Chronologia, analiza źródeł i przygotowanie do matury',
+    teacherCount: 0,
+    lessonCount: 0,
+    colorClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
   },
   {
     id: 'hydraulics',
@@ -60,6 +96,15 @@ export const categoriesData: Category[] = [
     colorClass: 'bg-teal-500/10 text-teal-500 dark:text-teal-400',
   },
   {
+    id: 'computer-science',
+    name: 'Informatyka i programowanie',
+    icon: 'Code2',
+    description: 'Podstawy programowania, algorytmy i informatyka szkolna',
+    teacherCount: 0,
+    lessonCount: 0,
+    colorClass: 'bg-fuchsia-500/10 text-fuchsia-500 dark:text-fuchsia-400',
+  },
+  {
     id: 'mathematics',
     name: 'Matematyka',
     icon: 'Calculator',
@@ -67,6 +112,15 @@ export const categoriesData: Category[] = [
     teacherCount: 38,
     lessonCount: 980,
     colorClass: 'bg-indigo-500/10 text-indigo-500 dark:text-indigo-400',
+  },
+  {
+    id: 'german',
+    name: 'Niemiecki',
+    icon: 'Languages',
+    description: 'Konwersacje, gramatyka, szkoła i egzaminy',
+    teacherCount: 0,
+    lessonCount: 0,
+    colorClass: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
   },
   {
     id: 'polish',

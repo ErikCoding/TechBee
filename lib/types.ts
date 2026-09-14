@@ -40,6 +40,8 @@ export type TeacherProfileSnapshot = {
   photoUrl?: string
   specialty: string
   categoryId: string
+  categoryIds?: string[]
+  customSubjects?: string[]
   hourlyRate: number
   location: string
   experience: number
@@ -98,6 +100,8 @@ export type Teacher = {
   photoUrl?: string
   specialty: string
   categoryId: string
+  categoryIds?: string[]
+  customSubjects?: string[]
   rating: number
   reviewCount: number
   hourlyRate: number
@@ -135,6 +139,8 @@ export type Teacher = {
 export type TeacherApplicationInput = {
   photoUrl?: string
   categoryId: string
+  categoryIds: string[]
+  customSubjects: string[]
   specialty: string
   hourlyRate: number
   location: string
@@ -220,6 +226,7 @@ export type Lesson = {
   teacherInitials: string
   teacherColor: string
   teacherPhotoUrl?: string
+  subjectCategoryId?: string
   specialty: string
   date: string
   /** Machine-readable local date (YYYY-MM-DD). New lessons use this for conflict checks and join windows; old docs fall back to parsing `date`. */
@@ -529,6 +536,7 @@ export type LessonBookingInput = {
   teacherInitials: string
   teacherColor: string
   teacherPhotoUrl?: string
+  subjectCategoryId?: string
   specialty: string
   studentId: string
   studentName: string

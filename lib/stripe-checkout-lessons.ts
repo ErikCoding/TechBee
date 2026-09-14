@@ -64,6 +64,7 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     teacherInitials: m.teacherInitials ?? '',
     teacherColor: m.teacherColor || '#F4B400',
     ...(m.teacherPhotoUrl ? { teacherPhotoUrl: m.teacherPhotoUrl } : {}),
+    ...(m.subjectCategoryId ? { subjectCategoryId: m.subjectCategoryId } : {}),
     specialty: m.specialty ?? '',
     date: m.date ?? '',
     ...(m.dateIso ? { dateIso: m.dateIso } : {}),

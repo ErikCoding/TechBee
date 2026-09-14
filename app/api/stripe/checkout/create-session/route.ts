@@ -6,6 +6,8 @@ import { getOrigin } from '@/lib/request-origin'
 import { splitPayment, toGrosze, STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { collections } from '@/lib/firebase'
+import { categoriesData } from '@/data/categories.data'
+import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { BOOKING_WINDOW_DAYS } from '@/lib/availability'
 import { LESSON_BUFFER_MINUTES, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
 import type { BookedLessonSlot } from '@/lib/types'
@@ -59,6 +61,8 @@ interface CheckoutRequestBody {
   time?: string
   duration?: number
   topic?: string
+  subjectCategoryId?: string
+  specialty?: string
   studentId?: string
   studentName?: string
   payer?: { id: string; role: 'student' | 'parent' }
@@ -75,7 +79,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe żądanie.' }, { status: 400 })
   }
 
-  const { teacherId, date, dateIso, time, duration, topic, studentId, studentName, payer } = body
+  const { teacherId, date, dateIso, time, duration, topic, subjectCategoryId, specialty, studentId, studentName, payer } = body
   if (!teacherId || !date || !dateIso || !time || !duration || !topic?.trim() || !studentId || !studentName) {
     return NextResponse.json({ error: 'Brak wymaganych danych rezerwacji.' }, { status: 400 })
   }
@@ -96,11 +100,30 @@ export async function POST(request: Request) {
 
   const teacherSnap = await adminDb!.collection(collections.teachers).doc(teacherId).get()
   const teacher = teacherSnap.data() as
-    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; hourlyRate?: number; status?: string; availability?: string[]; availabilityStart?: string; availabilityEnd?: string }
+    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; categoryId?: string; categoryIds?: string[]; customSubjects?: string[]; hourlyRate?: number; status?: string; availability?: string[]; availabilityStart?: string; availabilityEnd?: string }
     | undefined
   if (!teacher || !teacher.hourlyRate || (teacher.status && teacher.status !== 'approved')) {
     return NextResponse.json({ error: 'Nie znaleziono tego nauczyciela.' }, { status: 404 })
   }
+  const teacherCategoryIds = getTeacherCategoryIds({
+    categoryId: teacher.categoryId ?? '',
+    categoryIds: teacher.categoryIds,
+  })
+  if (subjectCategoryId && !teacherCategoryIds.includes(subjectCategoryId)) {
+    return NextResponse.json({ error: 'Ten nauczyciel nie prowadzi lekcji z wybranego przedmiotu.' }, { status: 409 })
+  }
+  const requestedCustomSubject = specialty?.trim()
+  const customSubject = requestedCustomSubject
+    ? getTeacherCustomSubjects({ customSubjects: teacher.customSubjects }).find((subject) => subject.toLowerCase() === requestedCustomSubject.toLowerCase())
+    : undefined
+  if (!subjectCategoryId && requestedCustomSubject && requestedCustomSubject !== teacher.specialty && !customSubject) {
+    return NextResponse.json({ error: 'Ten nauczyciel nie prowadzi lekcji z wybranego przedmiotu.' }, { status: 409 })
+  }
+  const selectedSubjectCategoryId = subjectCategoryId ?? (customSubject ? undefined : teacherCategoryIds[0])
+  const selectedSubjectName = selectedSubjectCategoryId
+    ? categoriesData.find((category) => category.id === selectedSubjectCategoryId)?.name
+    : undefined
+  const selectedSpecialty = safeMetaText(selectedSubjectName || customSubject || teacher.specialty || '')
 
   const requestedStart = timeToMinutes(time)
   const availabilityStart = timeToMinutes(teacher.availabilityStart ?? '09:00')
@@ -164,7 +187,7 @@ export async function POST(request: Request) {
         {
           price_data: {
             currency: STRIPE_CURRENCY,
-            product_data: { name: `Lekcja: ${topic.trim()}`, description: `${teacher.name} · ${date} o ${time} · ${duration} min` },
+            product_data: { name: `Lekcja: ${topic.trim()}`, description: `${teacher.name} · ${selectedSpecialty} · ${date} o ${time} · ${duration} min` },
             unit_amount: priceGrosze,
           },
           quantity: 1,
@@ -176,7 +199,8 @@ export async function POST(request: Request) {
         teacherInitials: teacher.initials ?? '',
         teacherColor: teacher.avatarColor ?? '#F4B400',
         teacherPhotoUrl: safeMetaPhotoUrl(teacher.photoUrl),
-        specialty: safeMetaText(teacher.specialty ?? ''),
+        subjectCategoryId: selectedSubjectCategoryId ?? '',
+        specialty: selectedSpecialty,
         studentId,
         studentName: safeMetaText(studentName),
         payerId,

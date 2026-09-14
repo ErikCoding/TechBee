@@ -1,6 +1,7 @@
 'use client'
 
-import { Star, BadgeCheck } from 'lucide-react'
+import { useState } from 'react'
+import { BadgeCheck, ChevronDown, Star } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { CategoryIcon } from '@/components/shared/category-icon'
 import { WEEKDAYS, type MarketplaceFilters } from '@/components/marketplace/marketplace-filters'
@@ -16,6 +17,8 @@ interface Props {
   categoryCounts: Record<string, number>
   totalCount: number
 }
+
+const VISIBLE_MARKETPLACE_CATEGORY_LIMIT = 8
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -43,7 +46,12 @@ export function MarketplaceFilterPanel({
   categoryCounts,
   totalCount,
 }: Props) {
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false)
   const priceValue = filters.maxPrice ?? facets.maxRate
+  const visibleCategories = categoriesExpanded
+    ? categories
+    : categories.filter((cat, index) => index < VISIBLE_MARKETPLACE_CATEGORY_LIMIT || filters.category === cat.id)
+  const hiddenCategoryCount = categories.length - visibleCategories.length
 
   return (
     <div className="flex flex-col">
@@ -63,7 +71,7 @@ export function MarketplaceFilterPanel({
               <span className="shrink-0 text-xs text-muted-foreground">{totalCount}</span>
             </button>
           </li>
-          {categories.map((cat) => {
+          {visibleCategories.map((cat) => {
             const count = categoryCounts[cat.id] ?? 0
             const active = filters.category === cat.id
             return (
@@ -88,6 +96,21 @@ export function MarketplaceFilterPanel({
               </li>
             )
           })}
+          {categories.length > VISIBLE_MARKETPLACE_CATEGORY_LIMIT && (
+            <li className="pt-1">
+              <button
+                type="button"
+                onClick={() => setCategoriesExpanded((expanded) => !expanded)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ChevronDown
+                  className={cn('h-3.5 w-3.5 transition-transform', categoriesExpanded && 'rotate-180')}
+                  aria-hidden="true"
+                />
+                {categoriesExpanded ? 'Zwiń dziedziny' : `Pokaż więcej (${hiddenCategoryCount})`}
+              </button>
+            </li>
+          )}
         </ul>
       </Group>
 

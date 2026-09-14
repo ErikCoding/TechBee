@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
+import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { getCategories } from '@/services/categories.service'
 import { getPendingTeacherApplications, reviewTeacherApplication } from '@/services/teachers.service'
 import type { Category, Teacher, TeacherProfileSnapshot } from '@/lib/types'
@@ -51,6 +52,8 @@ function profileFromTeacher(app: Teacher): TeacherProfileSnapshot {
     ...(app.photoUrl ? { photoUrl: app.photoUrl } : {}),
     specialty: app.specialty,
     categoryId: app.categoryId,
+    categoryIds: getTeacherCategoryIds(app),
+    customSubjects: normalizeTeacherCustomSubjects(app.customSubjects),
     hourlyRate: app.hourlyRate,
     location: app.location,
     experience: app.experience,
@@ -69,6 +72,13 @@ function profileFromTeacher(app: Teacher): TeacherProfileSnapshot {
 
 function categoryName(categories: Category[], id: string) {
   return categories.find((category) => category.id === id)?.name ?? id
+}
+
+function subjectNames(categories: Category[], profile: Pick<TeacherProfileSnapshot, 'categoryId' | 'categoryIds' | 'customSubjects'>) {
+  return [
+    ...normalizeTeacherCategoryIds(profile.categoryId, profile.categoryIds).map((id) => categoryName(categories, id)),
+    ...normalizeTeacherCustomSubjects(profile.customSubjects),
+  ].join(', ')
 }
 
 function CompactMetric({
@@ -228,7 +238,8 @@ export function AdminVerificationsPanel() {
                       {isUpdate && <span aria-hidden="true" />}
                       {isUpdate && <span>Po</span>}
                     </div>
-                    <ChangeRow label="Kategoria" before={previous ? categoryName(categories, previous.categoryId) : undefined} after={categoryName(categories, next.categoryId)} />
+                    <ChangeRow label="Główna dziedzina" before={previous ? categoryName(categories, previous.categoryId) : undefined} after={categoryName(categories, next.categoryId)} />
+                    <ChangeRow label="Wszystkie dziedziny" before={previous ? subjectNames(categories, previous) : undefined} after={subjectNames(categories, next)} />
                     <ChangeRow label="Specjalizacja" before={previous?.specialty} after={next.specialty} />
                     <ChangeRow label="Stawka" before={previous ? `${previous.hourlyRate} zł/godz.` : undefined} after={`${next.hourlyRate} zł/godz.`} />
                     <ChangeRow label="Lokalizacja" before={previous?.location} after={next.location} />

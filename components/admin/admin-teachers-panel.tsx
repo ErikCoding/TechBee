@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getAllTeachersForAdmin, deleteTeacherProfile, reviewTeacherApplication, setTeacherFeatured } from '@/services/teachers.service'
 import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
 import { cn } from '@/lib/utils'
+import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import type { Category, Teacher } from '@/lib/types'
 
 interface Props {
@@ -40,6 +41,13 @@ export function AdminTeachersPanel({ categories }: Props) {
     return (id: string) => map.get(id) ?? id
   }, [categories])
 
+  const categoryNames = useMemo(() => {
+    return (teacher: Teacher) => [
+      ...getTeacherCategoryIds(teacher).map(categoryName),
+      ...getTeacherCustomSubjects(teacher),
+    ].join(', ')
+  }, [categoryName])
+
   function reload() {
     setTeachers(null)
     getAllTeachersForAdmin().then(setTeachers)
@@ -52,7 +60,11 @@ export function AdminTeachersPanel({ categories }: Props) {
     .filter((t) => {
       if (!query.trim()) return true
       const q = query.toLowerCase()
-      return t.name.toLowerCase().includes(q) || t.specialty.toLowerCase().includes(q)
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.specialty.toLowerCase().includes(q) ||
+        categoryNames(t).toLowerCase().includes(q)
+      )
     })
 
   async function withBusy(id: string, action: () => Promise<void>) {
@@ -132,7 +144,7 @@ export function AdminTeachersPanel({ categories }: Props) {
                       <StatusBadge tone={badge.tone} dot={false} className="px-2 py-0.5 text-[10px]">{badge.label}</StatusBadge>
                       {t.featured && <Badge className="text-[10px]">Wyróżniony</Badge>}
                     </div>
-                    <p className="truncate text-xs text-muted-foreground">{t.specialty} · {categoryName(t.categoryId)}</p>
+                    <p className="truncate text-xs text-muted-foreground">{t.specialty} · {categoryNames(t)}</p>
                     <p className="text-xs text-muted-foreground">{t.location} · {t.hourlyRate} zł/godz.</p>
                   </div>
                 </div>

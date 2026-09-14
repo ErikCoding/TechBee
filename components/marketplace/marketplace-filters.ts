@@ -1,5 +1,6 @@
 import type { Teacher } from '@/lib/types'
 import { deprecatedCategoryIds } from '@/data/categories.data'
+import { teacherMatchesCategory } from '@/lib/teacher-categories'
 
 /**
  * The marketplace's filtering rules, kept out of the components.
@@ -82,10 +83,11 @@ export function applyFilters(teachers: Teacher[], f: MarketplaceFilters): Teache
       (t) =>
         t.name.toLowerCase().includes(q) ||
         t.specialty.toLowerCase().includes(q) ||
+        (t.customSubjects ?? []).some((subject) => subject.toLowerCase().includes(q)) ||
         t.skills.some((s) => s.toLowerCase().includes(q)),
     )
   }
-  if (f.category) result = result.filter((t) => t.categoryId === f.category)
+  if (f.category) result = result.filter((t) => teacherMatchesCategory(t, f.category!))
   if (f.maxPrice !== null) result = result.filter((t) => t.hourlyRate <= f.maxPrice!)
   if (f.minRating !== null) result = result.filter((t) => t.rating >= f.minRating!)
   if (f.days.length > 0) result = result.filter((t) => f.days.some((d) => t.availability.includes(d)))

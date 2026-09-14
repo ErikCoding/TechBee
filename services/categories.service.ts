@@ -1,6 +1,7 @@
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { categoriesData, deprecatedCategoryIds } from '@/data/categories.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { teacherMatchesCategory } from '@/lib/teacher-categories'
 import type { Category } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -26,10 +27,10 @@ export async function getCategories(): Promise<Category[]> {
     const storedExtras = snap.docs
       .map((d) => d.data() as Category)
       .filter((category) => !currentIds.has(category.id) && !deprecatedCategoryIdSet.has(category.id))
-    const approvedTeachers = teachersSnap.docs.map((d) => d.data() as { categoryId?: string; lessons?: number })
+    const approvedTeachers = teachersSnap.docs.map((d) => d.data() as { categoryId: string; categoryIds?: string[]; lessons?: number })
     const countFor = (categoryId: string) => ({
-      teacherCount: approvedTeachers.filter((t) => t.categoryId === categoryId).length,
-      lessonCount: approvedTeachers.filter((t) => t.categoryId === categoryId).reduce((sum, t) => sum + (t.lessons ?? 0), 0),
+      teacherCount: approvedTeachers.filter((t) => teacherMatchesCategory(t, categoryId)).length,
+      lessonCount: approvedTeachers.filter((t) => teacherMatchesCategory(t, categoryId)).reduce((sum, t) => sum + (t.lessons ?? 0), 0),
     })
     return sortCategories([...categoriesData, ...storedExtras].map((category) => ({
       ...category,

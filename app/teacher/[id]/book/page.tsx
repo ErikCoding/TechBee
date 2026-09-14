@@ -6,7 +6,9 @@ import { RequireAuth } from '@/components/auth/require-auth'
 import { BackButton } from '@/components/shared/back-button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { TeacherBookingCalendar } from '@/components/teacher/teacher-booking-calendar'
+import { getCategories } from '@/services/categories.service'
 import { getTeacherById, isTeacherApproved } from '@/services/teachers.service'
+import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { noIndexMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = noIndexMetadata('Rezerwacja lekcji')
@@ -19,8 +21,19 @@ interface Props {
 export default async function BookLessonPage({ params, searchParams }: Props) {
   const { id } = await params
   const { bookingForId, bookingForName } = await searchParams
-  const teacher = await getTeacherById(id)
+  const [teacher, categories] = await Promise.all([getTeacherById(id), getCategories()])
   if (!teacher || !isTeacherApproved(teacher)) notFound()
+  const categoryMap = new Map(categories.map((category) => [category.id, category.name]))
+  const subjects = getTeacherCategoryIds(teacher).map((categoryId) => ({
+    id: categoryId,
+    name: categoryMap.get(categoryId) ?? categoryId,
+  }))
+  const customSubjects = getTeacherCustomSubjects(teacher).map((subject) => ({
+    id: `custom:${subject}`,
+    name: subject,
+    custom: true,
+  }))
+  const bookingSubjects = [...subjects, ...customSubjects]
 
   return (
     <>
@@ -38,12 +51,18 @@ export default async function BookLessonPage({ params, searchParams }: Props) {
                 <h1 className="text-lg font-bold text-foreground sm:text-xl">
                   {bookingForName ? `Zarezerwuj lekcję dla ${bookingForName}` : `Zarezerwuj lekcję z ${teacher.name}`}
                 </h1>
-                <p className="text-sm text-muted-foreground">{teacher.specialty} · {teacher.hourlyRate} zł/godz.</p>
+                <p className="text-sm text-muted-foreground">
+                  {bookingSubjects.length > 1 ? `${bookingSubjects.length} przedmioty do wyboru` : teacher.specialty} · {teacher.hourlyRate} zł/godz.
+                </p>
               </div>
             </div>
 
             <div className="mt-6">
-              <TeacherBookingCalendar teacher={teacher} bookingFor={bookingForId && bookingForName ? { id: bookingForId, name: bookingForName } : undefined} />
+              <TeacherBookingCalendar
+                teacher={teacher}
+                subjects={bookingSubjects}
+                bookingFor={bookingForId && bookingForName ? { id: bookingForId, name: bookingForName } : undefined}
+              />
             </div>
           </div>
         </RequireAuth>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, CheckCircle2, Clock, Loader2, Save, Send, Sparkles, UserRound } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ChevronDown, Clock, Loader2, Save, Send, Sparkles, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context'
 import { getCategories } from '@/services/categories.service'
 import { getTeacherApplication, submitTeacherApplication } from '@/services/teachers.service'
 import { toParticipant } from '@/services/chat.service'
+import { normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
 import type { Category, Teacher } from '@/lib/types'
 
 const WEEKDAYS = [
@@ -22,6 +23,27 @@ const WEEKDAYS = [
   { code: 'Sat', label: 'Sob' },
   { code: 'Sun', label: 'Niedz' },
 ]
+
+const VISIBLE_CATEGORY_LIMIT = 9
+
+function normalizeSelectedCategoryIds(cats: Category[], primaryId: string, ids?: string[]) {
+  const availableIds = new Set(cats.map((cat) => cat.id))
+  return [...new Set([...(ids ?? []), primaryId].filter((id) => availableIds.has(id)))]
+}
+
+function inferCategoryIdsFromText(cats: Category[], values: string[]) {
+  const text = values.join(' ').toLowerCase()
+  return cats
+    .filter((cat) => text.includes(cat.name.toLowerCase()))
+    .map((cat) => cat.id)
+}
+
+function inferCategoryIdsFromProfile(cats: Category[], app: Teacher) {
+  const explicit = normalizeSelectedCategoryIds(cats, app.categoryId, app.categoryIds)
+  if (app.categoryIds?.length) return explicit
+  const inferred = inferCategoryIdsFromText(cats, [app.specialty, app.shortBio, app.bio, ...app.skills])
+  return normalizeSelectedCategoryIds(cats, app.categoryId, [...explicit, ...inferred])
+}
 
 function FormSection({
   icon: Icon,
@@ -53,6 +75,9 @@ export function TeacherApplicationForm() {
   const [displayName, setDisplayName] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [categoryIds, setCategoryIds] = useState<string[]>([])
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false)
+  const [customSubjects, setCustomSubjects] = useState('')
   const [specialty, setSpecialty] = useState('')
   const [hourlyRate, setHourlyRate] = useState('150')
   const [location, setLocation] = useState('')
@@ -79,7 +104,13 @@ export function TeacherApplicationForm() {
       if (app) {
         setExisting(app)
         setPhotoUrl(app.photoUrl ?? user.photoUrl ?? '')
-        setCategoryId(cats.some((cat) => cat.id === app.categoryId) ? app.categoryId : cats[0]?.id ?? '')
+        const selectedCategoryIds = inferCategoryIdsFromProfile(cats, app)
+        const primaryCategoryId = selectedCategoryIds.includes(app.categoryId)
+          ? app.categoryId
+          : selectedCategoryIds[0] ?? cats[0]?.id ?? ''
+        setCategoryIds(selectedCategoryIds.length ? selectedCategoryIds : (cats[0] ? [cats[0].id] : []))
+        setCategoryId(primaryCategoryId)
+        setCustomSubjects(normalizeTeacherCustomSubjects(app.customSubjects).join(', '))
         setSpecialty(app.specialty)
         setHourlyRate(String(app.hourlyRate))
         setLocation(app.location)
@@ -94,6 +125,7 @@ export function TeacherApplicationForm() {
       } else if (cats[0]) {
         setPhotoUrl(user.photoUrl ?? '')
         setCategoryId(cats[0].id)
+        setCategoryIds([cats[0].id])
       }
       setLoaded(true)
     })
@@ -101,6 +133,15 @@ export function TeacherApplicationForm() {
 
   function toggleDay(code: string) {
     setAvailability((prev) => (prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]))
+  }
+
+  function toggleCategory(id: string) {
+    setCategoryIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((category) => category !== id) : [...prev, id]
+      if (next.length === 0) return prev
+      if (!next.includes(categoryId)) setCategoryId(next[0])
+      return next
+    })
   }
 
   async function savePublicProfile(nextPhotoUrl = photoUrl) {
@@ -137,9 +178,15 @@ export function TeacherApplicationForm() {
       const profileUser = identityChanged
         ? await savePublicProfile()
         : user
+      const inferredCategoryIds = inferCategoryIdsFromText(categories, [specialty, shortBio, bio, skills])
+      const selectedCategoryIds = normalizeSelectedCategoryIds(categories, categoryId, [...categoryIds, ...inferredCategoryIds])
+      const selectedCustomSubjects = normalizeTeacherCustomSubjects(customSubjects.split(','))
+      if (!selectedCategoryIds.length) throw new Error('Wybierz przynajmniej jedną dziedzinę nauczania.')
       await submitTeacherApplication(toParticipant(profileUser), {
         photoUrl: trimmedPhotoUrl || undefined,
-        categoryId,
+        categoryId: selectedCategoryIds.includes(categoryId) ? categoryId : selectedCategoryIds[0],
+        categoryIds: selectedCategoryIds,
+        customSubjects: selectedCustomSubjects,
         specialty: specialty.trim(),
         hourlyRate: Number(hourlyRate) || 0,
         location: location.trim(),
@@ -179,6 +226,11 @@ export function TeacherApplicationForm() {
       </div>
     )
   }
+
+  const visibleCategories = categoriesExpanded
+    ? categories
+    : categories.filter((category, index) => index < VISIBLE_CATEGORY_LIMIT || categoryIds.includes(category.id))
+  const hiddenCategoryCount = categories.length - visibleCategories.length
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -265,8 +317,65 @@ export function TeacherApplicationForm() {
 
       <FormSection icon={Sparkles} title="Profil na giełdzie - wymaga weryfikacji">
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-3 sm:col-span-2">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-foreground">Dziedziny nauczania</p>
+              <p className="text-xs text-muted-foreground">
+                Zaznacz wszystkie dziedziny, pod którymi profil ma pojawiać się w filtrach giełdy.
+                Jeśli nazwa dziedziny pojawi się w opisie lub umiejętnościach, system dopisze ją przy wysyłce.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleCategories.map((c) => {
+                const active = categoryIds.includes(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleCategory(c.id)}
+                    aria-pressed={active}
+                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                      active
+                        ? 'border-primary bg-accent font-semibold text-accent-foreground'
+                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <span>{c.name}</span>
+                    {active && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                  </button>
+                )
+              })}
+            </div>
+            {categories.length > VISIBLE_CATEGORY_LIMIT && (
+              <button
+                type="button"
+                onClick={() => setCategoriesExpanded((expanded) => !expanded)}
+                className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform ${categoriesExpanded ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
+                {categoriesExpanded ? 'Zwiń dziedziny' : `Pokaż pozostałe (${hiddenCategoryCount})`}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label htmlFor="customSubjects" className="text-xs font-medium text-foreground">Inne dziedziny</label>
+            <Input
+              id="customSubjects"
+              value={customSubjects}
+              onChange={(e) => setCustomSubjects(e.target.value)}
+              placeholder="np. Podstawy programowania, Statystyka, Egzamin ósmoklasisty"
+            />
+            <p className="text-xs text-muted-foreground">
+              Wpisz po przecinku tylko te tematy, których nie ma na liście powyżej. Będą widoczne na profilu i przy rezerwacji.
+            </p>
+          </div>
+
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="categoryId" className="text-xs font-medium text-foreground">Kategoria specjalizacji</label>
+            <label htmlFor="categoryId" className="text-xs font-medium text-foreground">Główna dziedzina</label>
             <select
               id="categoryId"
               required
@@ -274,7 +383,7 @@ export function TeacherApplicationForm() {
               onChange={(e) => setCategoryId(e.target.value)}
               className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:text-sm"
             >
-              {categories.map((c) => (
+              {categories.filter((c) => categoryIds.includes(c.id)).map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
