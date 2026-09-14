@@ -141,12 +141,13 @@ async function getAdminUsersFirebase(): Promise<AdminUserRow[]> {
         joined: data.createdAt
           ? new Date(data.createdAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
           : '—',
+        createdAt: data.createdAt ?? 0,
         // Per-user lesson counts aren't cheaply computable client-side
         // without an aggregate query/Cloud Function yet.
         lessons: 0,
       } satisfies AdminUserRow
     })
-    .sort((a, b) => (a.joined === '—' ? 1 : b.joined === '—' ? -1 : 0))
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
 }
 
 export async function getAdminStats(): Promise<AdminStats> {

@@ -495,6 +495,7 @@ export type AdminUserRow = {
   role: UserRole
   status: 'active' | 'pending' | 'suspended'
   joined: string
+  createdAt?: number
   lessons: number
 }
 

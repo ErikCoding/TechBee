@@ -59,7 +59,13 @@ export function ChatComposer({ value, onChange, onSend, onAttach, disabled, uplo
       className="shrink-0 border-t border-border bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] sm:p-3"
     >
       <div className="flex items-end gap-1.5 rounded-2xl border border-border bg-background p-1.5 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/25">
-        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFile} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+          className="hidden"
+          onChange={handleFile}
+        />
         <Button
           type="button"
           variant="ghost"

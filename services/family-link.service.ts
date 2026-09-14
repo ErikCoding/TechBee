@@ -1,5 +1,5 @@
-import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
-import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getUserProfileById } from '@/services/auth.service'
 import type { StudentLinkCode } from '@/lib/types'
 
@@ -143,21 +143,24 @@ async function generateStudentLinkCodeFirebase(studentId: string, studentName: s
 }
 
 async function redeemLinkCodeFirebase(parentId: string, rawCode: string): Promise<{ ok: true; studentId: string; studentName: string } | { ok: false; error: string }> {
-  if (!db) return { ok: false, error: 'Firebase nie jest skonfigurowane.' }
-  const code = rawCode.trim().toUpperCase()
-  const ref = doc(db, collections.linkCodes, code)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return { ok: false, error: 'Nieprawidłowy kod.' }
-  const entry = snap.data() as StudentLinkCode
-  if (entry.usedByParentId) return { ok: false, error: 'Ten kod został już wykorzystany.' }
-  if (entry.expiresAt < Date.now()) return { ok: false, error: 'Ten kod wygasł — poproś ucznia o nowy.' }
-  if (entry.studentId === parentId) return { ok: false, error: 'Nie możesz połączyć konta z samym sobą.' }
-  await Promise.all([
-    updateDoc(ref, { usedByParentId: parentId, usedAt: Date.now() }),
-    updateDoc(doc(db, collections.users, parentId), { linkedStudentIds: arrayUnion(entry.studentId) }),
-    updateDoc(doc(db, collections.users, entry.studentId), { linkedParentIds: arrayUnion(parentId) }),
-  ])
-  return { ok: true, studentId: entry.studentId, studentName: entry.studentName }
+  if (!auth?.currentUser || auth.currentUser.uid !== parentId) {
+    return { ok: false, error: 'Musisz być zalogowany jako rodzic.' }
+  }
+  const idToken = await auth.currentUser.getIdToken().catch(() => undefined)
+  const res = await fetch('/api/family/redeem-link-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, code: rawCode }),
+  })
+  const data = await res.json().catch(() => ({}) as Record<string, unknown>)
+  if (!res.ok || data.ok !== true) {
+    return { ok: false, error: typeof data.error === 'string' ? data.error : 'Nie udało się wykorzystać kodu.' }
+  }
+  return {
+    ok: true,
+    studentId: String(data.studentId),
+    studentName: String(data.studentName),
+  }
 }
 
 async function getLinkedStudentIdsFirebase(parentId: string): Promise<string[]> {

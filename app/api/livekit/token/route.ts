@@ -20,11 +20,9 @@ import { lessonRoomName } from '@/lib/livekit-config'
 //      rules (firestore.rules) decide whether that's allowed, so no
 //      separate admin credential is needed at all.
 // If the resolved uid matches the lesson's teacherId/studentId, that
-// server-verified identity is used for the LiveKit token. Anything
-// that isn't a *confident* authorization decision (missing token,
-// network hiccup calling Google, misconfigured env) falls back to
-// trusting the client-supplied identity/name — same posture as every
-// other service in this app before Firebase is fully wired up.
+// server-verified identity is used for the LiveKit token. In a real
+// Firebase environment verification is mandatory; the client-supplied
+// identity/name fallback is kept only for the no-Firebase local mock.
 //
 // Why not `firebase-admin`: its `auth` submodule pulls in
 // `jwks-rsa@4.1.0`, which unconditionally `require()`s `jose@6` — a
@@ -52,6 +50,10 @@ interface FirestoreDocument {
 
 function firestoreField(doc: FirestoreDocument, field: string): string | undefined {
   return doc.fields?.[field]?.stringValue
+}
+
+function firebaseVerificationConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)
 }
 
 /**
@@ -123,18 +125,23 @@ export async function POST(request: Request) {
   let identity = body.identity
   let name = body.name
 
-  if (idToken) {
+  if (firebaseVerificationConfigured()) {
+    if (!idToken) {
+      return NextResponse.json({ error: 'Musisz być zalogowany, aby dołączyć do lekcji.' }, { status: 401 })
+    }
     try {
       const verified = await verifyCallerAgainstLesson(idToken, lessonId)
       if (verified === 'unauthorized') {
         return NextResponse.json({ error: 'Nie masz dostępu do tej lekcji.' }, { status: 403 })
       }
-      if (verified) {
-        identity = verified.uid
-        name = verified.name || name
+      if (!verified) {
+        return NextResponse.json({ error: 'Nie udało się potwierdzić dostępu do tej lekcji.' }, { status: 403 })
       }
+      identity = verified.uid
+      name = verified.name || name || 'Uczestnik'
     } catch (err) {
-      console.error('[livekit/token] Verification against Google APIs failed, falling back to client identity:', err)
+      console.error('[livekit/token] Verification against Google APIs failed:', err)
+      return NextResponse.json({ error: 'Nie udało się potwierdzić dostępu do tej lekcji.' }, { status: 503 })
     }
   }
 

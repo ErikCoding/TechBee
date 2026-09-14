@@ -90,12 +90,31 @@ export async function POST(request: Request) {
   const uid = await verifyCaller(body.idToken)
   if (!uid) return NextResponse.json({ error: 'Musisz być zalogowany.' }, { status: 401 })
 
-  // The caller must be either the student themselves, or the linked
-  // parent paying on their behalf — never anyone else.
+  // The caller must be either the student themselves, or a real linked
+  // parent paying on their behalf — never just whoever the browser says.
   const payerId = payer?.id ?? studentId
   const payerRole = payer?.role ?? 'student'
+  if (payerRole !== 'student' && payerRole !== 'parent') {
+    return NextResponse.json({ error: 'Nieprawidłowy typ płatnika.' }, { status: 400 })
+  }
   if (uid !== payerId) {
     return NextResponse.json({ error: 'Nie możesz opłacić rezerwacji w imieniu innej osoby.' }, { status: 403 })
+  }
+  const [payerSnap, studentSnap] = await Promise.all([
+    adminDb!.collection(collections.users).doc(uid).get(),
+    adminDb!.collection(collections.users).doc(studentId).get(),
+  ])
+  const payerProfile = payerSnap.data() as { role?: string } | undefined
+  const studentProfile = studentSnap.data() as { role?: string; linkedParentIds?: string[] } | undefined
+  if (!payerProfile || !studentProfile || studentProfile.role !== 'student') {
+    return NextResponse.json({ error: 'Nie znaleziono konta ucznia.' }, { status: 404 })
+  }
+  if (payerRole === 'student') {
+    if (uid !== studentId || payerProfile.role !== 'student') {
+      return NextResponse.json({ error: 'Uczeń może rezerwować tylko własną lekcję.' }, { status: 403 })
+    }
+  } else if (payerProfile.role !== 'parent' || !studentProfile.linkedParentIds?.includes(uid)) {
+    return NextResponse.json({ error: 'Ten rodzic nie jest połączony z kontem ucznia.' }, { status: 403 })
   }
 
   const teacherSnap = await adminDb!.collection(collections.teachers).doc(teacherId).get()

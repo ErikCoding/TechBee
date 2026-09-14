@@ -165,24 +165,36 @@ export function ChatMessageList({ messages, me, participant, viewerRole }: Props
                   {m.text && <p className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</p>}
 
                   {m.attachment && AttachmentIcon && (
-                    <a
-                      href={m.attachment.url}
-                      target={m.attachment.url ? '_blank' : undefined}
-                      rel={m.attachment.url ? 'noreferrer' : undefined}
-                      className={cn(
-                        'mt-2 flex items-center gap-2 rounded-xl border px-3 py-2',
-                        m.attachment.url && 'transition-colors hover:bg-background/20',
-                        mine ? 'border-primary-foreground/20 bg-primary-foreground/10' : 'border-border bg-muted/50',
+                    <div className="mt-2 overflow-hidden rounded-xl border border-border bg-background/70">
+                      {m.attachment.kind === 'image' && m.attachment.url && (
+                        <a href={m.attachment.url} target="_blank" rel="noreferrer" aria-label={`Otwórz zdjęcie ${m.attachment.name}`}>
+                          <img
+                            src={m.attachment.url}
+                            alt={m.attachment.name}
+                            className="max-h-64 w-full object-cover"
+                            loading="lazy"
+                          />
+                        </a>
                       )}
-                      aria-disabled={!m.attachment.url}
-                    >
-                      <AttachmentIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium">{m.attachment.name}</p>
-                        <p className="text-[10px] opacity-70">{m.attachment.size}</p>
-                      </div>
-                      {m.attachment.url && <Download className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />}
-                    </a>
+                      <a
+                        href={m.attachment.url}
+                        target={m.attachment.url ? '_blank' : undefined}
+                        rel={m.attachment.url ? 'noreferrer' : undefined}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-2',
+                          m.attachment.url && 'transition-colors hover:bg-background/60',
+                          mine ? 'bg-primary-foreground/10' : 'bg-muted/50',
+                        )}
+                        aria-disabled={!m.attachment.url}
+                      >
+                        <AttachmentIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium">{m.attachment.name}</p>
+                          <p className="text-[10px] opacity-70">{m.attachment.size}</p>
+                        </div>
+                        {m.attachment.url && <Download className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />}
+                      </a>
+                    </div>
                   )}
 
                   {/* One timestamp per run instead of one per message. */}
