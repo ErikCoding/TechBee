@@ -168,6 +168,11 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                   <h2 className="text-sm font-semibold text-foreground">O nauczycielu</h2>
                 </div>
                 <div className="flex flex-col gap-5 bg-card px-5 py-5">
+                  {teacher.shortBio && teacher.shortBio.trim() !== teacher.bio.trim() && (
+                    <p className="rounded-xl border border-primary/20 bg-accent px-4 py-3 text-sm font-medium leading-relaxed text-accent-foreground">
+                      {teacher.shortBio}
+                    </p>
+                  )}
                   <p className="text-sm leading-relaxed text-muted-foreground">{teacher.bio}</p>
                   <div className="flex flex-wrap gap-2">
                     {teacher.skills.map((skill) => (

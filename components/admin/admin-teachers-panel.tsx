@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search, Star, Trash2, Check, X, RotateCcw, ExternalLink, Loader2, GraduationCap } from 'lucide-react'
+import { Search, Star, Trash2, Check, X, RotateCcw, ExternalLink, Loader2, GraduationCap, ChevronDown, CalendarClock, Languages } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,12 +29,39 @@ function statusOf(t: Teacher): 'approved' | 'pending' | 'rejected' {
   return t.status ?? 'approved'
 }
 
+const WEEKDAY_LABELS: Record<string, string> = {
+  monday: 'Poniedziałek',
+  tuesday: 'Wtorek',
+  wednesday: 'Środa',
+  thursday: 'Czwartek',
+  friday: 'Piątek',
+  saturday: 'Sobota',
+  sunday: 'Niedziela',
+}
+
+function formatSubmittedAt(value?: number) {
+  if (!value) return 'Brak daty zgłoszenia'
+  return new Intl.DateTimeFormat('pl-PL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+}
+
+function formatList(values?: string[]) {
+  if (!values?.length) return 'Nie podano'
+  return values.join(', ')
+}
+
+function formatAvailability(t: Teacher) {
+  const days = t.availability.map((day) => WEEKDAY_LABELS[day] ?? day)
+  const hours = t.availabilityStart && t.availabilityEnd ? ` (${t.availabilityStart}-${t.availabilityEnd})` : ''
+  return `${formatList(days)}${hours}`
+}
+
 /** Full "manage the giełda" view for admins — every teacher regardless of status, with approve/reject/feature/delete controls. */
 export function AdminTeachersPanel({ categories }: Props) {
   const [teachers, setTeachers] = useState<Teacher[] | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [expandedRejectedId, setExpandedRejectedId] = useState<string | null>(null)
 
   const categoryName = useMemo(() => {
     const map = new Map(categories.map((c) => [c.id, c.name]))
@@ -131,70 +158,138 @@ export function AdminTeachersPanel({ categories }: Props) {
             const status = statusOf(t)
             const badge = statusConfig[status]
             const busy = busyId === t.id
+            const expanded = expandedRejectedId === t.id
             return (
-              <div key={t.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-start gap-3">
-                  <Avatar className="h-10 w-10 shrink-0">
-                    {t.photoUrl && <AvatarImage src={t.photoUrl} alt="" />}
-                    <AvatarFallback color={t.avatarColor}>{t.initials}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                      <StatusBadge tone={badge.tone} dot={false} className="px-2 py-0.5 text-[10px]">{badge.label}</StatusBadge>
-                      {t.featured && <Badge className="text-[10px]">Wyróżniony</Badge>}
+              <div key={t.id} className="flex flex-col">
+                <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      {t.photoUrl && <AvatarImage src={t.photoUrl} alt="" />}
+                      <AvatarFallback color={t.avatarColor}>{t.initials}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="text-sm font-semibold text-foreground">{t.name}</p>
+                        <StatusBadge tone={badge.tone} dot={false} className="px-2 py-0.5 text-[10px]">{badge.label}</StatusBadge>
+                        {t.featured && <Badge className="text-[10px]">Wyróżniony</Badge>}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">{t.specialty} · {categoryNames(t)}</p>
+                      <p className="text-xs text-muted-foreground">{t.location} · {t.hourlyRate} zł/godz.</p>
                     </div>
-                    <p className="truncate text-xs text-muted-foreground">{t.specialty} · {categoryNames(t)}</p>
-                    <p className="text-xs text-muted-foreground">{t.location} · {t.hourlyRate} zł/godz.</p>
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap items-center gap-1.5 self-end sm:self-center">
+                    {status === 'approved' && (
+                      <>
+                        <Link href={`/teacher/${t.id}`} target="_blank">
+                          <Button size="sm" variant="ghost" title="Zobacz profil publiczny">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => withBusy(t.id, () => setTeacherFeatured(t.id, !t.featured))}
+                          className={t.featured ? 'text-bee-yellow-dark' : ''}
+                        >
+                          <Star className={cn('h-3.5 w-3.5', t.featured && 'fill-primary stroke-primary')} />
+                          {t.featured ? 'Cofnij wyróżnienie' : 'Wyróżnij'}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'rejected'))} className="text-destructive hover:text-destructive">
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                          Cofnij akceptację
+                        </Button>
+                      </>
+                    )}
+                    {status === 'pending' && (
+                      <>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'rejected'))} className="text-destructive hover:text-destructive">
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                          Odrzuć
+                        </Button>
+                        <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="font-semibold">
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          Zaakceptuj
+                        </Button>
+                      </>
+                    )}
+                    {status === 'rejected' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setExpandedRejectedId((current) => (current === t.id ? null : t.id))}
+                          aria-expanded={expanded}
+                        >
+                          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
+                          {expanded ? 'Zwiń prośbę' : 'Rozwiń prośbę'}
+                        </Button>
+                        <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="font-semibold">
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                          Przywróć / zaakceptuj
+                        </Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => handleDelete(t)} className="text-destructive hover:text-destructive" title="Usuń z giełdy">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-1.5 self-end sm:self-center">
-                  {status === 'approved' && (
-                    <>
-                      <Link href={`/teacher/${t.id}`} target="_blank">
-                        <Button size="sm" variant="ghost" title="Zobacz profil publiczny">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => withBusy(t.id, () => setTeacherFeatured(t.id, !t.featured))}
-                        className={t.featured ? 'text-bee-yellow-dark' : ''}
-                      >
-                        <Star className={cn('h-3.5 w-3.5', t.featured && 'fill-primary stroke-primary')} />
-                        {t.featured ? 'Cofnij wyróżnienie' : 'Wyróżnij'}
-                      </Button>
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'rejected'))} className="text-destructive hover:text-destructive">
-                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-                        Cofnij akceptację
-                      </Button>
-                    </>
-                  )}
-                  {status === 'pending' && (
-                    <>
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'rejected'))} className="text-destructive hover:text-destructive">
-                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-                        Odrzuć
-                      </Button>
-                      <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="font-semibold">
-                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                        Zaakceptuj
-                      </Button>
-                    </>
-                  )}
-                  {status === 'rejected' && (
-                    <Button size="sm" disabled={busy} onClick={() => withBusy(t.id, () => reviewTeacherApplication(t.id, 'approved'))} className="font-semibold">
-                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                      Przywróć / zaakceptuj
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => handleDelete(t)} className="text-destructive hover:text-destructive" title="Usuń z giełdy">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                {status === 'rejected' && expanded && (
+                  <div className="border-t border-border bg-muted/25 px-4 py-4">
+                    <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr]">
+                      <div className="rounded-xl border border-border bg-card p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary" className="text-[10px]">{categoryNames(t) || 'Brak przedmiotów'}</Badge>
+                          <Badge variant="outline" className="text-[10px]">{formatSubmittedAt(t.submittedAt)}</Badge>
+                        </div>
+                        <h3 className="mt-3 text-sm font-semibold text-foreground">{t.specialty}</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t.shortBio || 'Brak krótkiego opisu.'}</p>
+                        <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                          <p><span className="font-medium text-foreground">Stawka: </span>{t.hourlyRate} zł/godz.</p>
+                          <p><span className="font-medium text-foreground">Lokalizacja: </span>{t.location || 'Nie podano'}</p>
+                          <p><span className="font-medium text-foreground">Doświadczenie: </span>{t.experience} lat</p>
+                          <p><span className="font-medium text-foreground">ID profilu: </span>{t.id}</p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-card p-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-lg bg-muted/50 p-3">
+                            <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                              <Languages className="h-3.5 w-3.5" aria-hidden="true" />
+                              Języki
+                            </div>
+                            <p className="text-xs leading-relaxed text-muted-foreground">{formatList(t.languages)}</p>
+                          </div>
+                          <div className="rounded-lg bg-muted/50 p-3">
+                            <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                              <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+                              Dostępność
+                            </div>
+                            <p className="text-xs leading-relaxed text-muted-foreground">{formatAvailability(t)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <p className="text-xs font-semibold text-foreground">Umiejętności</p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {t.skills.length > 0 ? t.skills.map((skill) => (
+                              <Badge key={skill} variant="outline" className="text-[10px]">{skill}</Badge>
+                            )) : <span className="text-xs text-muted-foreground">Nie podano</span>}
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <p className="text-xs font-semibold text-foreground">Pełny opis</p>
+                          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{t.bio || 'Brak opisu.'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
