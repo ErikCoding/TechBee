@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDownLeft, ArrowUpRight, CreditCard, ExternalLink, Landmark, Loader2, Receipt, ShieldCheck, TrendingUp, Percent } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, CreditCard, Loader2, Receipt, ShieldCheck, TrendingUp, Percent } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { FormError } from '@/components/ui/form-error'
 import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
 import { EmptyState } from '@/components/ui/empty-state'
-import { getTeacherWallet, requestTeacherPayout, startTeacherStripeDashboard } from '@/services/stripe.service'
+import { getTeacherWallet, requestTeacherPayout } from '@/services/stripe.service'
 import { getTeacherApplication } from '@/services/teachers.service'
 import { useAuth } from '@/lib/auth-context'
 import { fromGrosze } from '@/lib/stripe-config'
@@ -45,7 +45,6 @@ export function TeacherWalletClient() {
   const [modalOpen, setModalOpen] = useState(false)
   const [amount, setAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [openingSettings, setOpeningSettings] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [walletError, setWalletError] = useState<string | null>(null)
 
@@ -93,18 +92,6 @@ export function TeacherWalletClient() {
     }
   }
 
-  async function handleOpenPayoutSettings() {
-    setOpeningSettings(true)
-    setWalletError(null)
-    try {
-      const url = await startTeacherStripeDashboard()
-      window.location.href = url
-    } catch (err) {
-      setWalletError(err instanceof Error ? err.message : 'Nie udało się otworzyć ustawień wypłat.')
-      setOpeningSettings(false)
-    }
-  }
-
   if (loading) {
     return <div className="mt-6 h-48 animate-pulse rounded-3xl border border-border bg-card" />
   }
@@ -130,7 +117,7 @@ export function TeacherWalletClient() {
     <>
       {walletError && (
         <div className="mb-4 rounded-2xl border border-warning/30 bg-warning-surface px-4 py-3 text-sm text-warning-on-surface">
-          {walletError} Portfel działa dopiero po ustawieniu Firebase Admin, Stripe i publicznego adresu aplikacji w środowisku produkcyjnym.
+          {walletError}
         </div>
       )}
 
@@ -164,33 +151,6 @@ export function TeacherWalletClient() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <div className="rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-              <Landmark className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">Konto do wypłat</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Dane bankowe i weryfikacja są zarządzane bezpośrednio w Stripe Express. Runbee nie zapisuje numeru konta bankowego lokalnie.
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleOpenPayoutSettings} disabled={openingSettings} className="mt-4 font-semibold">
-            {openingSettings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-            Zmień konto / dane wypłat
-          </Button>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-muted/35 p-5">
-          <p className="text-sm font-semibold text-foreground">Jak działa zmiana konta?</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Po kliknięciu Stripe otworzy bezpieczny panel nauczyciela. Tam można zmienić rachunek bankowy, uzupełnić wymagane dane albo sprawdzić status wypłat.
-          </p>
         </div>
       </div>
 

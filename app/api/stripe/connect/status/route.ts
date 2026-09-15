@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
+import { FieldValue } from 'firebase-admin/firestore'
 import { stripe } from '@/lib/stripe'
 import { adminDb } from '@/lib/firebase-admin'
 import { requireStripeBackend, verifyCaller } from '@/lib/stripe-server-auth'
 import { collections } from '@/lib/firebase'
 import type { TeacherStripeAccount } from '@/lib/types'
+
+function isAccountInvalidError(err: unknown) {
+  return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: unknown }).code === 'account_invalid'
+}
 
 // ─────────────────────────────────────────────────────────────
 // Re-checks the signed-in teacher's real Stripe Connect account status
@@ -74,6 +79,23 @@ export async function POST(request: Request) {
     await teacherRef.set({ stripe: status }, { merge: true })
     return NextResponse.json({ stripe: status })
   } catch (err) {
+    if (isAccountInvalidError(err)) {
+      console.warn('[stripe/connect/status] Stored connected account is not available for the current Stripe mode:', accountId)
+      const status: TeacherStripeAccount = {
+        detailsSubmitted: false,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+        onboardingComplete: false,
+      }
+      await teacherRef.update({
+        'stripe.accountId': FieldValue.delete(),
+        'stripe.detailsSubmitted': false,
+        'stripe.chargesEnabled': false,
+        'stripe.payoutsEnabled': false,
+        'stripe.onboardingComplete': false,
+      })
+      return NextResponse.json({ stripe: status })
+    }
     console.error('[stripe/connect/status] Failed:', err)
     return NextResponse.json({ error: 'Nie udało się sprawdzić statusu konta Stripe.' }, { status: 500 })
   }

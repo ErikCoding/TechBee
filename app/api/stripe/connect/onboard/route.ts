@@ -5,6 +5,10 @@ import { getVerifiedUserRole, requireStripeBackend, verifyCaller } from '@/lib/s
 import { getOrigin } from '@/lib/request-origin'
 import { collections } from '@/lib/firebase'
 
+function isAccountInvalidError(err: unknown) {
+  return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: unknown }).code === 'account_invalid'
+}
+
 // ─────────────────────────────────────────────────────────────
 // "Skonfiguruj wypłaty" — creates (or reuses) the signed-in teacher's
 // Stripe Connect account and returns a fresh, single-use Stripe-hosted
@@ -75,6 +79,16 @@ export async function POST(request: Request) {
   let accountId = teacherSnap.data()?.stripe?.accountId as string | undefined
 
   try {
+    if (accountId) {
+      try {
+        await stripe!.v2.core.accounts.retrieve(accountId)
+      } catch (err) {
+        if (!isAccountInvalidError(err)) throw err
+        console.warn('[stripe/connect/onboard] Stored connected account is not available for the current Stripe mode, creating a new one:', accountId)
+        accountId = undefined
+      }
+    }
+
     if (!accountId) {
       const account = await stripe!.v2.core.accounts.create({
         contact_email: email,

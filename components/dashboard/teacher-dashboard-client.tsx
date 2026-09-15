@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Star, UserCog, ExternalLink, BookOpen, Users, TrendingUp, Gauge, MessageCircle, CheckCircle2 } from 'lucide-react'
+import { Star, UserCog, ExternalLink, BookOpen, Users, TrendingUp, Gauge, MessageCircle, CheckCircle2, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/lib/auth-context'
@@ -174,6 +174,12 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
               <Button variant="outline" size="sm">
                 <UserCog className="h-4 w-4" aria-hidden="true" />
                 Edytuj profil
+              </Button>
+            </Link>
+            <Link href="/dashboard/teacher/settings">
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4" aria-hidden="true" />
+                Ustawienia
               </Button>
             </Link>
           </div>

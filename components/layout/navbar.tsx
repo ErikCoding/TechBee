@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Menu, X, Wallet, Star, MessageSquare, LayoutDashboard, LogOut, ChevronDown, ClipboardCheck, UserCog } from 'lucide-react'
+import { Menu, X, Wallet, Star, MessageSquare, LayoutDashboard, LogOut, ChevronDown, ClipboardCheck, Settings, UserCog } from 'lucide-react'
 import { BeeLogo } from '@/components/shared/bee-logo'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -154,6 +154,12 @@ export function Navbar() {
                     Portfel
                   </DropdownMenuItem>
                 )}
+                {user.role === 'teacher' && (
+                  <DropdownMenuItem onClick={() => router.push('/dashboard/teacher/settings')}>
+                    <Settings className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Ustawienia
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => router.push('/beepoints')}>
                   <Star className="h-4 w-4 fill-primary stroke-primary" aria-hidden="true" />
                   BeePoints
@@ -244,6 +250,11 @@ export function Navbar() {
                 {user.role === 'teacher' && (
                   <Link href="/wallet" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
                     <Wallet className="h-4 w-4" /> Portfel
+                  </Link>
+                )}
+                {user.role === 'teacher' && (
+                  <Link href="/dashboard/teacher/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                    <Settings className="h-4 w-4" /> Ustawienia
                   </Link>
                 )}
                 <Link href="/beepoints" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
