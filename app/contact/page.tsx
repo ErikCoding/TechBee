@@ -13,8 +13,8 @@ export const metadata: Metadata = pageMetadata({
 })
 
 const contactInfo = [
-  { icon: Mail, label: 'E-mail', value: 'Adres kontaktowy zostanie uzupełniony przed startem' },
-  { icon: MapPin, label: 'Status', value: 'Projekt przed formalną rejestracją działalności' },
+  { icon: Mail, label: 'E-mail', value: 'kontakt@runbee.pl' },
+  { icon: MapPin, label: 'Obsługiwany obszar', value: 'Polska · lekcje online' },
   { icon: Clock, label: 'Czas odpowiedzi', value: 'Zwykle w ciągu 1 dnia roboczego' },
 ]
 

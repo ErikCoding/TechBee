@@ -171,6 +171,22 @@ export type FaqItem = {
   answer: string
 }
 
+export type SupportMessageStatus = 'unread' | 'read' | 'archived'
+
+export type SupportMessage = {
+  id: string
+  name: string
+  email: string
+  subject: string
+  message: string
+  status: SupportMessageStatus
+  createdAt: number
+  updatedAt: number
+  readAt?: number
+  archivedAt?: number
+  source: 'contact-page'
+}
+
 /**
  * Lifecycle: `pending` (booked, escrow charge already held from the
  * payer's wallet — see holdLessonPayment in wallet.service.ts —

@@ -282,6 +282,16 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
+    // ── Public contact form messages ──
+    // Visitors send these through app/api/support/messages, where the
+    // trusted server validates the payload and writes via the Admin SDK.
+    // Admins can read/update/delete them in the support inbox; the public
+    // browser never gets direct collection access.
+    match /supportMessages/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if false;
+    }
+
     // ── Stripe payouts (see PayoutRecord in lib/types.ts) ──
     // Written only by the trusted server (app/api/stripe/payout, the
     // payout.paid/payout.failed webhook handlers), which bypasses these

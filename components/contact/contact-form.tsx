@@ -4,18 +4,29 @@ import { useState } from 'react'
 import { Loader2, Send, CheckCircle2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { FormError } from '@/components/ui/form-error'
+import { submitContactMessage } from '@/services/support.service'
 
-/** Demo-only: no backend wired up yet, just simulates a submit. */
 export function ContactForm() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
+  const [website, setWebsite] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [error, setError] = useState<string | null>(null)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setStatus('sending')
-    setTimeout(() => setStatus('sent'), 700)
+    setError(null)
+    try {
+      await submitContactMessage({ name, email, subject, message, website })
+      setStatus('sent')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się wysłać wiadomości.')
+      setStatus('idle')
+    }
   }
 
   if (status === 'sent') {
@@ -39,6 +50,10 @@ export function ContactForm() {
         <Input id="contact-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ty@przyklad.pl" />
       </div>
       <div className="flex flex-col gap-1.5">
+        <label htmlFor="contact-subject" className="text-xs font-medium text-foreground">Temat</label>
+        <Input id="contact-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Krótko, czego dotyczy sprawa" />
+      </div>
+      <div className="flex flex-col gap-1.5">
         <label htmlFor="contact-message" className="text-xs font-medium text-foreground">Wiadomość</label>
         <textarea
           id="contact-message"
@@ -50,6 +65,16 @@ export function ContactForm() {
           className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
+      <input
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        className="hidden"
+        aria-hidden="true"
+      />
+      <FormError>{error}</FormError>
       <Button type="submit" disabled={status === 'sending'} className="mt-1 font-semibold">
         {status === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         Wyślij wiadomość

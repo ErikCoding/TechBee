@@ -1,7 +1,7 @@
-import { LayoutDashboard, Users, ShieldCheck, Settings, GraduationCap, Scale } from 'lucide-react'
+import { Inbox, LayoutDashboard, Users, ShieldCheck, Settings, GraduationCap, Scale } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-export type AdminNavBadgeKey = 'verifications' | 'disputes'
+export type AdminNavBadgeKey = 'verifications' | 'disputes' | 'support'
 
 export type AdminNavItem = {
   label: string
@@ -15,6 +15,7 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Giełda i nauczyciele', href: '/admin/teachers', icon: GraduationCap },
   { label: 'Weryfikacje', href: '/admin/verifications', icon: ShieldCheck, badgeKey: 'verifications' },
   { label: 'Spory', href: '/admin/disputes', icon: Scale, badgeKey: 'disputes' },
+  { label: 'Support', href: '/admin/support', icon: Inbox, badgeKey: 'support' },
   { label: 'Użytkownicy', href: '/admin/users', icon: Users },
   { label: 'Ustawienia', href: '/admin/settings', icon: Settings },
 ]

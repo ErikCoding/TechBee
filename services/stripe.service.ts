@@ -43,6 +43,12 @@ export async function startTeacherStripeOnboarding(): Promise<string> {
   return url
 }
 
+/** Opens the signed-in teacher's Stripe Express dashboard, where payout/bank details can be updated safely on Stripe's side. */
+export async function startTeacherStripeDashboard(): Promise<string> {
+  const { url } = await postJson<{ url: string }>('/api/stripe/connect/dashboard', {})
+  return url
+}
+
 /** Re-checks the signed-in teacher's real Stripe Connect account status and syncs it onto their teacher doc. */
 export async function refreshTeacherStripeStatus(): Promise<TeacherStripeAccount> {
   const { stripe } = await postJson<{ stripe: TeacherStripeAccount }>('/api/stripe/connect/status', {})
