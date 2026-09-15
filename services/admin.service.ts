@@ -1,5 +1,4 @@
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { adminStatsData, adminUsersData } from '@/data/admin.data'
+import { collection, getDocs } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getPendingTeacherApplications } from '@/services/teachers.service'
 import type { AdminStats, AdminUserRow, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
@@ -17,14 +16,37 @@ import type { AdminStats, AdminUserRow, PlatformWalletEntry, PlatformWalletSumma
 // These are called once, unauthenticated, from the /admin server
 // components during SSR (no Firebase Auth session exists on the
 // server) — querying Firestore there would just throw against the
-// `isSignedIn()`-gated rules. `auth?.currentUser` is null in that
-// context, so we fall back to the demo baseline instead; the real
-// admin-only client components (AdminOverviewClient, AdminUsersPageClient)
-// re-fetch once the signed-in admin is known in the browser.
+// `isSignedIn()`-gated rules. In that context the panel now renders
+// honest empty values and then re-fetches real data once the signed-in
+// admin is known in the browser.
 // ─────────────────────────────────────────────────────────────
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MONTH_LABELS_PL = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru']
+
+function emptyAdminStats(): AdminStats {
+  const now = new Date()
+  return {
+    totalUsers: 0,
+    totalTeachers: 0,
+    totalStudents: 0,
+    activeLessonsToday: 0,
+    monthlyRevenue: 0,
+    revenueChange: 0,
+    newSignupsThisWeek: 0,
+    pendingVerifications: 0,
+    revenueChart: Array.from({ length: 6 }, (_, i) => {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+      return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount: 0, platformFee: 0, teacherAmount: 0 }
+    }),
+    usersByRole: [
+      { role: 'Uczniowie', count: 0, color: '#F4B400' },
+      { role: 'Nauczyciele', count: 0, color: '#3B82F6' },
+      { role: 'Rodzice', count: 0, color: '#10B981' },
+      { role: 'Administratorzy', count: 0, color: '#8B5CF6' },
+    ],
+  }
+}
 
 type StoredUserProfile = {
   role?: 'student' | 'teacher' | 'admin' | 'parent'
@@ -87,7 +109,7 @@ function computePlatformRevenue(lessons: CompletedLessonRow[]) {
 }
 
 async function getAdminStatsFirebase(): Promise<AdminStats> {
-  if (!db || !auth?.currentUser) return adminStatsData
+  if (!db || !auth?.currentUser) return emptyAdminStats()
   const [usersSnap, pendingApplications, completedLessonsSnap] = await Promise.all([
     getDocs(collection(db, collections.users)),
     getPendingTeacherApplications(),
@@ -105,7 +127,6 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
   const revenue = computePlatformRevenue(completedLessonsSnap.docs.map((d) => d.data() as CompletedLessonRow))
 
   return {
-    ...adminStatsData,
     ...revenue,
     totalUsers,
     totalTeachers,
@@ -122,7 +143,7 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
 }
 
 async function getAdminUsersFirebase(): Promise<AdminUserRow[]> {
-  if (!db || !auth?.currentUser) return adminUsersData
+  if (!db || !auth?.currentUser) return []
   const snap = await getDocs(collection(db, collections.users))
   return snap.docs
     .map((d) => {
@@ -151,11 +172,11 @@ async function getAdminUsersFirebase(): Promise<AdminUserRow[]> {
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
-  return isFirebaseConfigured ? getAdminStatsFirebase() : adminStatsData
+  return isFirebaseConfigured ? getAdminStatsFirebase() : emptyAdminStats()
 }
 
 export async function getAdminUsers(): Promise<AdminUserRow[]> {
-  return isFirebaseConfigured ? getAdminUsersFirebase() : adminUsersData
+  return isFirebaseConfigured ? getAdminUsersFirebase() : []
 }
 
 async function getIdToken(): Promise<string | undefined> {

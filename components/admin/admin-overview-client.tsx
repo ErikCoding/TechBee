@@ -14,11 +14,9 @@ interface Props {
 }
 
 /**
- * Starts from the server-rendered demo baseline (SSR has no signed-in
- * admin context to query Firestore with) and re-fetches real aggregate
- * stats — user counts, role breakdown, weekly signups, pending
- * verifications — once the admin is authenticated client-side. Revenue
- * figures stay the demo baseline throughout (no real payments yet).
+ * Starts from server-rendered empty values (SSR has no signed-in admin
+ * context to query Firestore with) and re-fetches real aggregate stats
+ * once the admin is authenticated client-side.
  */
 export function AdminOverviewClient({ initialStats }: Props) {
   const { user } = useAuth()
