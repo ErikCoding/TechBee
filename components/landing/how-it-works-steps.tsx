@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 const steps = [
   {
     icon: Search,
-    title: 'Znajdź nauczyciela',
+    title: 'Znajdź korepetytora lub nauczyciela',
     description: 'Filtruj giełdę po dziedzinie, cenie, ocenie i dostępności. Profile są weryfikowane ręcznie.',
   },
   {

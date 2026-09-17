@@ -60,7 +60,7 @@ export async function HeroSection() {
             className="animate-fade-in-up mt-5 max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg"
             style={{ animationDelay: '135ms' }}
           >
-            Przejrzyj sprawdzone profile, wybierz termin i zacznij lekcję online bez umawiania wszystkiego poza platformą.
+            Przejrzyj sprawdzone profile korepetytorów i nauczycieli, wybierz termin i zacznij lekcję online bez umawiania wszystkiego poza platformą.
           </p>
 
           <div className="animate-fade-in-up mt-9" style={{ animationDelay: '170ms' }}>

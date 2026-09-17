@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { HeroSection } from '@/components/landing/hero-section'
@@ -6,8 +7,44 @@ import { TeachersPreviewSection } from '@/components/landing/teachers-preview-se
 import { BenefitsSection } from '@/components/landing/benefits-section'
 import { ProductExperienceSection } from '@/components/landing/product-experience-section'
 import { CtaSection } from '@/components/landing/cta-section'
+import { siteConfig } from '@/config/site'
+import { absoluteUrl } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
+
+const title = 'Runbee — korepetycje online ze zweryfikowanymi nauczycielami'
+const description =
+  'Znajdź korepetytora lub nauczyciela online, wybierz termin i zarezerwuj indywidualną lekcję na Runbee. Sprawdzone profile, płatności i raport po zajęciach w jednym miejscu.'
+
+export const metadata: Metadata = {
+  title: {
+    absolute: title,
+  },
+  description,
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title,
+    description,
+    url: absoluteUrl('/'),
+    siteName: siteConfig.name,
+    locale: siteConfig.locale,
+    type: 'website',
+    images: [
+      {
+        url: '/icon.svg',
+        alt: siteConfig.name,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary',
+    title,
+    description,
+    images: ['/icon.svg'],
+  },
+}
 
 /**
  * Homepage composition.

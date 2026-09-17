@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, SlidersHorizontal, X, SearchX, ChevronDown } from 'lucide-react'
 import { TeacherCard } from '@/components/shared/teacher-card'
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { MarketplaceFilterPanel } from '@/components/marketplace/marketplace-filter-panel'
 import { subscribeTeachers } from '@/services/teachers.service'
 import { teacherMatchesCategory } from '@/lib/teacher-categories'
+import { getSubjectPagesWithTeacherCount } from '@/lib/subject-pages'
 import {
   applyFilters, sortTeachers, countActiveFilters, deriveFacets, filtersToParams,
   EMPTY_FILTERS, SORT_OPTIONS, WEEKDAYS,
@@ -70,6 +72,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
     () => sortTeachers(applyFilters(liveTeachers, filters), filters.sort),
     [liveTeachers, filters],
   )
+  const subjectLinks = useMemo(() => getSubjectPagesWithTeacherCount(liveTeachers), [liveTeachers])
 
   /** Counts for each category under the *other* active filters, so options that would return nothing are visibly dead. */
   const categoryCounts = useMemo(() => {
@@ -150,7 +153,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                 id="marketplace-search"
                 value={filters.query}
                 onChange={(e) => update({ query: e.target.value })}
-                placeholder="Szukaj umiejętności, programu lub nazwiska…"
+                placeholder="Szukaj przedmiotu, umiejętności lub nauczyciela…"
                 className="h-11 w-full rounded-xl border border-border bg-card pl-9 pr-9 text-base text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-3 focus-visible:ring-ring/25 md:h-10 md:text-sm"
               />
               {filters.query && (
@@ -231,6 +234,15 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
+        <div className="mb-6 max-w-2xl">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Znajdź korepetytora online
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Porównaj zweryfikowanych korepetytorów i nauczycieli, wybierz termin i zarezerwuj lekcję online.
+          </p>
+        </div>
+
         <div className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10">
           {/* ── Desktop filter rail ── */}
           <aside className="hidden lg:block">
@@ -328,6 +340,29 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                   </div>
                 ))}
               </div>
+            )}
+
+            {subjectLinks.length > 0 && (
+              <nav
+                aria-label="Popularne przedmioty"
+                className="mt-8 rounded-2xl border border-border bg-card px-4 py-4"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Popularne korepetycje
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {subjectLinks.map(({ page, count }) => (
+                    <Link
+                      key={page.slug}
+                      href={`/korepetycje/${page.slug}`}
+                      className="rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                    >
+                      {page.linkLabel}
+                      <span className="ml-1 text-xs text-muted-foreground">({count})</span>
+                    </Link>
+                  ))}
+                </div>
+              </nav>
             )}
           </div>
         </div>

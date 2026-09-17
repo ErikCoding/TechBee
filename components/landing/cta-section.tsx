@@ -21,7 +21,7 @@ export function CtaSection() {
         <div className="max-w-2xl">
           <p className="text-xs font-medium uppercase tracking-wide text-primary">Gotowy do startu?</p>
           <h2 className="mt-3 text-balance text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
-            Znajdź nauczyciela, którego potrzebujesz
+            Znajdź korepetytora lub nauczyciela, którego potrzebujesz
           </h2>
           <p className="mt-4 max-w-xl text-balance leading-relaxed text-muted-foreground">
             Przeglądanie giełdy nie wymaga konta. Zakładasz je dopiero wtedy, gdy rezerwujesz konkretną lekcję.

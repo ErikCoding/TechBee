@@ -8,9 +8,9 @@ import { getCategories } from '@/services/categories.service'
 import { pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
-  title: 'Giełda nauczycieli',
+  title: 'Znajdź korepetytora online',
   description:
-    'Znajdź zweryfikowanego nauczyciela z dowolnej dziedziny i zarezerwuj indywidualną lekcję online.',
+    'Przeglądaj zweryfikowanych korepetytorów i nauczycieli online, porównuj ceny, oceny i dostępność, a potem zarezerwuj indywidualną lekcję na Runbee.',
   path: '/marketplace',
 })
 
@@ -43,7 +43,6 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
     <>
       <Navbar />
       <main id="main-content" className="bg-background">
-        <h1 className="sr-only">Znajdź korepetytora</h1>
         <MarketplaceClient
           teachers={teachers}
           categories={categories}
