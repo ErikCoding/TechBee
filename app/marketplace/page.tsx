@@ -43,6 +43,7 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
     <>
       <Navbar />
       <main id="main-content" className="bg-background">
+        <h1 className="sr-only">Znajdź korepetytora</h1>
         <MarketplaceClient
           teachers={teachers}
           categories={categories}

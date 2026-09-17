@@ -5,8 +5,6 @@ const footerLinks = {
   Platforma: [
     { label: 'Giełda nauczycieli', href: '/marketplace' },
     { label: 'Jak to działa', href: '/#how-it-works' },
-    { label: 'Wiadomości', href: '/chat' },
-    { label: 'BeePoints', href: '/beepoints' },
   ],
   Specjalizacje: [
     { label: 'Elektryka', href: '/marketplace?category=electrical' },
@@ -20,7 +18,6 @@ const footerLinks = {
   ],
   'Dla nauczycieli': [
     { label: 'Ucz na Runbee', href: '/teach' },
-    { label: 'Panel nauczyciela', href: '/dashboard/teacher' },
   ],
 }
 

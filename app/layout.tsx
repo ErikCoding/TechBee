@@ -87,7 +87,6 @@ export default function RootLayout({
         '@id': `${siteConfig.url}/#organization`,
         name: siteConfig.name,
         legalName: siteConfig.legalName,
-        alternateName: 'TechBee',
         url: siteConfig.url,
         logo: absoluteUrl('/icon.svg'),
         sameAs: [siteConfig.url],

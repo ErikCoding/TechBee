@@ -14,7 +14,7 @@ import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
 import { getCategories } from '@/services/categories.service'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
-import { noIndexMetadata, pageMetadata } from '@/lib/seo'
+import { absoluteUrl, noIndexMetadata, pageMetadata } from '@/lib/seo'
 
 // This page reads `searchParams` (bookingForId/bookingForName — the
 // "book for this student" deep link from a parent's dashboard), which
@@ -51,6 +51,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   })
 }
 
+function jsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c')
+}
+
+function localImageUrl(path?: string): string | undefined {
+  if (!path?.startsWith('/')) return undefined
+  return absoluteUrl(path)
+}
+
 export default async function TeacherProfilePage({ params, searchParams }: Props) {
   const { id } = await params
   const { bookingForId, bookingForName } = await searchParams
@@ -62,6 +71,58 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
     ...getTeacherCategoryIds(teacher).map((categoryId) => categoryMap.get(categoryId) ?? categoryId),
     ...getTeacherCustomSubjects(teacher),
   ]
+  const profileUrl = absoluteUrl(`/teacher/${teacher.id}`)
+  const teacherDescription = teacher.shortBio || teacher.bio
+  const teacherImage = localImageUrl(teacher.photoUrl)
+  const knowsAbout = [...new Set([teacher.specialty, ...teacherCategories, ...teacher.skills].filter(Boolean))]
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'ProfilePage',
+        '@id': `${profileUrl}#profile`,
+        url: profileUrl,
+        name: `${teacher.name} — ${teacher.specialty}`,
+        description: teacherDescription,
+        mainEntity: {
+          '@id': `${profileUrl}#person`,
+        },
+      },
+      {
+        '@type': 'Person',
+        '@id': `${profileUrl}#person`,
+        name: teacher.name,
+        ...(teacherImage ? { image: teacherImage } : {}),
+        description: teacherDescription,
+        url: profileUrl,
+        ...(knowsAbout.length > 0 ? { knowsAbout } : {}),
+      },
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${profileUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Runbee',
+            item: absoluteUrl('/'),
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Marketplace',
+            item: absoluteUrl('/marketplace'),
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: teacher.name,
+            item: profileUrl,
+          },
+        ],
+      },
+    ],
+  }
 
   const dayLabels = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz']
   const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -70,6 +131,10 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
     <>
       <Navbar />
       <main id="main-content" className="bg-background">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }}
+        />
         {/* Profile hero band */}
         <div className="border-b border-border bg-card">
           <div className="mx-auto max-w-7xl px-4 pb-8 pt-6 md:px-8">
