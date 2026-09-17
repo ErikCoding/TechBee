@@ -1,10 +1,13 @@
 import type { MetadataRoute } from 'next'
-import { getTeachers } from '@/services/teachers.service'
+import { getPublicTeachersForSitemap } from '@/services/seo-teachers.service'
 import { absoluteUrl, publicSeoRoutes } from '@/lib/seo'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
-  const teachers = await getTeachers()
+  const teachers = await getPublicTeachersForSitemap()
 
   const publicEntries = publicSeoRoutes.map((route) => ({
     url: absoluteUrl(route.path),
@@ -13,13 +16,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: route.priority,
   }))
 
-  const teacherEntries = teachers.map((teacher) => ({
-    url: absoluteUrl(`/teacher/${teacher.id}`),
-    lastModified: now,
-    changeFrequency: 'weekly' as const,
-    priority: teacher.featured ? 0.85 : 0.75,
-  }))
+  const teacherEntries = teachers
+    .filter((teacher) => teacher.id)
+    .map((teacher) => ({
+      url: absoluteUrl(`/teacher/${teacher.id}`),
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: teacher.featured ? 0.85 : 0.75,
+    }))
 
   return [...publicEntries, ...teacherEntries]
 }
-
