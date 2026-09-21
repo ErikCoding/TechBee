@@ -33,6 +33,10 @@ export type Category = {
   colorClass: string
 }
 
+export type WeekdayCode = 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat'
+
+export type AvailabilityHours = Partial<Record<WeekdayCode, { start: string; end: string }>>
+
 export type TeacherProfileSnapshot = {
   name: string
   initials: string
@@ -49,9 +53,11 @@ export type TeacherProfileSnapshot = {
   shortBio: string
   skills: string[]
   languages: string[]
+  lessonDurations?: number[]
   availability: string[]
   availabilityStart?: string
   availabilityEnd?: string
+  availabilityHours?: AvailabilityHours
   featured: boolean
   responseTime: string
   completionRate: number
@@ -115,10 +121,13 @@ export type Teacher = {
   languages: string[]
   education: { degree: string; institution: string; year: number }[]
   reviews: ReviewItem[]
+  lessonDurations?: number[]
   availability: string[]
   /** Daily working-hours window (e.g. "09:00"–"17:00") the booking calendar generates real time slots from. Optional so legacy demo teachers without it fall back to a default range. */
   availabilityStart?: string
   availabilityEnd?: string
+  /** Optional per-weekday working windows. Missing days fall back to availabilityStart/availabilityEnd. */
+  availabilityHours?: AvailabilityHours
   verified: boolean
   featured: boolean
   responseTime: string
@@ -149,9 +158,11 @@ export type TeacherApplicationInput = {
   bio: string
   skills: string[]
   languages: string[]
+  lessonDurations: number[]
   availability: string[]
   availabilityStart: string
   availabilityEnd: string
+  availabilityHours?: AvailabilityHours
 }
 
 export type Testimonial = {

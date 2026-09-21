@@ -1,6 +1,7 @@
 import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore'
 import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { normalizeLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects, teacherMatchesCategory } from '@/lib/teacher-categories'
 import { createNotification } from '@/services/notifications.service'
 import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapshot } from '@/lib/types'
@@ -166,9 +167,11 @@ function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
     shortBio: teacher.shortBio,
     skills: teacher.skills,
     languages: teacher.languages,
+    lessonDurations: normalizeLessonDurations(teacher.lessonDurations),
     availability: teacher.availability,
     ...(teacher.availabilityStart ? { availabilityStart: teacher.availabilityStart } : {}),
     ...(teacher.availabilityEnd ? { availabilityEnd: teacher.availabilityEnd } : {}),
+    ...(teacher.availabilityHours ? { availabilityHours: teacher.availabilityHours } : {}),
     featured: teacher.featured,
     responseTime: teacher.responseTime,
     completionRate: teacher.completionRate,
@@ -176,7 +179,7 @@ function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
 }
 
 function restoreProfileFromSnapshot(teacher: Teacher, previous: TeacherProfileSnapshot): Teacher {
-  const { photoUrl: _oldPhotoUrl, previousProfile: _oldPreviousProfile, verificationKind: _oldVerificationKind, ...withoutDraftMeta } = teacher
+  const { photoUrl: _oldPhotoUrl, availabilityHours: _oldAvailabilityHours, lessonDurations: _oldLessonDurations, previousProfile: _oldPreviousProfile, verificationKind: _oldVerificationKind, ...withoutDraftMeta } = teacher
   return {
     ...withoutDraftMeta,
     ...previous,
@@ -243,11 +246,13 @@ function buildTeacherFromApplication(
     shortBio: input.shortBio,
     skills: input.skills,
     languages: input.languages,
+    lessonDurations: normalizeLessonDurations(input.lessonDurations),
     education: existing?.education ?? [],
     reviews: existing?.reviews ?? [],
     availability: input.availability,
     availabilityStart: input.availabilityStart,
     availabilityEnd: input.availabilityEnd,
+    ...(input.availabilityHours ? { availabilityHours: input.availabilityHours } : {}),
     verified: false,
     featured: existing?.featured ?? false,
     responseTime: existing?.responseTime ?? '< 24 godz.',
@@ -419,7 +424,10 @@ async function submitApplicationFirebase(
   // Merge keeps server-owned fields such as `stripe` intact. A full
   // overwrite would try to remove them and Firestore rules correctly block
   // that when a teacher resubmits a profile/rate change from the client.
-  await setDoc(ref, teacher, { merge: true })
+  await setDoc(ref, {
+    ...teacher,
+    availabilityHours: input.availabilityHours ?? deleteField(),
+  }, { merge: true })
   return teacher
 }
 
@@ -451,6 +459,8 @@ async function reviewApplicationFirebase(id: string, decision: 'approved' | 'rej
     await updateDoc(ref, {
       ...restoreProfileFromSnapshot(teacher, teacher.previousProfile),
       photoUrl: teacher.previousProfile.photoUrl ?? deleteField(),
+      availabilityHours: teacher.previousProfile.availabilityHours ?? deleteField(),
+      lessonDurations: normalizeLessonDurations(teacher.previousProfile.lessonDurations),
       previousProfile: deleteField(),
       verificationKind: deleteField(),
     })

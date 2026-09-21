@@ -13,8 +13,10 @@ import { StarRating } from '@/components/shared/star-rating'
 import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
 import { getCategories } from '@/services/categories.service'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
+import { formatLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { absoluteUrl, noIndexMetadata, pageMetadata } from '@/lib/seo'
+import type { WeekdayCode } from '@/lib/types'
 
 // This page reads `searchParams` (bookingForId/bookingForName — the
 // "book for this student" deep link from a parent's dashboard), which
@@ -125,7 +127,19 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
   }
 
   const dayLabels = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz']
-  const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const dayKeys: WeekdayCode[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const availabilitySummary = teacher.availabilityHours
+    ? dayKeys
+        .filter((day) => teacher.availability.includes(day))
+        .map((day) => {
+          const hours = teacher.availabilityHours?.[day]
+          return hours ? `${dayLabels[dayKeys.indexOf(day)]} ${hours.start}-${hours.end}` : null
+        })
+        .filter(Boolean)
+        .join(', ')
+    : teacher.availabilityStart && teacher.availabilityEnd
+      ? `${teacher.availabilityStart}-${teacher.availabilityEnd}`
+      : ''
 
   return (
     <>
@@ -373,6 +387,12 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                         </span>
                       ))}
                     </div>
+                    {availabilitySummary && (
+                      <p className="text-xs leading-relaxed text-muted-foreground">{availabilitySummary}</p>
+                    )}
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Długość lekcji: {formatLessonDurations(teacher.lessonDurations)}
+                    </p>
                     <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
                       {teacher.languages.map((lang) => (
                         <Badge key={lang} variant="secondary">{lang}</Badge>

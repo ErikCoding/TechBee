@@ -13,7 +13,7 @@ export const faqData: FaqItem[] = [
   },
   {
     question: 'Jak wyglądają lekcje?',
-    answer: 'Lekcje są indywidualne i odbywają się przez wbudowaną platformę wideo z możliwością udostępniania ekranu. Temat i cele nauki ustalacie z wyprzedzeniem. Lekcja trwa 60 albo 90 minut, a system dolicza bufor po spotkaniu, żeby kolejne rezerwacje się nie nakładały.',
+    answer: 'Lekcje są indywidualne i odbywają się przez wbudowaną platformę wideo z możliwością udostępniania ekranu. Temat i cele nauki ustalacie z wyprzedzeniem. Nauczyciel wybiera, czy oferuje lekcje 30, 60 lub 120 min, a system dolicza bufor po spotkaniu, żeby kolejne rezerwacje się nie nakładały.',
   },
   {
     question: 'Jak działają płatności?',

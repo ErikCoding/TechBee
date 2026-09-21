@@ -5,14 +5,15 @@
 // client calendar and the server-side Stripe checkout guard.
 // ─────────────────────────────────────────────────────────────
 
-import type { BookedLessonSlot } from '@/lib/types'
-import { dateIsoFromLocalDate, LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import type { AvailabilityHours, BookedLessonSlot, WeekdayCode } from '@/lib/types'
+import { dateIsoFromLocalDate, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
 
-const WEEKDAY_CODES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAY_CODES: WeekdayCode[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const WEEKDAY_LABELS_PL = ['Niedz', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob']
 const MONTHS_PL = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru']
 const DEFAULT_HOURS = { start: '09:00', end: '17:00' }
 export const BOOKING_WINDOW_DAYS = 30
+export const DEFAULT_AVAILABILITY_HOURS = DEFAULT_HOURS
 
 export type AvailabilitySlot = {
   time: string
@@ -26,7 +27,21 @@ export type AvailabilityDay = {
   slots: AvailabilitySlot[]
 }
 
-/** Half-hour starts inside the teacher's working window. A slot still has to fit the whole lesson plus buffer before it becomes bookable. */
+export type WorkingHours = { start: string; end: string }
+
+export function getAvailabilityHoursForWeekday(
+  weekday: WeekdayCode,
+  fallback: WorkingHours = DEFAULT_HOURS,
+  availabilityHours?: AvailabilityHours,
+): WorkingHours {
+  const dayHours = availabilityHours?.[weekday]
+  return {
+    start: dayHours?.start || fallback.start || DEFAULT_HOURS.start,
+    end: dayHours?.end || fallback.end || DEFAULT_HOURS.end,
+  }
+}
+
+/** Half-hour starts inside the teacher's working window. A slot still has to fit the whole lesson before it becomes bookable. */
 function generatePotentialSlots(start: string, end: string): string[] {
   const startMin = timeToMinutes(start)
   const endMin = timeToMinutes(end)
@@ -44,10 +59,8 @@ export function buildAvailability(
   availability: string[],
   hours: { start: string; end: string } = DEFAULT_HOURS,
   daysAhead = BOOKING_WINDOW_DAYS,
-  options: { duration?: number; bookedLessons?: BookedLessonSlot[] } = {},
+  options: { duration?: number; bookedLessons?: BookedLessonSlot[]; availabilityHours?: AvailabilityHours } = {},
 ): AvailabilityDay[] {
-  const allSlots = generatePotentialSlots(hours.start || DEFAULT_HOURS.start, hours.end || DEFAULT_HOURS.end)
-  const endMin = timeToMinutes(hours.end || DEFAULT_HOURS.end) ?? timeToMinutes(DEFAULT_HOURS.end)!
   const duration = options.duration ?? 60
   const bookedLessons = options.bookedLessons ?? []
   const days: AvailabilityDay[] = []
@@ -58,9 +71,12 @@ export function buildAvailability(
     const code = WEEKDAY_CODES[date.getDay()]
     if (!availability.includes(code)) continue
     const isoDate = dateIsoFromLocalDate(date)
+    const dayHours = getAvailabilityHoursForWeekday(code, hours, options.availabilityHours)
+    const allSlots = generatePotentialSlots(dayHours.start, dayHours.end)
+    const endMin = timeToMinutes(dayHours.end) ?? timeToMinutes(DEFAULT_HOURS.end)!
     const slots = allSlots.map((time) => {
       const startMin = timeToMinutes(time)
-      const fitsWorkingWindow = startMin !== null && startMin + duration + LESSON_BUFFER_MINUTES <= endMin
+      const fitsWorkingWindow = startMin !== null && startMin + duration <= endMin
       const booked = fitsWorkingWindow && slotOverlapsBookedLesson({
         dateIso: isoDate,
         time,

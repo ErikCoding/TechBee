@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
+import { formatLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { getCategories } from '@/services/categories.service'
 import { getPendingTeacherApplications, reviewTeacherApplication } from '@/services/teachers.service'
@@ -37,10 +38,20 @@ function formatList(items?: string[]) {
   return items?.length ? items.join(', ') : 'Nie podano'
 }
 
-function formatAvailability(profile: Pick<TeacherProfileSnapshot, 'availability' | 'availabilityStart' | 'availabilityEnd'>) {
+function formatAvailability(profile: Pick<TeacherProfileSnapshot, 'availability' | 'availabilityStart' | 'availabilityEnd' | 'availabilityHours'>) {
   const days = profile.availability.length
     ? profile.availability.map((day) => WEEKDAY_LABELS[day] ?? day).join(', ')
     : 'Brak dni'
+  const dayHours = profile.availabilityHours
+    ? profile.availability
+        .map((day) => {
+          const hours = profile.availabilityHours?.[day as keyof typeof profile.availabilityHours]
+          return hours ? `${WEEKDAY_LABELS[day] ?? day} ${hours.start}-${hours.end}` : null
+        })
+        .filter(Boolean)
+        .join(', ')
+    : ''
+  if (dayHours) return dayHours
   return `${days}, ${profile.availabilityStart ?? '09:00'}-${profile.availabilityEnd ?? '17:00'}`
 }
 
@@ -61,9 +72,11 @@ function profileFromTeacher(app: Teacher): TeacherProfileSnapshot {
     shortBio: app.shortBio,
     skills: app.skills,
     languages: app.languages,
+    lessonDurations: app.lessonDurations ?? [60],
     availability: app.availability,
     availabilityStart: app.availabilityStart,
     availabilityEnd: app.availabilityEnd,
+    availabilityHours: app.availabilityHours,
     featured: app.featured,
     responseTime: app.responseTime,
     completionRate: app.completionRate,
@@ -227,7 +240,7 @@ export function AdminVerificationsPanel() {
                   <CompactMetric icon={WalletCards} label="Stawka" value={`${app.hourlyRate} zł/godz.`} />
                   <CompactMetric icon={Sparkles} label="Specjalizacja" value={app.specialty} />
                   <CompactMetric icon={MapPin} label="Lokalizacja" value={app.location} />
-                  <CompactMetric icon={CalendarClock} label="Dostępność" value={formatAvailability(next)} />
+                  <CompactMetric icon={CalendarClock} label="Dostępność" value={`${formatAvailability(next)} · ${formatLessonDurations(next.lessonDurations)}`} />
                 </div>
 
                 <div className="px-4 pb-4">
@@ -244,6 +257,7 @@ export function AdminVerificationsPanel() {
                     <ChangeRow label="Stawka" before={previous ? `${previous.hourlyRate} zł/godz.` : undefined} after={`${next.hourlyRate} zł/godz.`} />
                     <ChangeRow label="Lokalizacja" before={previous?.location} after={next.location} />
                     <ChangeRow label="Doświadczenie" before={previous ? `${previous.experience} lat` : undefined} after={`${next.experience} lat`} />
+                    <ChangeRow label="Długość lekcji" before={previous ? formatLessonDurations(previous.lessonDurations) : undefined} after={formatLessonDurations(next.lessonDurations)} />
                     <ChangeRow label="Dostępność" before={previous ? formatAvailability(previous) : undefined} after={formatAvailability(next)} />
                     <ChangeRow label="Języki" before={previous ? formatList(previous.languages) : undefined} after={formatList(next.languages)} />
                     <ChangeRow label="Umiejętności" before={previous ? formatList(previous.skills) : undefined} after={formatList(next.skills)} />

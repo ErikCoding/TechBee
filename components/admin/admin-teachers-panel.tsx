@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getAllTeachersForAdmin, deleteTeacherProfile, reviewTeacherApplication, setTeacherFeatured } from '@/services/teachers.service'
 import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
+import { formatLessonDurations } from '@/lib/lesson-durations'
 import { cn } from '@/lib/utils'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import type { Category, Teacher } from '@/lib/types'
@@ -51,8 +52,22 @@ function formatList(values?: string[]) {
 
 function formatAvailability(t: Teacher) {
   const days = t.availability.map((day) => WEEKDAY_LABELS[day] ?? day)
+  const dayHours = t.availabilityHours
+    ? t.availability
+        .map((day) => {
+          const hours = t.availabilityHours?.[day as keyof typeof t.availabilityHours]
+          return hours ? `${WEEKDAY_LABELS[day] ?? day} ${hours.start}-${hours.end}` : null
+        })
+        .filter(Boolean)
+        .join(', ')
+    : ''
+  if (dayHours) return dayHours
   const hours = t.availabilityStart && t.availabilityEnd ? ` (${t.availabilityStart}-${t.availabilityEnd})` : ''
   return `${formatList(days)}${hours}`
+}
+
+function formatTeacherAvailability(t: Teacher) {
+  return `${formatAvailability(t)} · ${formatLessonDurations(t.lessonDurations)}`
 }
 
 /** Full "manage the giełda" view for admins — every teacher regardless of status, with approve/reject/feature/delete controls. */
@@ -269,7 +284,7 @@ export function AdminTeachersPanel({ categories }: Props) {
                               <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
                               Dostępność
                             </div>
-                            <p className="text-xs leading-relaxed text-muted-foreground">{formatAvailability(t)}</p>
+                            <p className="text-xs leading-relaxed text-muted-foreground">{formatTeacherAvailability(t)}</p>
                           </div>
                         </div>
 

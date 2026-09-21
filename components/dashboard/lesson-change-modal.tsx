@@ -44,7 +44,7 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
           teacher.availability,
           { start: teacher.availabilityStart ?? '09:00', end: teacher.availabilityEnd ?? '17:00' },
           14,
-          { duration: lesson.duration, bookedLessons: usableBookedSlots },
+          { duration: lesson.duration, bookedLessons: usableBookedSlots, availabilityHours: teacher.availabilityHours },
         )
       : [],
     [teacher, lesson.duration, usableBookedSlots],

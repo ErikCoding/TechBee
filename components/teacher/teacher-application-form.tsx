@@ -5,14 +5,17 @@ import { useRouter } from 'next/navigation'
 import { CalendarDays, CheckCircle2, ChevronDown, Clock, Loader2, Save, Send, Sparkles, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ProfilePhotoPicker } from '@/components/profile/profile-photo-picker'
 import { useAuth } from '@/lib/auth-context'
+import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
+import { timeToMinutes } from '@/lib/lesson-time'
 import { getCategories } from '@/services/categories.service'
 import { getTeacherApplication, submitTeacherApplication } from '@/services/teachers.service'
 import { toParticipant } from '@/services/chat.service'
 import { normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
-import type { Category, Teacher } from '@/lib/types'
+import type { AvailabilityHours, Category, Teacher, WeekdayCode } from '@/lib/types'
 
 const WEEKDAYS = [
   { code: 'Mon', label: 'Pon' },
@@ -22,7 +25,10 @@ const WEEKDAYS = [
   { code: 'Fri', label: 'Pt' },
   { code: 'Sat', label: 'Sob' },
   { code: 'Sun', label: 'Niedz' },
-]
+] satisfies { code: WeekdayCode; label: string }[]
+
+const DEFAULT_AVAILABILITY_START = '09:00'
+const DEFAULT_AVAILABILITY_END = '17:00'
 
 const VISIBLE_CATEGORY_LIMIT = 9
 
@@ -43,6 +49,27 @@ function inferCategoryIdsFromProfile(cats: Category[], app: Teacher) {
   if (app.categoryIds?.length) return explicit
   const inferred = inferCategoryIdsFromText(cats, [app.specialty, app.shortBio, app.bio, ...app.skills])
   return normalizeSelectedCategoryIds(cats, app.categoryId, [...explicit, ...inferred])
+}
+
+function assertValidHours(start: string, end: string, label: string) {
+  const startMin = timeToMinutes(start)
+  const endMin = timeToMinutes(end)
+  if (startMin === null || endMin === null || endMin <= startMin) {
+    throw new Error(`${label}: godzina "do" musi być późniejsza niż "od".`)
+  }
+}
+
+function normalizeAvailabilityHours(
+  activeDays: string[],
+  availabilityHours: AvailabilityHours,
+  fallback: { start: string; end: string },
+): AvailabilityHours {
+  return activeDays.reduce<AvailabilityHours>((acc, day) => {
+    const code = day as WeekdayCode
+    const hours = availabilityHours[code] ?? fallback
+    acc[code] = { start: hours.start, end: hours.end }
+    return acc
+  }, {})
 }
 
 function FormSection({
@@ -86,9 +113,12 @@ export function TeacherApplicationForm() {
   const [bio, setBio] = useState('')
   const [skills, setSkills] = useState('')
   const [languages, setLanguages] = useState('Polski')
+  const [lessonDurations, setLessonDurations] = useState<number[]>([60])
   const [availability, setAvailability] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
   const [availabilityStart, setAvailabilityStart] = useState('09:00')
   const [availabilityEnd, setAvailabilityEnd] = useState('17:00')
+  const [customAvailabilityHours, setCustomAvailabilityHours] = useState(false)
+  const [availabilityHours, setAvailabilityHours] = useState<AvailabilityHours>({})
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -119,9 +149,12 @@ export function TeacherApplicationForm() {
         setBio(app.bio)
         setSkills(app.skills.join(', '))
         setLanguages(app.languages.join(', '))
+        setLessonDurations(normalizeLessonDurations(app.lessonDurations))
         setAvailability(app.availability)
-        setAvailabilityStart(app.availabilityStart ?? '09:00')
-        setAvailabilityEnd(app.availabilityEnd ?? '17:00')
+        setAvailabilityStart(app.availabilityStart ?? DEFAULT_AVAILABILITY_START)
+        setAvailabilityEnd(app.availabilityEnd ?? DEFAULT_AVAILABILITY_END)
+        setAvailabilityHours(app.availabilityHours ?? {})
+        setCustomAvailabilityHours(Boolean(app.availabilityHours && Object.keys(app.availabilityHours).length > 0))
       } else if (cats[0]) {
         setPhotoUrl(user.photoUrl ?? '')
         setCategoryId(cats[0].id)
@@ -133,6 +166,31 @@ export function TeacherApplicationForm() {
 
   function toggleDay(code: string) {
     setAvailability((prev) => (prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]))
+  }
+
+  function dayHours(code: WeekdayCode) {
+    return availabilityHours[code] ?? { start: availabilityStart, end: availabilityEnd }
+  }
+
+  function updateDayHours(code: WeekdayCode, field: 'start' | 'end', value: string) {
+    setAvailabilityHours((prev) => ({
+      ...prev,
+      [code]: {
+        ...(prev[code] ?? { start: availabilityStart, end: availabilityEnd }),
+        [field]: value,
+      },
+    }))
+  }
+
+  function applyGlobalHoursToActiveDays() {
+    setAvailabilityHours((prev) => normalizeAvailabilityHours(availability, prev, { start: availabilityStart, end: availabilityEnd }))
+  }
+
+  function toggleLessonDuration(minutes: number) {
+    setLessonDurations((prev) => {
+      const next = prev.includes(minutes) ? prev.filter((duration) => duration !== minutes) : [...prev, minutes]
+      return normalizeLessonDurations(next.length ? next : [60])
+    })
   }
 
   function toggleCategory(id: string) {
@@ -182,6 +240,17 @@ export function TeacherApplicationForm() {
       const selectedCategoryIds = normalizeSelectedCategoryIds(categories, categoryId, [...categoryIds, ...inferredCategoryIds])
       const selectedCustomSubjects = normalizeTeacherCustomSubjects(customSubjects.split(','))
       if (!selectedCategoryIds.length) throw new Error('Wybierz przynajmniej jedną dziedzinę nauczania.')
+      assertValidHours(availabilityStart, availabilityEnd, 'Globalna dostępność')
+      const selectedAvailabilityHours = customAvailabilityHours
+        ? normalizeAvailabilityHours(availability, availabilityHours, { start: availabilityStart, end: availabilityEnd })
+        : undefined
+      if (selectedAvailabilityHours) {
+        for (const day of availability) {
+          const weekday = WEEKDAYS.find((d) => d.code === day)
+          const hours = selectedAvailabilityHours[day as WeekdayCode]
+          if (hours) assertValidHours(hours.start, hours.end, weekday?.label ?? day)
+        }
+      }
       await submitTeacherApplication(toParticipant(profileUser), {
         photoUrl: trimmedPhotoUrl || undefined,
         categoryId: selectedCategoryIds.includes(categoryId) ? categoryId : selectedCategoryIds[0],
@@ -195,9 +264,11 @@ export function TeacherApplicationForm() {
         bio: bio.trim(),
         skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
         languages: languages.split(',').map((s) => s.trim()).filter(Boolean),
+        lessonDurations: normalizeLessonDurations(lessonDurations),
         availability,
         availabilityStart,
         availabilityEnd,
+        availabilityHours: selectedAvailabilityHours,
       })
       setSubmitted(true)
       router.refresh()
@@ -428,6 +499,33 @@ export function TeacherApplicationForm() {
             <Input id="languages" required value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="Polski, Angielski" />
           </div>
         </div>
+
+        <div className="flex flex-col gap-2">
+          <div>
+            <p className="text-xs font-medium text-foreground">Długość lekcji</p>
+            <p className="mt-1 text-xs text-muted-foreground">Zaznacz warianty, które uczniowie mogą wybrać przy rezerwacji. Standardowo dostępne jest 60 min.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {LESSON_DURATION_OPTIONS.map((option) => {
+              const active = lessonDurations.includes(option.minutes)
+              return (
+                <button
+                  key={option.minutes}
+                  type="button"
+                  onClick={() => toggleLessonDuration(option.minutes)}
+                  aria-pressed={active}
+                  className={`flex h-11 items-center justify-center rounded-xl border text-sm font-semibold transition-colors ${
+                    active
+                      ? 'border-primary bg-accent text-accent-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </FormSection>
 
       <FormSection icon={CalendarDays} title="Dostępność">
@@ -459,22 +557,64 @@ export function TeacherApplicationForm() {
         </div>
 
         <div className="rounded-xl border border-border bg-background/60 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <p className="text-xs font-medium text-foreground">Godziny rezerwacji</p>
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <p className="text-xs font-medium text-foreground">Godziny rezerwacji</p>
+            </div>
+            <label className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <Switch checked={customAvailabilityHours} onCheckedChange={setCustomAvailabilityHours} />
+              Osobne godziny dla dni
+            </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="availabilityStart" className="text-[11px] text-muted-foreground">Od</label>
+              <label htmlFor="availabilityStart" className="text-[11px] text-muted-foreground">
+                {customAvailabilityHours ? 'Domyślnie od' : 'Od'}
+              </label>
               <Input id="availabilityStart" type="time" required value={availabilityStart} onChange={(e) => setAvailabilityStart(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="availabilityEnd" className="text-[11px] text-muted-foreground">Do</label>
+              <label htmlFor="availabilityEnd" className="text-[11px] text-muted-foreground">
+                {customAvailabilityHours ? 'Domyślnie do' : 'Do'}
+              </label>
               <Input id="availabilityEnd" type="time" required value={availabilityEnd} onChange={(e) => setAvailabilityEnd(e.target.value)} />
             </div>
           </div>
+          {customAvailabilityHours && (
+            <div className="mt-4 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-medium text-muted-foreground">Zakresy dla aktywnych dni</p>
+                <button
+                  type="button"
+                  onClick={applyGlobalHoursToActiveDays}
+                  className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  Ustaw domyślne
+                </button>
+              </div>
+              <div className="grid gap-2">
+                {WEEKDAYS.filter((day) => availability.includes(day.code)).map((day) => {
+                  const hours = dayHours(day.code)
+                  return (
+                    <div key={day.code} className="grid grid-cols-[3.5rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-2 rounded-lg border border-border bg-card p-2">
+                      <span className="pb-2 text-xs font-semibold text-foreground">{day.label}</span>
+                      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                        Od
+                        <Input type="time" required value={hours.start} onChange={(e) => updateDayHours(day.code, 'start', e.target.value)} />
+                      </label>
+                      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                        Do
+                        <Input type="time" required value={hours.end} onChange={(e) => updateDayHours(day.code, 'end', e.target.value)} />
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Kalendarz pokazuje tylko terminy, w których mieści się cała lekcja oraz 15 minut zapasu po niej.
+            Końcowa godzina oznacza najpóźniejszy koniec lekcji. Zapas po spotkaniu blokuje tylko kolizje z kolejnymi rezerwacjami.
           </p>
         </div>
       </FormSection>

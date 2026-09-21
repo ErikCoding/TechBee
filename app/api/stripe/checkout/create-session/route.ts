@@ -8,9 +8,10 @@ import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { collections } from '@/lib/firebase'
 import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
-import { BOOKING_WINDOW_DAYS } from '@/lib/availability'
-import { LESSON_BUFFER_MINUTES, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
-import type { BookedLessonSlot } from '@/lib/types'
+import { BOOKING_WINDOW_DAYS, getAvailabilityHoursForWeekday } from '@/lib/availability'
+import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
+import { slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import type { AvailabilityHours, BookedLessonSlot, WeekdayCode } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Starts payment for a specific lesson slot. A Lesson doc is
@@ -23,11 +24,11 @@ import type { BookedLessonSlot } from '@/lib/types'
 // The price is never trusted from the client: it's recomputed here
 // from the teacher's real hourlyRate (read via the trusted admin
 // connection, not the request body) × the requested duration — the
-// only two numbers a client can influence (duration) are restricted
-// to the same two options the booking UI offers (60/90 min).
+// only number a client can influence (duration) is restricted to the
+// platform options and to the durations offered by this teacher.
 // ─────────────────────────────────────────────────────────────
 
-const ALLOWED_DURATIONS = [60, 90]
+const ALLOWED_DURATIONS: number[] = LESSON_DURATION_OPTIONS.map((option) => option.minutes)
 
 // Stripe metadata values are capped at 500 characters each. Most fields
 // here are short user-entered strings and never came close, but teacher
@@ -119,10 +120,13 @@ export async function POST(request: Request) {
 
   const teacherSnap = await adminDb!.collection(collections.teachers).doc(teacherId).get()
   const teacher = teacherSnap.data() as
-    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; categoryId?: string; categoryIds?: string[]; customSubjects?: string[]; hourlyRate?: number; status?: string; availability?: string[]; availabilityStart?: string; availabilityEnd?: string }
+    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; categoryId?: string; categoryIds?: string[]; customSubjects?: string[]; hourlyRate?: number; status?: string; lessonDurations?: number[]; availability?: string[]; availabilityStart?: string; availabilityEnd?: string; availabilityHours?: AvailabilityHours }
     | undefined
   if (!teacher || !teacher.hourlyRate || (teacher.status && teacher.status !== 'approved')) {
     return NextResponse.json({ error: 'Nie znaleziono tego nauczyciela.' }, { status: 404 })
+  }
+  if (!normalizeLessonDurations(teacher.lessonDurations).includes(duration)) {
+    return NextResponse.json({ error: 'Ten nauczyciel nie oferuje wybranej długości lekcji.' }, { status: 409 })
   }
   const teacherCategoryIds = getTeacherCategoryIds({
     categoryId: teacher.categoryId ?? '',
@@ -145,14 +149,19 @@ export async function POST(request: Request) {
   const selectedSpecialty = safeMetaText(selectedSubjectName || customSubject || teacher.specialty || '')
 
   const requestedStart = timeToMinutes(time)
-  const availabilityStart = timeToMinutes(teacher.availabilityStart ?? '09:00')
-  const availabilityEnd = timeToMinutes(teacher.availabilityEnd ?? '17:00')
   const requestedDate = new Date(`${dateIso}T12:00:00`)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const latestDate = new Date(today)
   latestDate.setDate(today.getDate() + BOOKING_WINDOW_DAYS)
-  const weekdayCode = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][requestedDate.getDay()]
+  const weekdayCode = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][requestedDate.getDay()] as WeekdayCode
+  const dayHours = getAvailabilityHoursForWeekday(
+    weekdayCode,
+    { start: teacher.availabilityStart ?? '09:00', end: teacher.availabilityEnd ?? '17:00' },
+    teacher.availabilityHours,
+  )
+  const availabilityStart = timeToMinutes(dayHours.start)
+  const availabilityEnd = timeToMinutes(dayHours.end)
   const teacherAvailability = teacher.availability ?? []
   if (
     requestedStart === null ||
@@ -163,7 +172,7 @@ export async function POST(request: Request) {
     requestedDate > latestDate ||
     !teacherAvailability.includes(weekdayCode) ||
     requestedStart < availabilityStart ||
-    requestedStart + duration + LESSON_BUFFER_MINUTES > availabilityEnd
+    requestedStart + duration > availabilityEnd
   ) {
     return NextResponse.json({ error: 'Ten termin nie mieści się już w dostępności nauczyciela.' }, { status: 409 })
   }

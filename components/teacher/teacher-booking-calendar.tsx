@@ -7,6 +7,7 @@ import { CalendarRange, CheckCircle2, Loader2, Lock, MessageSquare } from 'lucid
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { BOOKING_WINDOW_DAYS, buildAvailability } from '@/lib/availability'
+import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
 import { LESSON_BUFFER_MINUTES, timeToMinutes } from '@/lib/lesson-time'
 import { useAuth } from '@/lib/auth-context'
 import { isFirebaseConfigured } from '@/lib/firebase'
@@ -22,20 +23,20 @@ interface Props {
   bookingFor?: { id: string; name: string }
 }
 
-const DURATIONS = [
-  { minutes: 60, label: '60 min' },
-  { minutes: 90, label: '90 min' },
-]
-
 export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props) {
   const { user } = useAuth()
   const router = useRouter()
   const normalizedSubjects = subjects.length ? subjects : [{ id: teacher.categoryId, name: teacher.specialty }]
+  const offeredDurations = useMemo(() => normalizeLessonDurations(teacher.lessonDurations), [teacher.lessonDurations])
+  const durationOptions = useMemo(
+    () => LESSON_DURATION_OPTIONS.filter((option) => offeredDurations.includes(option.minutes)),
+    [offeredDurations],
+  )
 
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [selectedSubjectId, setSelectedSubjectId] = useState(normalizedSubjects[0]?.id ?? teacher.categoryId)
-  const [duration, setDuration] = useState(60)
+  const [duration, setDuration] = useState(offeredDurations[0] ?? 60)
   const [topic, setTopic] = useState('')
   const [bookedSlots, setBookedSlots] = useState<BookedLessonSlot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(true)
@@ -63,9 +64,9 @@ export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props)
       teacher.availability,
       { start: teacher.availabilityStart ?? '09:00', end: teacher.availabilityEnd ?? '17:00' },
       BOOKING_WINDOW_DAYS,
-      { duration, bookedLessons: bookedSlots },
+      { duration, bookedLessons: bookedSlots, availabilityHours: teacher.availabilityHours },
     ),
-    [teacher.availability, teacher.availabilityStart, teacher.availabilityEnd, duration, bookedSlots],
+    [teacher.availability, teacher.availabilityStart, teacher.availabilityEnd, teacher.availabilityHours, duration, bookedSlots],
   )
 
   useEffect(() => {
@@ -73,6 +74,12 @@ export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props)
     const selected = days[selectedDayIndex]?.slots.find((slot) => slot.time === selectedSlot)
     if (!selected || selected.status !== 'available') setSelectedSlot(null)
   }, [days, selectedDayIndex, selectedSlot])
+
+  useEffect(() => {
+    if (offeredDurations.includes(duration)) return
+    setDuration(offeredDurations[0] ?? 60)
+    setSelectedSlot(null)
+  }, [duration, offeredDurations])
 
   const selectedDay = days[selectedDayIndex]
   const selectedSubject = normalizedSubjects.find((subject) => subject.id === selectedSubjectId) ?? normalizedSubjects[0]
@@ -276,7 +283,7 @@ export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props)
                           ? 'border-border bg-muted/70 text-muted-foreground'
                           : 'border-border bg-background text-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/60',
                     )}
-                    title={slot.status === 'booked' ? 'Ten termin jest już zajęty' : slot.status === 'outside' ? `Za mało czasu na lekcję i ${LESSON_BUFFER_MINUTES} minut zapasu` : undefined}
+                    title={slot.status === 'booked' ? 'Ten termin jest już zajęty' : slot.status === 'outside' ? 'Za mało czasu na całą lekcję' : undefined}
                   >
                     {slot.status === 'booked' && <Lock className="h-3 w-3" aria-hidden="true" />}
                     {slot.time}
@@ -287,7 +294,7 @@ export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props)
             </div>
             {selectedDay.slots.every((slot) => slot.status !== 'available') && (
               <p className="mt-3 text-xs text-muted-foreground">
-                Brak wolnych godzin dla {duration} min. Kalendarz dolicza {LESSON_BUFFER_MINUTES} min zapasu po lekcji.
+                Brak wolnych godzin dla lekcji {duration} min. Zapas po spotkaniu blokuje tylko terminy nachodzące na inne rezerwacje.
               </p>
             )}
           </div>
@@ -299,7 +306,7 @@ export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props)
               <h2 className="text-sm font-semibold text-foreground">Długość lekcji</h2>
             </div>
             <div className="flex gap-2">
-              {DURATIONS.map((d) => (
+              {durationOptions.map((d) => (
                 <button
                   key={d.minutes}
                   type="button"
