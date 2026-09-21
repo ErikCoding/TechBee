@@ -1,7 +1,7 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getPendingTeacherApplications } from '@/services/teachers.service'
-import type { AdminStats, AdminUserRow, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
+import type { AdminStats, AdminUserRow, FoundingTeacherAdminDashboard, FoundingTeacherProgramConfig, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Data-access layer for the admin panel.
@@ -203,6 +203,25 @@ export async function getPlatformWallet(): Promise<{ summary: PlatformWalletSumm
 
 export async function updatePlatformCommission(commissionPercent: number): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
   return adminJson('/api/admin/platform-wallet', 'PATCH', { commissionPercent })
+}
+
+export async function getFoundingTeacherDashboard(): Promise<FoundingTeacherAdminDashboard> {
+  return adminJson('/api/admin/founding-teachers', 'POST')
+}
+
+export async function updateFoundingTeacherProgramConfig(config: Partial<FoundingTeacherProgramConfig>): Promise<FoundingTeacherAdminDashboard> {
+  return adminJson('/api/admin/founding-teachers', 'PATCH', { config })
+}
+
+export async function initializeFoundingTeacherProgram(confirm: boolean): Promise<FoundingTeacherAdminDashboard> {
+  return adminJson('/api/admin/founding-teachers/initialize', 'POST', { confirm })
+}
+
+export async function updateFoundingTeacherPromotion(
+  teacherId: string,
+  patch: { rate?: number; endsAt?: number; marketplaceHighlight?: boolean },
+): Promise<FoundingTeacherAdminDashboard> {
+  return adminJson(`/api/admin/founding-teachers/${teacherId}`, 'PATCH', patch)
 }
 
 export interface AdminConversationRow {

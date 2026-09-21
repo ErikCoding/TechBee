@@ -80,6 +80,8 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     paymentStatus: 'paid',
     priceGrosze: Number(m.priceGrosze),
     commissionPercent: Number(m.commissionPercent ?? 0),
+    effectiveCommissionPercent: Number(m.effectiveCommissionPercent ?? m.commissionPercent ?? 0),
+    commissionSource: m.commissionSource === 'founding_teacher' ? 'founding_teacher' : 'standard',
     platformFeeGrosze: Number(m.platformFeeGrosze ?? 0),
     teacherAmountGrosze: Number(m.teacherAmountGrosze ?? 0),
     stripeCheckoutSessionId: session.id,

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Star, MapPin, BadgeCheck, CalendarDays } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { foundingPromotionIsActive } from '@/lib/founding-teacher-core'
 import type { Teacher } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +41,7 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
     : `/teacher/${teacher.id}`
 
   const availableDays = teacher.availability.map((d) => DAY_LABELS[d] ?? d)
+  const showFoundingBadge = foundingPromotionIsActive(teacher.foundingTeacherPromotion) && teacher.foundingTeacherPromotion.marketplaceHighlight !== false
 
   return (
     <Link
@@ -115,11 +117,18 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
         </span>
       </div>
 
-      {featured && (
-        <span className="absolute -top-2 left-4 rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
-          Wyróżniony
-        </span>
-      )}
+      <div className="absolute -top-2 left-4 flex flex-wrap gap-1.5">
+        {featured && (
+          <span className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+            Wyróżniony
+          </span>
+        )}
+        {showFoundingBadge && (
+          <span className="rounded-md bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+            Pierwsza 50
+          </span>
+        )}
+      </div>
     </Link>
   )
 }

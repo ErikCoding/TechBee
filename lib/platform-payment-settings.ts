@@ -17,13 +17,18 @@ export function normalizeCommissionPercent(value: unknown): number {
 
 export async function getPlatformPaymentSettings(): Promise<PlatformPaymentSettings> {
   if (!adminDb) return { commissionPercent: PLATFORM_COMMISSION_PERCENT }
-  const snap = await adminDb.collection(collections.platformSettings).doc(SETTINGS_DOC_ID).get()
-  if (!snap.exists) return { commissionPercent: PLATFORM_COMMISSION_PERCENT }
-  const data = snap.data() as Partial<PlatformPaymentSettings>
-  return {
-    commissionPercent: normalizeCommissionPercent(data.commissionPercent),
-    updatedAt: data.updatedAt,
-    updatedBy: data.updatedBy,
+  try {
+    const snap = await adminDb.collection(collections.platformSettings).doc(SETTINGS_DOC_ID).get()
+    if (!snap.exists) return { commissionPercent: PLATFORM_COMMISSION_PERCENT }
+    const data = snap.data() as Partial<PlatformPaymentSettings>
+    return {
+      commissionPercent: normalizeCommissionPercent(data.commissionPercent),
+      updatedAt: data.updatedAt,
+      updatedBy: data.updatedBy,
+    }
+  } catch (err) {
+    console.error('[platform-payment-settings] Failed to read payment settings, using fallback commission:', err)
+    return { commissionPercent: PLATFORM_COMMISSION_PERCENT }
   }
 }
 

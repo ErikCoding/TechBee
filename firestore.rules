@@ -116,7 +116,12 @@ service cloud.firestore {
       // guarantee rule-level would require moving reviews into their own
       // subcollection keyed by author — noted as future work rather than
       // done here, because it is a schema migration, not a rules tweak.
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['stripe'])
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'stripe',
+          'foundingTeacher',
+          'foundingTeacherNumber',
+          'foundingTeacherPromotion'
+        ])
         && ((isOwner(teacherId) && request.resource.data.status == 'pending')
           || (isOwner(teacherId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'initials', 'avatarColor', 'photoUrl'])
@@ -186,7 +191,8 @@ service cloud.firestore {
         isAdmin() ||
         isLinkedParentOf(resource.data.studentId)
       ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'paymentStatus', 'priceGrosze', 'platformFeeGrosze', 'teacherAmountGrosze',
+        'paymentStatus', 'priceGrosze', 'commissionPercent', 'effectiveCommissionPercent', 'commissionSource',
+        'platformFeeGrosze', 'teacherAmountGrosze',
         'stripeCheckoutSessionId', 'stripePaymentIntentId', 'stripeTransferId', 'stripeRefundId'
       ]);
       allow delete: if isAdmin();
@@ -307,6 +313,20 @@ service cloud.firestore {
     // app/api/stripe/webhook/route.ts) — purely an internal dedupe
     // record, never read or written by any client.
     match /stripeEvents/{id} {
+      allow read, write: if false;
+    }
+
+    // ── Founding teacher launch program ──
+    // Config, numbered slot claims and audit entries are written only by
+    // trusted admin endpoints. Public pages read a sanitized version
+    // through server helpers, never directly from the browser.
+    match /platformSettings/{id} {
+      allow read, write: if false;
+    }
+    match /foundingTeacherSlots/{id} {
+      allow read, write: if false;
+    }
+    match /foundingTeacherAudit/{id} {
       allow read, write: if false;
     }
 

@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────
-// Shared Stripe constants — the one place platform-commission and
-// currency live, so both server (actual charge/transfer math) and
-// client (UI display) agree. Change PLATFORM_COMMISSION_PERCENT here
-// and every calculation picks it up automatically.
+// Shared Stripe constants. PLATFORM_COMMISSION_PERCENT is only the
+// fallback standard commission used when admin-controlled payment
+// settings are unavailable or invalid; platformSettings/payments stays
+// the source of truth whenever it contains a valid value.
 //
 // Money is always handled in the smallest currency unit (grosze —
 // 100 PLN = 10000) everywhere it touches Stripe or gets persisted,
@@ -11,7 +11,7 @@
 // fields added alongside them are the authoritative money values.
 // ─────────────────────────────────────────────────────────────
 
-export const PLATFORM_COMMISSION_PERCENT = 15
+export const PLATFORM_COMMISSION_PERCENT = 8
 
 export const STRIPE_CURRENCY = 'pln'
 

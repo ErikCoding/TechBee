@@ -7,7 +7,9 @@ import { TeachersPreviewSection } from '@/components/landing/teachers-preview-se
 import { BenefitsSection } from '@/components/landing/benefits-section'
 import { ProductExperienceSection } from '@/components/landing/product-experience-section'
 import { CtaSection } from '@/components/landing/cta-section'
+import { FoundingTeacherBanner } from '@/components/founding-teachers/founding-teacher-banner'
 import { siteConfig } from '@/config/site'
+import { getPublicFoundingTeacherProgram } from '@/lib/founding-teacher-program'
 import { absoluteUrl } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
@@ -64,11 +66,13 @@ export const metadata: Metadata = {
  * UI still reads normal tokens (`--background`, `--card`, `--border`,
  * ...), and the redesign stays within that black Runbee style.
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const foundingProgram = await getPublicFoundingTeacherProgram()
   return (
     <>
       <div className="dark">
         <Navbar />
+        <FoundingTeacherBanner program={foundingProgram} />
         <main id="main-content">
           <HeroSection />
           <ProductExperienceSection />

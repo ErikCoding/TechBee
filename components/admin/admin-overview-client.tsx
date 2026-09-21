@@ -44,8 +44,8 @@ export function AdminOverviewClient({ initialStats }: Props) {
   const revenueRows = stats.revenueChart.map((entry) => ({
     month: entry.month,
     gross: entry.amount,
-    commission: Math.round(entry.platformFee ?? entry.amount * 0.15),
-    teacher: Math.round(entry.teacherAmount ?? entry.amount * 0.85),
+    commission: Math.round(entry.platformFee ?? 0),
+    teacher: Math.round(entry.teacherAmount ?? Math.max(0, entry.amount - (entry.platformFee ?? 0))),
   }))
   const revenueValues = revenueRows.flatMap((row) => selectedMetrics.map((metric) => row[metric.id as keyof typeof row] as number))
   const maxRevenue = Math.max(...revenueValues, 1)

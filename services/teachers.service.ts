@@ -1,9 +1,9 @@
 import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore'
 import { teachersData } from '@/data/teachers.data'
-import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { normalizeLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects, teacherMatchesCategory } from '@/lib/teacher-categories'
-import { createNotification } from '@/services/notifications.service'
+import { teacherIsPublicMarketplaceVisible } from '@/lib/teacher-visibility'
 import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapshot } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapsh
 // ─────────────────────────────────────────────────────────────
 
 export function isTeacherApproved(t: Teacher): boolean {
-  return (t.status ?? 'approved') === 'approved' && getTeacherCategoryIds(t).length > 0
+  return teacherIsPublicMarketplaceVisible(t)
 }
 
 export interface SubmitReviewInput {
@@ -444,44 +444,14 @@ async function getApplicationsFirebase(status: Teacher['status']): Promise<Teach
 }
 
 async function reviewApplicationFirebase(id: string, decision: 'approved' | 'rejected'): Promise<void> {
-  if (!db) return
-  const ref = doc(db, collections.teachers, id)
-  const snap = await getDoc(ref)
-  const teacher = snap.exists() ? (snap.data() as Teacher) : undefined
-  if (decision === 'approved') {
-    await updateDoc(ref, {
-      status: 'approved',
-      verified: true,
-      previousProfile: deleteField(),
-      verificationKind: deleteField(),
-    })
-  } else if (teacher?.previousProfile) {
-    await updateDoc(ref, {
-      ...restoreProfileFromSnapshot(teacher, teacher.previousProfile),
-      photoUrl: teacher.previousProfile.photoUrl ?? deleteField(),
-      availabilityHours: teacher.previousProfile.availabilityHours ?? deleteField(),
-      lessonDurations: normalizeLessonDurations(teacher.previousProfile.lessonDurations),
-      previousProfile: deleteField(),
-      verificationKind: deleteField(),
-    })
-  } else {
-    await updateDoc(ref, {
-      status: 'rejected',
-      previousProfile: deleteField(),
-      verificationKind: deleteField(),
-    })
-  }
-  // `id` is the applicant's own Firestore doc id, which is their real auth uid.
-  createNotification({
-    userId: id,
-    type: 'system',
-    title: decision === 'approved' ? 'Zgłoszenie zaakceptowane!' : 'Zgłoszenie odrzucone',
-    description: decision === 'approved'
-      ? 'Twój profil nauczyciela został zweryfikowany i jest teraz widoczny w giełdzie.'
-      : teacher?.previousProfile
-        ? 'Zmiana profilu została odrzucona. Poprzednia zatwierdzona wersja profilu pozostaje aktywna.'
-        : 'Twoje zgłoszenie zostało odrzucone. Popraw dane w panelu i wyślij je ponownie.',
+  const idToken = await auth?.currentUser?.getIdToken().catch(() => undefined)
+  const res = await fetch(`/api/admin/teachers/${id}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, decision }),
   })
+  const data = await res.json().catch(() => ({}) as { error?: string })
+  if (!res.ok) throw new Error(data.error ?? 'Nie udało się zweryfikować zgłoszenia.')
 }
 
 async function allTeachersForAdminFirebase(): Promise<Teacher[]> {

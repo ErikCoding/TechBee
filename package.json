@@ -8,7 +8,8 @@
     "dev:webpack": "next dev -H localhost --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test --experimental-strip-types tests/*.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

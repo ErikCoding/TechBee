@@ -5,13 +5,14 @@ import { requireStripeBackend, verifyCaller } from '@/lib/stripe-server-auth'
 import { getOrigin } from '@/lib/request-origin'
 import { splitPayment, toGrosze, STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
+import { resolveEffectiveCommission } from '@/lib/founding-teacher-core'
 import { collections } from '@/lib/firebase'
 import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { BOOKING_WINDOW_DAYS, getAvailabilityHoursForWeekday } from '@/lib/availability'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
 import { slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
-import type { AvailabilityHours, BookedLessonSlot, WeekdayCode } from '@/lib/types'
+import type { AvailabilityHours, BookedLessonSlot, FoundingTeacherPromotion, WeekdayCode } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Starts payment for a specific lesson slot. A Lesson doc is
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
 
   const teacherSnap = await adminDb!.collection(collections.teachers).doc(teacherId).get()
   const teacher = teacherSnap.data() as
-    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; categoryId?: string; categoryIds?: string[]; customSubjects?: string[]; hourlyRate?: number; status?: string; lessonDurations?: number[]; availability?: string[]; availabilityStart?: string; availabilityEnd?: string; availabilityHours?: AvailabilityHours }
+    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; categoryId?: string; categoryIds?: string[]; customSubjects?: string[]; hourlyRate?: number; status?: string; lessonDurations?: number[]; availability?: string[]; availabilityStart?: string; availabilityEnd?: string; availabilityHours?: AvailabilityHours; foundingTeacherPromotion?: FoundingTeacherPromotion }
     | undefined
   if (!teacher || !teacher.hourlyRate || (teacher.status && teacher.status !== 'approved')) {
     return NextResponse.json({ error: 'Nie znaleziono tego nauczyciela.' }, { status: 404 })
@@ -202,7 +203,11 @@ export async function POST(request: Request) {
   const pricePln = Math.round((teacher.hourlyRate / 60) * duration)
   const priceGrosze = toGrosze(pricePln)
   const paymentSettings = await getPlatformPaymentSettings()
-  const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(priceGrosze, paymentSettings.commissionPercent)
+  const { effectiveCommissionPercent, commissionSource } = resolveEffectiveCommission({
+    standardCommissionPercent: paymentSettings.commissionPercent,
+    foundingTeacherPromotion: teacher.foundingTeacherPromotion,
+  })
+  const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(priceGrosze, effectiveCommissionPercent)
   const [year, month, day] = dateIso.split('-').map(Number)
   const scheduledStartAt = new Date(year, month - 1, day, Math.floor(requestedStart / 60), requestedStart % 60).getTime()
 
@@ -240,7 +245,9 @@ export async function POST(request: Request) {
         duration: String(duration),
         topic: safeMetaText(topic.trim()),
         priceGrosze: String(priceGrosze),
-        commissionPercent: String(paymentSettings.commissionPercent),
+        commissionPercent: String(effectiveCommissionPercent),
+        effectiveCommissionPercent: String(effectiveCommissionPercent),
+        commissionSource,
         platformFeeGrosze: String(platformFeeGrosze),
         teacherAmountGrosze: String(teacherAmountGrosze),
       },

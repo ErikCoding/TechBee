@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import {
   ArrowRight, Wallet, CalendarRange, ShieldCheck, Search,
   UserPlus, CalendarCheck, Inbox, GraduationCap,
-  Video, MessageSquare, ClipboardCheck, LineChart,
+  Video, MessageSquare, ClipboardCheck, LineChart, Trophy,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
@@ -13,6 +13,7 @@ import { EarningsCalculator } from '@/components/teach/earnings-calculator'
 import { getTeachers } from '@/services/teachers.service'
 import { Reveal } from '@/components/shared/reveal'
 import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
+import { getPublicFoundingTeacherProgram } from '@/lib/founding-teacher-program'
 import { pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
@@ -27,6 +28,7 @@ export const dynamic = 'force-dynamic'
 /** Why a teacher would join — four, all real. */
 function buildBenefits(commissionPercent: number) {
   const teacherShare = (100 - commissionPercent).toLocaleString('pl-PL', { maximumFractionDigits: 2 })
+  const commissionLabel = commissionPercent.toLocaleString('pl-PL', { maximumFractionDigits: 2 })
   return [
   {
     icon: Wallet,
@@ -42,8 +44,7 @@ function buildBenefits(commissionPercent: number) {
   {
     icon: ShieldCheck,
     title: 'Rozliczenia bez faktur',
-    description:
-      'Płatności obsługuje Stripe. Środki trafiają na Twoje konto po potwierdzeniu raportu z lekcji.',
+    description: `Płatności obsługuje Stripe. Środki trafiają na Twoje konto po potwierdzeniu raportu z lekcji. Standardowa prowizja Runbee wynosi ${commissionLabel}% od zrealizowanej lekcji.`,
   },
   {
     icon: Search,
@@ -130,11 +131,14 @@ const tools = [
  * Every figure comes from the catalogue or admin-controlled payment settings.
  */
 export default async function TeachPage() {
-  const [teachers, paymentSettings] = await Promise.all([
+  const [teachers, paymentSettings, foundingProgram] = await Promise.all([
     getTeachers(),
     getPlatformPaymentSettings(),
+    getPublicFoundingTeacherProgram(),
   ])
   const benefits = buildBenefits(paymentSettings.commissionPercent)
+  const standardCommissionLabel = paymentSettings.commissionPercent.toLocaleString('pl-PL', { maximumFractionDigits: 2 })
+  const promoCommissionLabel = foundingProgram.promoRate.toLocaleString('pl-PL', { maximumFractionDigits: 2 })
   const rates = teachers.map((t) => t.hourlyRate).sort((a, b) => a - b)
   const minRate = rates[0] ?? 80
   const maxRate = rates[rates.length - 1] ?? 300
@@ -193,6 +197,31 @@ export default async function TeachPage() {
             </div>
           </div>
         </section>
+
+        {foundingProgram.activeForPublic && foundingProgram.teachSectionEnabled && (
+          <section className="border-b border-border bg-primary text-primary-foreground" aria-labelledby="founding-heading">
+            <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 md:grid-cols-[1fr_auto] md:items-center md:px-8">
+              <div className="max-w-3xl">
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground/80">
+                  <Trophy className="h-4 w-4" aria-hidden="true" />
+                  Pierwsza 50 Runbee
+                </p>
+                <h2 id="founding-heading" className="mt-2 text-2xl font-bold leading-tight sm:text-3xl">
+                  Dołącz do Pierwszej 50 Runbee i korzystaj z obniżonej prowizji {promoCommissionLabel}% przez pierwsze {foundingProgram.durationDays} dni
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-primary-foreground/85">
+                  {promoCommissionLabel}% zamiast standardowych {standardCommissionLabel}%. Miejsce jest nadawane po akceptacji profilu przez administratora. Po zakończeniu okresu promocyjnego obowiązuje aktualna standardowa prowizja Runbee. W programie zostało {foundingProgram.remaining} z {foundingProgram.limit} miejsc.
+                </p>
+              </div>
+              <Link href="/register?role=teacher">
+                <Button variant="secondary" size="lg" className="h-11 w-full px-6 text-[15px] font-semibold md:w-auto">
+                  Załóż profil
+                  <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
+                </Button>
+              </Link>
+            </div>
+          </section>
+        )}
 
         {/* ── 2. Why teach here ── */}
         <section

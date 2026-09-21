@@ -63,6 +63,18 @@ export type TeacherProfileSnapshot = {
   completionRate: number
 }
 
+export type CommissionSource = 'standard' | 'founding_teacher'
+
+export type FoundingTeacherPromotion = {
+  type: 'founding_teacher'
+  rate: number
+  startedAt: number
+  endsAt: number
+  assignedAt: number
+  assignedBy?: string
+  marketplaceHighlight?: boolean
+}
+
 export type ReviewItem = {
   /**
    * Deterministic for every review written under the one-review-per-pair
@@ -142,6 +154,10 @@ export type Teacher = {
   previousProfile?: TeacherProfileSnapshot
   /** Stripe Connect Express account info — see TeacherStripeAccount below. */
   stripe?: TeacherStripeAccount
+  /** First-50 launch-program fields. Written only by trusted admin endpoints. */
+  foundingTeacher?: boolean
+  foundingTeacherNumber?: number
+  foundingTeacherPromotion?: FoundingTeacherPromotion
 }
 
 /** Fields a teacher fills in on the "become a teacher" application form — everything else on Teacher is derived/admin-controlled. */
@@ -311,6 +327,10 @@ export type Lesson = {
   priceGrosze?: number
   /** Snapshot of the platform commission rate used when this specific payment was created. */
   commissionPercent?: number
+  /** Commission rate that actually powered this payment. Kept separate from the legacy `commissionPercent` name for clearer future reporting. */
+  effectiveCommissionPercent?: number
+  /** Why the lesson used that commission rate. */
+  commissionSource?: CommissionSource
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
   stripeCheckoutSessionId?: string
@@ -371,6 +391,73 @@ export type PlatformPaymentSettings = {
   commissionPercent: number
   updatedAt?: number
   updatedBy?: string
+}
+
+export type FoundingTeacherProgramConfig = {
+  enabled: boolean
+  limit: number
+  promoRate: number
+  durationDays: number
+  participantsCount: number
+  marketplaceHighlightEnabled: boolean
+  homepageBannerEnabled: boolean
+  teachSectionEnabled: boolean
+  initializedAt?: number
+  initializedBy?: string
+  updatedAt?: number
+  updatedBy?: string
+}
+
+export type FoundingTeacherPublicProgram = {
+  enabled: boolean
+  activeForPublic: boolean
+  limit: number
+  promoRate: number
+  durationDays: number
+  participantsCount: number
+  remaining: number
+  marketplaceHighlightEnabled: boolean
+  homepageBannerEnabled: boolean
+  teachSectionEnabled: boolean
+}
+
+export type FoundingTeacherParticipantRow = {
+  teacherId: string
+  name: string
+  email?: string
+  specialty?: string
+  hourlyRate?: number
+  foundingTeacherNumber: number
+  promotion: FoundingTeacherPromotion
+  status: 'active' | 'expiring_soon' | 'ended'
+  createdAt?: number
+}
+
+export type FoundingTeacherPreviewRow = {
+  teacherId: string
+  name: string
+  specialty?: string
+  approvedAt?: number
+  submittedAt?: number
+}
+
+export type FoundingTeacherAuditEntry = {
+  id: string
+  type: 'init' | 'award' | 'config_change' | 'manual_edit'
+  adminId?: string
+  teacherId?: string
+  teacherName?: string
+  message: string
+  createdAt: number
+  before?: unknown
+  after?: unknown
+}
+
+export type FoundingTeacherAdminDashboard = {
+  config: FoundingTeacherProgramConfig
+  participants: FoundingTeacherParticipantRow[]
+  preview: FoundingTeacherPreviewRow[]
+  audit: FoundingTeacherAuditEntry[]
 }
 
 export type PlatformWalletSummary = {

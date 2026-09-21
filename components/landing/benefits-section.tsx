@@ -1,8 +1,8 @@
 import { BadgeCheck, ShieldCheck, Wallet, Users, Star, Layers } from 'lucide-react'
-import { PLATFORM_COMMISSION_PERCENT } from '@/lib/stripe-config'
 import { Reveal } from '@/components/shared/reveal'
 import { getCategories } from '@/services/categories.service'
 import { getPublicPlatformStats } from '@/services/public-stats.service'
+import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 
 /**
  * Why use Runbee — four real advantages, no more.
@@ -24,34 +24,38 @@ import { getPublicPlatformStats } from '@/services/public-stats.service'
  * The softer dark surface separates this from the teacher cards without
  * adding decorative background texture.
  */
-const benefits = [
-  {
-    icon: BadgeCheck,
-    title: 'Zweryfikowani praktycy',
-    description:
-      'Każdy nauczyciel przechodzi ręczną weryfikację doświadczenia, zanim jego profil trafi na giełdę.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Płacisz za zrealizowaną lekcję',
-    description:
-      'Nauczyciel otrzymuje środki dopiero po tym, jak potwierdzisz raport z lekcji. Jeśli coś się nie zgadza — możesz go zakwestionować.',
-  },
-  {
-    icon: Wallet,
-    title: 'Bez abonamentu',
-    description: `Płacisz za pojedynczą lekcję, bez umów i minimum godzin. Prowizja platformy to ${PLATFORM_COMMISSION_PERCENT}% i jest wliczona w cenę.`,
-  },
-  {
-    icon: Users,
-    title: 'Konto dla rodzica',
-    description:
-      'Rodzic może połączyć się z kontem ucznia, rezerwować i opłacać lekcje oraz zatwierdzać raporty w jego imieniu.',
-  },
-]
-
 export async function BenefitsSection() {
-  const [platformStats, categories] = await Promise.all([getPublicPlatformStats(), getCategories()])
+  const [platformStats, categories, paymentSettings] = await Promise.all([
+    getPublicPlatformStats(),
+    getCategories(),
+    getPlatformPaymentSettings(),
+  ])
+  const commissionLabel = paymentSettings.commissionPercent.toLocaleString('pl-PL', { maximumFractionDigits: 2 })
+  const benefits = [
+    {
+      icon: BadgeCheck,
+      title: 'Zweryfikowani praktycy',
+      description:
+        'Każdy nauczyciel przechodzi ręczną weryfikację doświadczenia, zanim jego profil trafi na giełdę.',
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Płacisz za zrealizowaną lekcję',
+      description:
+        'Nauczyciel otrzymuje środki dopiero po tym, jak potwierdzisz raport z lekcji. Jeśli coś się nie zgadza — możesz go zakwestionować.',
+    },
+    {
+      icon: Wallet,
+      title: 'Bez abonamentu',
+      description: `Płacisz za pojedynczą lekcję, bez umów i minimum godzin. Standardowa prowizja Runbee wynosi ${commissionLabel}% i jest wliczona w cenę.`,
+    },
+    {
+      icon: Users,
+      title: 'Konto dla rodzica',
+      description:
+        'Rodzic może połączyć się z kontem ucznia, rezerwować i opłacać lekcje oraz zatwierdzać raporty w jego imieniu.',
+    },
+  ]
 
   const stats = [
     { icon: BadgeCheck, value: String(platformStats.verifiedTeachers), label: 'zweryfikowanych nauczycieli' },
