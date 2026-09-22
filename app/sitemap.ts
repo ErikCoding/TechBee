@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { getPublicTeachersForSitemap } from '@/services/seo-teachers.service'
-import { getSubjectPagesWithTeacherCount } from '@/lib/subject-pages'
+import { subjectPages } from '@/lib/subject-pages'
 import { absoluteUrl, publicSeoRoutes } from '@/lib/seo'
 import type { Teacher } from '@/lib/types'
 
@@ -46,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
     })
 
-  const subjectEntries = getSubjectPagesWithTeacherCount(teachers).map(({ page }) => ({
+  const subjectEntries = subjectPages.map((page) => ({
     url: absoluteUrl(`/korepetycje/${page.slug}`),
     changeFrequency: 'weekly' as const,
     priority: 0.8,

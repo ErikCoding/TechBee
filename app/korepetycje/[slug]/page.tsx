@@ -26,9 +26,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const subject = getSubjectPageBySlug(slug)
   if (!subject) return noIndexMetadata('Nie znaleziono przedmiotu')
 
-  const teachers = await getTeachersByCategory(subject.categoryId)
-  if (teachers.length === 0) return noIndexMetadata(subject.title)
-
   return pageMetadata({
     title: subject.title,
     description: subject.description,
@@ -41,6 +38,7 @@ function jsonLd(data: unknown): string {
 }
 
 function teacherCountLabel(count: number): string {
+  if (count === 0) return 'Nauczyciele pojawią się wkrótce'
   if (count === 1) return '1 dostępny nauczyciel'
   return `${count} dostępnych nauczycieli`
 }
@@ -55,7 +53,7 @@ export default async function SubjectTutoringPage({ params }: Props) {
     getTeachersByCategory(subject.categoryId),
   ])
 
-  if (!category || teachers.length === 0) notFound()
+  const categoryName = category?.name ?? subject.name
 
   const pageUrl = absoluteUrl(`/korepetycje/${subject.slug}`)
   const structuredData = {
@@ -104,7 +102,7 @@ export default async function SubjectTutoringPage({ params }: Props) {
             </Link>
 
             <div className="max-w-3xl">
-              <p className="text-sm font-medium text-primary">{category.name}</p>
+              <p className="text-sm font-medium text-primary">{categoryName}</p>
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
                 {subject.h1}
               </h1>
@@ -121,7 +119,7 @@ export default async function SubjectTutoringPage({ params }: Props) {
         <section className="mx-auto max-w-7xl px-4 py-8 md:px-8">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold text-foreground">
-              Nauczyciele z kategorii {category.name.toLowerCase()}
+              Nauczyciele z kategorii {categoryName.toLowerCase()}
             </h2>
             <Link href="/marketplace">
               <Button variant="outline" size="sm">
@@ -130,17 +128,30 @@ export default async function SubjectTutoringPage({ params }: Props) {
             </Link>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {teachers.map((teacher, index) => (
-              <div
-                key={teacher.id}
-                className="min-w-0 animate-fade-in-up"
-                style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-              >
-                <TeacherCard teacher={teacher} featured={teacher.featured} className="h-full" />
-              </div>
-            ))}
-          </div>
+          {teachers.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {teachers.map((teacher, index) => (
+                <div
+                  key={teacher.id}
+                  className="min-w-0 animate-fade-in-up"
+                  style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+                >
+                  <TeacherCard teacher={teacher} featured={teacher.featured} className="h-full" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border bg-card px-5 py-6">
+              <p className="text-sm font-medium text-foreground">
+                Aktualnie kompletujemy nauczycieli w tej kategorii.
+              </p>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Strona pozostaje dostępna, a gdy pojawią się publiczni korepetytorzy, ich profile
+                zostaną pokazane tutaj automatycznie. Możesz też sprawdzić pozostałe dostępne
+                korepetycje online na Runbee.
+              </p>
+            </div>
+          )}
         </section>
       </main>
       <Footer />

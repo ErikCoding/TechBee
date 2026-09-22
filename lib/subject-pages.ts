@@ -55,10 +55,10 @@ export const subjectPages = [
     name: 'Fizyka',
     title: 'Korepetycje z fizyki online',
     description:
-      'Sprawdź nauczycieli fizyki online i zarezerwuj lekcję z zadaniami, teorią lub przygotowaniem do egzaminu.',
+      'Korepetycje z fizyki online na Runbee: znajdź korepetytora fizyki do zadań, teorii i przygotowania do egzaminu.',
     h1: 'Korepetycje z fizyki online',
     lead:
-      'Znajdź nauczyciela fizyki, który pomoże przejść od wzorów do rozumienia zadań, jednostek i zależności krok po kroku.',
+      'Nauka fizyki online jest prostsza, gdy możesz pracować krok po kroku z nauczycielem nad wzorami, jednostkami, doświadczeniami i zadaniami. Porównaj profile korepetytorów fizyki i wybierz lekcję dopasowaną do szkoły, matury albo bieżącego materiału.',
     linkLabel: 'Fizyka',
   },
   {
@@ -67,10 +67,10 @@ export const subjectPages = [
     name: 'Chemia',
     title: 'Korepetycje z chemii online',
     description:
-      'Porównaj korepetytorów chemii online i wybierz lekcję dopasowaną do szkoły, egzaminu lub konkretnego działu.',
+      'Korepetycje z chemii online na Runbee: wybierz korepetytora chemii do nauki, zadań rachunkowych i egzaminów.',
     h1: 'Korepetycje z chemii online',
     lead:
-      'Szukaj wsparcia w chemii ogólnej, zadaniach rachunkowych albo przygotowaniu do sprawdzianu u nauczycieli widocznych publicznie na Runbee.',
+      'Nauka chemii online może obejmować teorię, reakcje, stechiometrię, chemię organiczną albo przygotowanie do sprawdzianu i matury. Na Runbee możesz porównać korepetytorów chemii i wybrać lekcję prowadzoną w tempie dopasowanym do ucznia.',
     linkLabel: 'Chemia',
   },
   {
@@ -92,10 +92,8 @@ export function getSubjectPageBySlug(slug: string): SubjectPage | undefined {
 }
 
 export function getSubjectPagesWithTeacherCount(teachers: Pick<Teacher, 'categoryId' | 'categoryIds'>[]) {
-  return subjectPages
-    .map((page) => ({
-      page,
-      count: teachers.filter((teacher) => teacherMatchesCategory(teacher, page.categoryId)).length,
-    }))
-    .filter(({ count }) => count > 0)
+  return subjectPages.map((page) => ({
+    page,
+    count: teachers.filter((teacher) => teacherMatchesCategory(teacher, page.categoryId)).length,
+  }))
 }
