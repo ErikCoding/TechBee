@@ -11,7 +11,7 @@ import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { BOOKING_WINDOW_DAYS, getAvailabilityHoursForWeekday } from '@/lib/availability'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
-import { slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
 import type { AvailabilityHours, BookedLessonSlot, FoundingTeacherPromotion, WeekdayCode } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -208,8 +208,10 @@ export async function POST(request: Request) {
     foundingTeacherPromotion: teacher.foundingTeacherPromotion,
   })
   const { platformFeeGrosze, teacherAmountGrosze } = splitPayment(priceGrosze, effectiveCommissionPercent)
-  const [year, month, day] = dateIso.split('-').map(Number)
-  const scheduledStartAt = new Date(year, month - 1, day, Math.floor(requestedStart / 60), requestedStart % 60).getTime()
+  const scheduledStartAt = zonedDateTimeToMs(dateIso, time)
+  if (scheduledStartAt === null) {
+    return NextResponse.json({ error: 'Nieprawidłowy termin lekcji.' }, { status: 400 })
+  }
 
   try {
     const origin = getOrigin(request)

@@ -9,7 +9,7 @@ import { resolveConfirmingParty } from '@/services/family-link.service'
 import { getOrCreateConversation, sendMessage, sendReportCardMessage, toParticipant, updateReportCardStatus } from '@/services/chat.service'
 import { getUserProfileById } from '@/services/auth.service'
 import { canManageLessonReport, computeReportManagerIds, getReportManagerIds } from '@/lib/report-permissions'
-import { slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
 import type { BookedLessonSlot, Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, LessonDisputeReason, LessonReport, LessonReportCard, LessonReportCardStatus, StudentStats, TeacherDashboardData } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -605,11 +605,8 @@ export async function respondToLessonChange(lesson: Lesson, decision: 'accepted'
     patch.dateIso = change.newDateIso ?? lesson.dateIso
     patch.time = change.newTime ?? lesson.time
     if (change.newDateIso && change.newTime) {
-      const minutes = timeToMinutes(change.newTime)
-      if (minutes !== null) {
-        const [year, month, day] = change.newDateIso.split('-').map(Number)
-        patch.scheduledStartAt = new Date(year, month - 1, day, Math.floor(minutes / 60), minutes % 60).getTime()
-      }
+      const scheduledStartAt = zonedDateTimeToMs(change.newDateIso, change.newTime)
+      if (scheduledStartAt !== null) patch.scheduledStartAt = scheduledStartAt
     }
   }
 

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { AccessToken } from 'livekit-server-sdk'
 import { lessonRoomName } from '@/lib/livekit-config'
+import { canJoinLesson } from '@/lib/lesson-time'
+import type { Lesson } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Mints a LiveKit room-join token for a lesson's video call.
@@ -42,6 +44,8 @@ interface TokenRequestBody {
 
 interface FirestoreStringField {
   stringValue?: string
+  integerValue?: string
+  doubleValue?: number
 }
 
 interface FirestoreDocument {
@@ -50,6 +54,13 @@ interface FirestoreDocument {
 
 function firestoreField(doc: FirestoreDocument, field: string): string | undefined {
   return doc.fields?.[field]?.stringValue
+}
+
+function firestoreNumberField(doc: FirestoreDocument, field: string): number | undefined {
+  const value = doc.fields?.[field]
+  const raw = value?.integerValue ?? value?.doubleValue
+  const number = typeof raw === 'number' ? raw : Number(raw)
+  return Number.isFinite(number) ? number : undefined
 }
 
 function firebaseVerificationConfigured(): boolean {
@@ -66,7 +77,7 @@ function firebaseVerificationConfigured(): boolean {
 async function verifyCallerAgainstLesson(
   idToken: string,
   lessonId: string,
-): Promise<{ uid: string; name: string } | 'unauthorized' | null> {
+): Promise<{ uid: string; name: string; lesson: Pick<Lesson, 'scheduledStartAt' | 'date' | 'dateIso' | 'time' | 'duration' | 'status'> } | 'unauthorized' | null> {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
   if (!apiKey || !projectId) return null
@@ -95,7 +106,18 @@ async function verifyCallerAgainstLesson(
   if (!isTeacher && !isStudent) return 'unauthorized'
 
   const name = (isTeacher ? firestoreField(doc, 'teacherName') : firestoreField(doc, 'studentName')) ?? ''
-  return { uid, name }
+  return {
+    uid,
+    name,
+    lesson: {
+      scheduledStartAt: firestoreNumberField(doc, 'scheduledStartAt'),
+      date: firestoreField(doc, 'date') ?? '',
+      dateIso: firestoreField(doc, 'dateIso'),
+      time: firestoreField(doc, 'time') ?? '',
+      duration: firestoreNumberField(doc, 'duration') ?? 60,
+      status: (firestoreField(doc, 'status') as Lesson['status']) ?? 'upcoming',
+    },
+  }
 }
 
 export async function POST(request: Request) {
@@ -136,6 +158,10 @@ export async function POST(request: Request) {
       }
       if (!verified) {
         return NextResponse.json({ error: 'Nie udało się potwierdzić dostępu do tej lekcji.' }, { status: 403 })
+      }
+      const joinState = canJoinLesson(verified.lesson)
+      if (!joinState.canJoin) {
+        return NextResponse.json({ error: joinState.reason ?? 'Nie można teraz dołączyć do lekcji.' }, { status: 403 })
       }
       identity = verified.uid
       name = verified.name || name || 'Uczestnik'

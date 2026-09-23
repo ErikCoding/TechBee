@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { BOOKING_WINDOW_DAYS, buildAvailability } from '@/lib/availability'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
-import { LESSON_BUFFER_MINUTES, timeToMinutes } from '@/lib/lesson-time'
+import { LESSON_BUFFER_MINUTES, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
 import { useAuth } from '@/lib/auth-context'
 import { isFirebaseConfigured } from '@/lib/firebase'
 import { createBooking, getTeacherBookedLessonSlots } from '@/services/lessons.service'
@@ -88,10 +88,7 @@ export function TeacherBookingCalendar({ teacher, subjects, bookingFor }: Props)
 
   function selectedStartAt(): number | undefined {
     if (!selectedDay || !selectedSlot) return undefined
-    const minutes = timeToMinutes(selectedSlot)
-    if (minutes === null) return undefined
-    const [year, month, day] = selectedDay.isoDate.split('-').map(Number)
-    return new Date(year, month - 1, day, Math.floor(minutes / 60), minutes % 60).getTime()
+    return zonedDateTimeToMs(selectedDay.isoDate, selectedSlot) ?? undefined
   }
 
   // Real (Firebase-configured) mode: payment happens now, via a real
