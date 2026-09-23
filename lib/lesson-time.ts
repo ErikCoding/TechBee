@@ -7,7 +7,7 @@ export const LESSON_TIME_ZONE = 'Europe/Warsaw'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MONTHS_PL = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru']
-const TIME_ZONE_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat>()
+const TIME_ZONE_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat | null>()
 
 export function timeToMinutes(time: string): number | null {
   const [h, m] = time.split(':').map(Number)
@@ -21,22 +21,26 @@ export function minutesToTime(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-function formatterForTimeZone(timeZone: string): Intl.DateTimeFormat {
-  const cached = TIME_ZONE_FORMATTER_CACHE.get(timeZone)
-  if (cached) return cached
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    calendar: 'gregory',
-    numberingSystem: 'latn',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  })
-  TIME_ZONE_FORMATTER_CACHE.set(timeZone, formatter)
-  return formatter
+function formatterForTimeZone(timeZone: string): Intl.DateTimeFormat | null {
+  if (TIME_ZONE_FORMATTER_CACHE.has(timeZone)) return TIME_ZONE_FORMATTER_CACHE.get(timeZone) ?? null
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      calendar: 'gregory',
+      numberingSystem: 'latn',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+    TIME_ZONE_FORMATTER_CACHE.set(timeZone, formatter)
+    return formatter
+  } catch {
+    TIME_ZONE_FORMATTER_CACHE.set(timeZone, null)
+    return null
+  }
 }
 
 function zonedParts(timestamp: number, timeZone = LESSON_TIME_ZONE): {
@@ -48,7 +52,9 @@ function zonedParts(timestamp: number, timeZone = LESSON_TIME_ZONE): {
 } | null {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return null
-  const parts = formatterForTimeZone(timeZone).formatToParts(date)
+  const formatter = formatterForTimeZone(timeZone)
+  if (!formatter) return null
+  const parts = formatter.formatToParts(date)
   const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value)
   const result = {
     year: value('year'),
@@ -84,13 +90,20 @@ export function zonedDateTimeToMs(dateIso: string, time: string, timeZone = LESS
     return null
   }
 
-  const wallAsUtc = Date.UTC(year, month - 1, day, Math.floor(minutes / 60), minutes % 60)
+  const hour = Math.floor(minutes / 60)
+  const minute = minutes % 60
+  const wallAsUtc = Date.UTC(year, month - 1, day, hour, minute)
+  if (!formatterForTimeZone(timeZone)) {
+    return new Date(year, month - 1, day, hour, minute).getTime()
+  }
   const firstPass = wallAsUtc - timeZoneOffsetAt(wallAsUtc, timeZone)
   const secondPass = wallAsUtc - timeZoneOffsetAt(firstPass, timeZone)
   return Number.isNaN(secondPass) ? null : secondPass
 }
 
 export function timestampMatchesZonedDateTime(timestamp: number, dateIso: string, time: string, timeZone = LESSON_TIME_ZONE): boolean {
+  if (!Number.isFinite(timestamp)) return false
+  if (!formatterForTimeZone(timeZone)) return true
   const parts = zonedParts(timestamp, timeZone)
   if (!parts) return false
   const formattedDate = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`

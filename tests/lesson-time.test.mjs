@@ -46,3 +46,9 @@ test('join window opens exactly 5 minutes before the Europe/Warsaw lesson start'
   assert.equal(canJoinLesson(lesson, Date.parse('2026-09-23T16:54:59.999Z')).canJoin, false)
   assert.equal(canJoinLesson(lesson, Date.parse('2026-09-23T16:55:00.000Z')).canJoin, true)
 })
+
+test('timezone helpers do not throw when the browser cannot resolve the IANA time zone', () => {
+  const fallback = zonedDateTimeToMs('2026-09-23', '19:00', 'Unsupported/Zone')
+  assert.equal(Number.isFinite(fallback), true)
+  assert.equal(timestampMatchesZonedDateTime(Date.parse('2026-09-23T17:00:00.000Z'), '2026-09-23', '19:00', 'Unsupported/Zone'), true)
+})
