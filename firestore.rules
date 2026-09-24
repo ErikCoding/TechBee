@@ -203,6 +203,10 @@ service cloud.firestore {
       allow read, write, delete: if isAdmin();
     }
 
+    match /stripeFinancialEvents/{id} {
+      allow read, write, delete: if isAdmin();
+    }
+
     // A student generates a short-lived single-use code so a parent can
     // link their account (see services/family-link.service.ts). Anyone
     // signed in can read a code by its id to redeem it (they don't know

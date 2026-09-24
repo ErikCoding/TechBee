@@ -5,7 +5,8 @@ import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings, updatePlatformCommissionPercent } from '@/lib/platform-payment-settings'
 import { getVerifiedUserRole, verifyCaller } from '@/lib/stripe-server-auth'
-import type { Lesson, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
+import { computePlatformFinance } from '@/lib/stripe-financial-metrics'
+import type { Lesson, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
 
 async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextResponse> {
   if (!isAdminConfigured) return NextResponse.json({ error: 'Zaufane zapisy Firestore nie są skonfigurowane.' }, { status: 503 })
@@ -24,10 +25,6 @@ async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextRes
 // shared Firestore project, without needing a second Firebase project
 // just to separate test bookings from real ones.
 const CURRENT_ENV_IS_LIVE = Boolean(process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_'))
-
-function hasKnownStripeFee(lesson: Lesson): lesson is Lesson & { stripeFeeGrosze: number } {
-  return Number.isFinite(lesson.stripeFeeGrosze)
-}
 
 function lessonIsReadyForTransfer(lesson: Lesson): boolean {
   if (lesson.paymentStatus !== 'paid' || lesson.stripeTransferId) return false
@@ -57,16 +54,18 @@ function transferStatus(lesson: Lesson): PlatformWalletEntry['transferStatus'] {
 
 async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
   const settings = await getPlatformPaymentSettings()
-  const lessonsSnap = await adminDb!.collection(collections.lessons).get()
+  const [lessonsSnap, financialEventsSnap] = await Promise.all([
+    adminDb!.collection(collections.lessons).get(),
+    adminDb!.collection(collections.stripeFinancialEvents).get(),
+  ])
   const allLessons = lessonsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lesson, 'id'>) }))
+  const allFinancialEvents = financialEventsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<StripeFinancialEvent, 'id'>) }))
   // Lessons created before this field existed have no `livemode` at all —
   // treated as test-mode, since anything from before the real Stripe
   // switch can only have been a sandbox booking.
   const lessons = allLessons.filter((lesson) => Boolean(lesson.livemode) === CURRENT_ENV_IS_LIVE)
+  const financialEvents = allFinancialEvents.filter((event) => Boolean(event.livemode) === CURRENT_ENV_IS_LIVE)
   const paid = lessons.filter((lesson) => lesson.paymentStatus === 'paid')
-  const refunded = lessons.filter((lesson) => lesson.paymentStatus === 'refunded')
-  const knownFeePaid = paid.filter(hasKnownStripeFee)
-  const missingFeeCount = paid.length - knownFeePaid.length
 
   let stripeAvailableGrosze: number | null = null
   let stripePendingGrosze: number | null = null
@@ -80,26 +79,29 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     }
   }
 
-  const grossPlatformCommissionGrosze = paid.reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
-  const stripeFeesGrosze = knownFeePaid.reduce((sum, lesson) => sum + lesson.stripeFeeGrosze, 0)
-  const stripeFeesComplete = missingFeeCount === 0
+  const finance = computePlatformFinance({ lessons, events: financialEvents })
   const readyForTransfer = paid.filter(lessonIsReadyForTransfer)
 
   const summary: PlatformWalletSummary = {
     commissionPercent: settings.commissionPercent,
-    paidVolumeGrosze: paid.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0),
-    refundsGrosze: refunded.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0),
-    grossPlatformCommissionGrosze,
-    stripeFeesGrosze,
-    stripeFeesComplete,
-    stripeFeesMissingCount: missingFeeCount,
-    netPlatformRevenueGrosze: stripeFeesComplete ? grossPlatformCommissionGrosze - stripeFeesGrosze : null,
-    teacherAmountGrosze: paid.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
+    paidVolumeGrosze: finance.paidVolumeGrosze,
+    refundsGrosze: finance.refundAmountGrosze,
+    refundAmountGrosze: finance.refundAmountGrosze,
+    refundCostGrosze: finance.refundCostGrosze,
+    refundCount: finance.refundCount,
+    grossPlatformCommissionGrosze: finance.grossPlatformCommissionGrosze,
+    stripeProcessingFeesGrosze: finance.stripeProcessingFeesGrosze,
+    stripeFeesGrosze: finance.stripeProcessingFeesGrosze,
+    stripeFeesComplete: finance.stripeFeesComplete,
+    stripeFeesMissingCount: finance.stripeFeesMissingCount,
+    stripeAdjustmentsGrosze: finance.stripeAdjustmentsGrosze,
+    netPlatformRevenueGrosze: finance.netPlatformRevenueGrosze,
+    teacherAmountGrosze: finance.teacherAmountGrosze,
     teacherPendingReleaseGrosze: paid
       .filter((lesson) => !lesson.stripeTransferId && !lessonIsReadyForTransfer(lesson))
       .reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
     teacherReadyForTransferGrosze: readyForTransfer.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
-    teacherTransferredGrosze: paid.filter((lesson) => lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
+    teacherTransferredGrosze: finance.teacherTransferredGrosze,
     stripeAvailableGrosze,
     stripePendingGrosze,
   }

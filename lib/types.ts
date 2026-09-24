@@ -466,10 +466,15 @@ export type PlatformWalletSummary = {
   commissionPercent: number
   paidVolumeGrosze: number
   refundsGrosze: number
+  refundAmountGrosze: number
+  refundCostGrosze: number
+  refundCount: number
   grossPlatformCommissionGrosze: number
+  stripeProcessingFeesGrosze: number
   stripeFeesGrosze: number
   stripeFeesComplete: boolean
   stripeFeesMissingCount: number
+  stripeAdjustmentsGrosze: number
   netPlatformRevenueGrosze: number | null
   teacherAmountGrosze: number
   teacherPendingReleaseGrosze: number
@@ -507,6 +512,30 @@ export type LessonPaymentSnapshot = {
   livemode: boolean
   createdAt: number
   updatedAt?: number
+}
+
+export type StripeFinancialEvent = {
+  id: string
+  type: 'refund' | 'adjustment' | 'transfer_reversal' | 'application_fee' | 'application_fee_refund' | 'other'
+  amountGrosze: number
+  feeGrosze: number
+  netGrosze: number
+  currency: string
+  status?: string
+  availableOn?: number
+  createdAt: number
+  stripeBalanceTransactionId: string
+  stripeRefundId?: string
+  stripeChargeId?: string
+  stripePaymentIntentId?: string
+  chargeAmountGrosze?: number
+  chargeFeeGrosze?: number
+  chargeNetGrosze?: number
+  refundAmountGrosze?: number
+  fullRefund?: boolean
+  lessonId?: string
+  livemode: boolean
+  recordedAt: number
 }
 
 export type LessonReportCardStatus = 'pending' | 'confirmed' | 'dispute_open' | 'dispute_resolved_teacher' | 'dispute_resolved_payer'

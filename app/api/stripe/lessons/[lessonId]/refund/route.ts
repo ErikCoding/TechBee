@@ -4,6 +4,7 @@ import { adminDb } from '@/lib/firebase-admin'
 import { requireStripeBackend, verifyCaller } from '@/lib/stripe-server-auth'
 import { collections } from '@/lib/firebase'
 import { canManageLessonReport } from '@/lib/report-permissions'
+import { persistStripeRefundFinancialEvent } from '@/lib/stripe-financial-events'
 import type { Lesson } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ les
       payment_intent: lesson.stripePaymentIntentId,
       metadata: { lessonId },
     })
+    await persistStripeRefundFinancialEvent(refund)
     await lessonRef.update({ stripeRefundId: refund.id, paymentStatus: 'refunded', status: 'cancelled' })
     return NextResponse.json({ refundId: refund.id })
   } catch (err) {

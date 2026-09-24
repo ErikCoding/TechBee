@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
-import { collections } from '@/lib/firebase'
 import { ensureLessonForCheckoutSession } from '@/lib/stripe-checkout-lessons'
+import { persistStripeRefundFinancialEvent } from '@/lib/stripe-financial-events'
 import { alreadyProcessed, markProcessed } from '@/lib/stripe-webhook-shared'
 
 // ─────────────────────────────────────────────────────────────
@@ -27,9 +27,9 @@ import { alreadyProcessed, markProcessed } from '@/lib/stripe-webhook-shared'
 //   checkout.session.expired    → nothing to do (no Lesson was ever created)
 //   payment_intent.payment_failed → logged only (no Lesson exists to mark failed;
 //                                    the client's Checkout page shows Stripe's own error)
-//   charge.refunded             → marks a Lesson refunded (covers refunds issued
-//                                    directly in the Stripe Dashboard too, not just
-//                                    the ones this app triggers itself)
+//   charge.refunded / refund.*  → snapshots real refund balance transactions and
+//                                    marks a Lesson refunded only once the charge
+//                                    is fully refunded (partial refunds remain paid)
 //   transfer.created            → logged only (informational; the transfer/refund
 //                                    routes already write stripeTransferId themselves)
 //   account.updated             → logged only, see handleAccountUpdated for why
@@ -42,13 +42,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handleChargeRefunded(charge: Stripe.Charge) {
-  const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id
-  if (!paymentIntentId) return
-  const snap = await adminDb!.collection(collections.lessons).where('stripePaymentIntentId', '==', paymentIntentId).limit(1).get()
-  if (snap.empty) return
-  const doc = snap.docs[0]
-  if (doc.data().paymentStatus === 'refunded') return // already handled by our own refund route
-  await doc.ref.update({ paymentStatus: 'refunded', status: 'cancelled' })
+  const refunds = charge.refunds?.data ?? []
+  for (const refund of refunds) {
+    await persistStripeRefundFinancialEvent(refund)
+  }
 }
 
 async function handleAccountUpdated(account: Stripe.Account) {
@@ -104,6 +101,10 @@ export async function POST(request: Request) {
         break
       case 'charge.refunded':
         await handleChargeRefunded(event.data.object as Stripe.Charge)
+        break
+      case 'refund.created':
+      case 'refund.updated':
+        await persistStripeRefundFinancialEvent(event.data.object as Stripe.Refund)
         break
       case 'account.updated':
         await handleAccountUpdated(event.data.object as Stripe.Account)

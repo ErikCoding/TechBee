@@ -166,14 +166,18 @@ export function AdminPlatformWallet() {
                     Brakuje snapshotu Stripe fee dla {summary?.stripeFeesMissingCount ?? 0} starszych transakcji.
                   </p>
                 )}
-                <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
+                <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
                   <div>
                     <p className="text-muted-foreground">Prowizja Runbee</p>
                     <p className="font-semibold tabular-nums text-success">{pln(summary?.grossPlatformCommissionGrosze)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Koszty Stripe</p>
-                    <p className="font-semibold tabular-nums text-muted-foreground">{signedPln(summary ? -summary.stripeFeesGrosze : undefined)}</p>
+                    <p className="font-semibold tabular-nums text-muted-foreground">{signedPln(summary ? -summary.stripeProcessingFeesGrosze : undefined)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Koszty zwrotów</p>
+                    <p className="font-semibold tabular-nums text-muted-foreground">{signedPln(summary ? -summary.refundCostGrosze : undefined)}</p>
                   </div>
                 </div>
               </div>
@@ -229,7 +233,18 @@ export function AdminPlatformWallet() {
               </div>
               <div className="rounded-xl border border-border bg-background/50 p-4">
                 <p className="text-xs text-muted-foreground">Zwroty</p>
-                <p className="mt-1 text-base font-bold tabular-nums text-foreground">{pln(summary?.refundsGrosze)}</p>
+                <p className="mt-1 text-base font-bold tabular-nums text-foreground">{pln(summary?.refundAmountGrosze)}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Łączna kwota zwrócona klientom</p>
+                <div className="mt-3 grid gap-1 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Koszt zwrotów dla Runbee</span>
+                    <span className="font-semibold tabular-nums text-foreground">{pln(summary?.refundCostGrosze)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Liczba zwrotów</span>
+                    <span className="font-semibold tabular-nums text-foreground">{summary?.refundCount ?? 0}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
