@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminAuth, isAdminAuthConfigured } from '@/lib/firebase-admin-auth'
+import { getAdminAuth } from '@/lib/firebase-admin-auth'
 import { collections } from '@/lib/firebase'
 import { siteConfig } from '@/config/site'
 import { handlePasswordResetRequest } from '@/lib/account-security-endpoints'
@@ -15,7 +15,8 @@ const actionCodeSettings = {
 }
 
 export async function POST(request: Request) {
-  if (!isAdminAuthConfigured || !adminAuth) {
+  const auth = await getAdminAuth()
+  if (!auth) {
     return NextResponse.json({ error: 'Reset hasła nie jest skonfigurowany.' }, { status: 503 })
   }
 
@@ -26,7 +27,6 @@ export async function POST(request: Request) {
     body = {}
   }
 
-  const auth = adminAuth
   const result = await handlePasswordResetRequest(body, {
     actionCodeSettings,
     siteUrl: siteConfig.url,

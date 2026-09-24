@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
-import { adminAuth, isAdminAuthConfigured } from '@/lib/firebase-admin-auth'
+import { getAdminAuth } from '@/lib/firebase-admin-auth'
 import { collections } from '@/lib/firebase'
 import { siteConfig } from '@/config/site'
 import { checkAndRecordEmailVerificationAttempt } from '@/lib/email-verification-rate-limit.server'
@@ -23,10 +23,10 @@ async function getFirstName(uid: string): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
-  if (!isAdminConfigured || !isAdminAuthConfigured || !adminAuth) {
+  const auth = await getAdminAuth()
+  if (!isAdminConfigured || !auth) {
     return NextResponse.json({ error: 'Wysyłka maili weryfikacyjnych nie jest skonfigurowana.' }, { status: 503 })
   }
-  const auth = adminAuth
 
   const result = await handleSendVerificationEmailRequest(request.headers.get('authorization'), {
     actionCodeSettings,

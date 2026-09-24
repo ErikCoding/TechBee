@@ -1,4 +1,4 @@
-import type { ActionCodeSettings } from 'firebase-admin/auth'
+import type { AdminActionCodeSettings } from '@/lib/firebase-admin-auth'
 
 type VerifiedToken = {
   uid: string
@@ -17,12 +17,12 @@ type RateLimitResult = {
 }
 
 export type SendVerificationEmailDeps = {
-  actionCodeSettings: ActionCodeSettings
+  actionCodeSettings: AdminActionCodeSettings
   verifyIdToken: (idToken: string) => Promise<VerifiedToken>
   getUser: (uid: string) => Promise<AuthUserForVerification>
   getFirstName?: (uid: string) => Promise<string | null>
   checkRateLimit: (uid: string, now: number) => Promise<RateLimitResult>
-  generateEmailVerificationLink: (email: string, actionCodeSettings: ActionCodeSettings) => Promise<string>
+  generateEmailVerificationLink: (email: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   sendEmailVerificationEmail: (input: { to: string; firstName?: string | null; verificationLink: string }) => Promise<unknown>
   now?: () => number
 }

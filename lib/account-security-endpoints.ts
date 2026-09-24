@@ -1,4 +1,4 @@
-import type { ActionCodeSettings, UserRecord } from 'firebase-admin/auth'
+import type { AdminActionCodeSettings, AdminAuthUser } from '@/lib/firebase-admin-auth'
 
 export const RECENT_LOGIN_MAX_AGE_MS = 5 * 60 * 1000
 const PASSWORD_RESET_SUCCESS_MESSAGE = 'Jeśli konto z tym adresem istnieje, wysłaliśmy wiadomość z instrukcją zmiany hasła.'
@@ -24,37 +24,37 @@ type VerifiedToken = {
 }
 
 type PasswordResetDeps = {
-  actionCodeSettings: ActionCodeSettings
+  actionCodeSettings: AdminActionCodeSettings
   siteUrl: string
   now?: () => number
   checkRateLimit: (identifier: string, now: number) => Promise<RateLimitResult>
-  getUserByEmail: (email: string) => Promise<UserRecord>
-  generatePasswordResetLink: (email: string, actionCodeSettings: ActionCodeSettings) => Promise<string>
+  getUserByEmail: (email: string) => Promise<AdminAuthUser>
+  generatePasswordResetLink: (email: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   sendPasswordResetEmail: (input: { to: string; resetLink: string }) => Promise<unknown>
 }
 
 type RequestEmailChangeDeps = {
-  actionCodeSettings: ActionCodeSettings
+  actionCodeSettings: AdminActionCodeSettings
   siteUrl: string
   now?: () => number
   verifyIdToken: (idToken: string) => Promise<VerifiedToken>
-  getUser: (uid: string) => Promise<UserRecord>
+  getUser: (uid: string) => Promise<AdminAuthUser>
   checkRateLimit: (uid: string, now: number) => Promise<RateLimitResult>
-  generateVerifyAndChangeEmailLink: (email: string, newEmail: string, actionCodeSettings: ActionCodeSettings) => Promise<string>
+  generateVerifyAndChangeEmailLink: (email: string, newEmail: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   savePendingEmailChange: (input: { uid: string; currentEmail: string; newEmail: string; oobCode: string; now: number }) => Promise<unknown>
   sendEmailChangeVerificationEmail: (input: { to: string; changeEmailLink: string; currentEmail: string; newEmail: string }) => Promise<unknown>
 }
 
 type PasswordChangedNotificationDeps = {
   verifyIdToken: (idToken: string) => Promise<VerifiedToken>
-  getUser: (uid: string) => Promise<UserRecord>
+  getUser: (uid: string) => Promise<AdminAuthUser>
   sendPasswordChangedEmail: (input: { to: string }) => Promise<unknown>
 }
 
 type SyncEmailChangeDeps = {
   now?: () => number
   getPendingEmailChange: (oobCode: string, now: number) => Promise<PendingEmailChangeForSync | null>
-  getUser: (uid: string) => Promise<UserRecord>
+  getUser: (uid: string) => Promise<AdminAuthUser>
   updateUserEmail: (uid: string, email: string) => Promise<unknown>
   markPendingEmailChangeConsumed: (oobCode: string, now: number) => Promise<unknown>
 }
@@ -155,7 +155,7 @@ export async function handlePasswordResetRequest(body: unknown, deps: PasswordRe
   const rateLimit = await deps.checkRateLimit(email, now)
   if (!rateLimit.allowed) return rateLimited(rateLimit.retryAfterSeconds)
 
-  let user: UserRecord
+  let user: AdminAuthUser
   try {
     user = await deps.getUserByEmail(email)
   } catch (error) {
@@ -214,7 +214,7 @@ export async function handleRequestEmailChange(
     return { status: 400, body: { error: 'Podaj poprawny nowy adres e-mail.' } }
   }
 
-  let user: UserRecord
+  let user: AdminAuthUser
   try {
     user = await deps.getUser(verified.uid)
   } catch {
@@ -275,7 +275,7 @@ export async function handlePasswordChangedNotificationRequest(
     return { status: 401, body: { error: 'Musisz być zalogowany.' } }
   }
 
-  let user: UserRecord
+  let user: AdminAuthUser
   try {
     user = await deps.getUser(verified.uid)
   } catch {
