@@ -21,6 +21,7 @@ export type AuthUser = {
   initials: string
   avatarColor: string
   photoUrl?: string
+  verificationEmailSent?: boolean
 }
 
 export type Category = {

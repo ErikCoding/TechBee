@@ -13,20 +13,10 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 // client" posture) — this file is the one deliberate exception, and
 // only for money-integrity writes.
 //
-// IMPORTANT — only import from the `firebase-admin/app` and
-// `firebase-admin/firestore` SUBPATHS, never the root `firebase-admin`
-// package or `firebase-admin/auth`. This file used to wrap the `auth`
-// submodule for LiveKit token verification and had to be abandoned
-// (see the history below) because `firebase-admin/auth` pulls in
-// `jwks-rsa@4.1.0`, which unconditionally `require()`s `jose@6` — a
-// pure-ESM package — and throws `ERR_REQUIRE_ESM` when bundled for a
-// Vercel serverless function. `firebase-admin/firestore` has no such
-// dependency (verified directly: requiring it never touches jose or
-// jwks-rsa), so it doesn't hit that bug. Caller identity is verified
-// separately via lib/stripe-server-auth.ts's REST-based check against
-// Google's Identity Toolkit — the same technique already proven in
-// app/api/livekit/token/route.ts — so no `firebase-admin/auth` is
-// needed here at all.
+// IMPORTANT — keep this module as the single place that initializes the
+// Firebase Admin App. Feature-specific helpers may attach sub-services
+// (Firestore here, Auth in lib/firebase-admin-auth.ts), but they must reuse
+// this already-initialized app instead of creating their own.
 //
 // Needs FIREBASE_SERVICE_ACCOUNT_KEY (the full JSON key downloaded
 // from Firebase Console → Project settings → Service accounts →
@@ -72,6 +62,9 @@ if (rawKey) {
 
 /** True once a real, trusted server-side Firestore connection is available. */
 export const isAdminConfigured = Boolean(dbInstance)
+
+/** Shared Firebase Admin app instance. Reuse this from server-only helpers; never initialize a second Admin App. */
+export const adminApp = app
 
 /** Trusted Firestore instance for server-only money-integrity writes, or `null` if FIREBASE_SERVICE_ACCOUNT_KEY isn't set. */
 export const adminDb = dbInstance

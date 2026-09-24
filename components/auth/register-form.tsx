@@ -31,6 +31,7 @@ export function RegisterForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [verificationSentTo, setVerificationSentTo] = useState<string | null>(null)
+  const [verificationSendFailed, setVerificationSendFailed] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -45,6 +46,7 @@ export function RegisterForm() {
       const user = await register({ name, email, password, role })
       if (requireEmailVerification && user.emailVerified === false) {
         setVerificationSentTo(user.email)
+        setVerificationSendFailed(user.verificationEmailSent === false)
         setLoading(false)
         return
       }
@@ -76,7 +78,9 @@ export function RegisterForm() {
           <div>
             <h2 className="text-base font-semibold text-foreground">Sprawdź skrzynkę</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Wysłaliśmy link potwierdzający na {verificationSentTo}. Konto będzie wpuszczane do panelu dopiero po potwierdzeniu adresu.
+              {verificationSendFailed
+                ? `Konto zostało utworzone dla ${verificationSentTo}, ale nie udało się wysłać wiadomości weryfikacyjnej. Przejdź do logowania i użyj opcji ponownej wysyłki.`
+                : `Wysłaliśmy link potwierdzający na ${verificationSentTo}. Konto będzie wpuszczane do panelu dopiero po potwierdzeniu adresu.`}
             </p>
           </div>
           <Button onClick={() => router.push('/login')} className="w-full font-semibold">

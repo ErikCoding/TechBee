@@ -52,7 +52,7 @@ service cloud.firestore {
         && request.resource.data.role == resource.data.role
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'firstName', 'initials', 'avatarColor', 'photoUrl',
-          'dismissedNotificationIds', 'studentCanManageReports'
+          'dismissedNotificationIds', 'studentCanManageReports', 'notificationPreferences'
         ]);
       allow delete: if isAdmin();
     }
@@ -204,6 +204,22 @@ service cloud.firestore {
     }
 
     match /stripeFinancialEvents/{id} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /emailVerificationRateLimits/{id} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /passwordResetRateLimits/{id} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /emailChangeRateLimits/{id} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /pendingEmailChanges/{id} {
       allow read, write, delete: if isAdmin();
     }
 

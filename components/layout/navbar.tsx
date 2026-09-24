@@ -154,10 +154,16 @@ export function Navbar() {
                     Portfel
                   </DropdownMenuItem>
                 )}
+                {user.role !== 'admin' && (
+                  <DropdownMenuItem onClick={() => router.push('/settings')}>
+                    <Settings className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Ustawienia konta
+                  </DropdownMenuItem>
+                )}
                 {user.role === 'teacher' && (
                   <DropdownMenuItem onClick={() => router.push('/dashboard/teacher/settings')}>
-                    <Settings className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    Ustawienia
+                    <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Wypłaty
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => router.push('/beepoints')}>
@@ -252,9 +258,14 @@ export function Navbar() {
                     <Wallet className="h-4 w-4" /> Portfel
                   </Link>
                 )}
+                {user.role !== 'admin' && (
+                  <Link href="/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                    <Settings className="h-4 w-4" /> Ustawienia konta
+                  </Link>
+                )}
                 {user.role === 'teacher' && (
                   <Link href="/dashboard/teacher/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
-                    <Settings className="h-4 w-4" /> Ustawienia
+                    <Wallet className="h-4 w-4" /> Wypłaty
                   </Link>
                 )}
                 <Link href="/beepoints" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">

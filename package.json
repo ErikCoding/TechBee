@@ -27,6 +27,7 @@
     "next": "^16.3.5",
     "react": "^19",
     "react-dom": "^19",
+    "resend": "^6.28.1",
     "server-only": "^0.0.1",
     "shadcn": "^4.8.0",
     "stripe": "^22.5.0",

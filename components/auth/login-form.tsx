@@ -55,7 +55,12 @@ export function LoginForm() {
           <Input id="email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ty@przyklad.pl" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-xs font-medium text-foreground">Hasło</label>
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="password" className="text-xs font-medium text-foreground">Hasło</label>
+            <Link href="/forgot-password" className="text-xs font-medium text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground">
+              Nie pamiętasz hasła?
+            </Link>
+          </div>
           <Input id="password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
         </div>
 

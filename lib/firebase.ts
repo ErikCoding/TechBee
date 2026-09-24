@@ -67,6 +67,14 @@ export const collections = {
   supportMessages: 'supportMessages',
   lessonPaymentSnapshots: 'lessonPaymentSnapshots',
   stripeFinancialEvents: 'stripeFinancialEvents',
+  /** Server-side throttle state for transactional verification emails. Written via Admin SDK only. */
+  emailVerificationRateLimits: 'emailVerificationRateLimits',
+  /** Server-side throttle state for password reset emails. Written via Admin SDK only. */
+  passwordResetRateLimits: 'passwordResetRateLimits',
+  /** Server-side throttle state for email change confirmations. Written via Admin SDK only. */
+  emailChangeRateLimits: 'emailChangeRateLimits',
+  /** Pending verify-and-change-email actions, keyed by hashed Firebase oobCode. */
+  pendingEmailChanges: 'pendingEmailChanges',
   /** Processed Stripe webhook event ids — see app/api/stripe/webhook/route.ts's idempotency check (one doc per event.id, written before processing, checked before every write). */
   stripeEvents: 'stripeEvents',
   /** Short-lived slot locks written by the Stripe webhook while turning paid sessions into lessons, preventing overlapping paid bookings from racing into the same teacher time. */

@@ -1,11 +1,12 @@
 import {
-  type ActionCodeSettings,
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   reload,
-  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile as updateFirebaseProfile,
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
@@ -13,6 +14,9 @@ import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { requireEmailVerification } from '@/lib/email-verification'
 import { syncParticipantProfile, toParticipant } from '@/services/chat.service'
 import { syncTeacherPublicIdentity } from '@/services/teachers.service'
+import { runPasswordChangeWithSecurityNotification } from '@/lib/account-security-core'
+import { AccountSecurityRequestError, requestEmailChangeVerification, requestPasswordChangedNotification } from '@/lib/account-security-client'
+import { requestEmailVerificationEmail } from '@/lib/email-verification-client'
 import type { AuthUser, PublicUserRole, UserRole } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -47,18 +51,10 @@ function isBrowser() {
   return typeof window !== 'undefined'
 }
 
-function verificationActionSettings(): ActionCodeSettings | undefined {
-  if (!isBrowser()) return undefined
-  return {
-    url: `${window.location.origin}/login?verified=1`,
-    handleCodeInApp: false,
-  }
-}
-
-async function sendVerificationEmailCurrentUser(): Promise<void> {
+async function requestVerificationEmailCurrentUser(forceRefresh = false): Promise<void> {
   if (!auth?.currentUser) return
-  auth.languageCode = 'pl'
-  await sendEmailVerification(auth.currentUser, verificationActionSettings())
+  const idToken = await auth.currentUser.getIdToken(forceRefresh)
+  await requestEmailVerificationEmail(idToken)
 }
 
 async function syncProfileSnapshotsThroughServer(): Promise<boolean> {
@@ -99,6 +95,21 @@ export interface LoginInput {
 export interface UpdateProfileInput {
   name: string
   photoUrl?: string
+}
+
+export type AuthProviderState = {
+  hasPasswordProvider: boolean
+  providerIds: string[]
+}
+
+export type ChangePasswordInput = {
+  currentPassword: string
+  newPassword: string
+}
+
+export type RequestEmailChangeInput = {
+  newEmail: string
+  currentPassword?: string
 }
 
 /**
@@ -248,6 +259,25 @@ async function updateUserProfileMock(input: UpdateProfileInput): Promise<AuthUse
   return publicUser
 }
 
+async function changePasswordMock(input: ChangePasswordInput): Promise<void> {
+  const current = getStoredSessionMock()
+  if (!current) throw new Error('Musisz być zalogowany, aby zmienić hasło.')
+  const users = readUsers()
+  const user = users.find((u) => u.id === current.id)
+  if (!user) throw new Error('Nie znaleziono profilu użytkownika.')
+  if (user.password !== input.currentPassword) throw new Error('Obecne hasło jest nieprawidłowe.')
+  writeUsers(users.map((u) => u.id === current.id ? { ...u, password: input.newPassword } : u))
+}
+
+async function requestEmailChangeMock(input: RequestEmailChangeInput): Promise<void> {
+  const current = getStoredSessionMock()
+  if (!current) throw new Error('Musisz być zalogowany, aby zmienić adres e-mail.')
+  const users = readUsers()
+  const user = users.find((u) => u.id === current.id)
+  if (!user) throw new Error('Nie znaleziono profilu użytkownika.')
+  if (input.currentPassword && user.password !== input.currentPassword) throw new Error('Obecne hasło jest nieprawidłowe.')
+}
+
 // ── Firebase implementation ──────────────────────────────────
 
 async function fetchFirebaseProfile(uid: string): Promise<AuthUser | null> {
@@ -285,11 +315,16 @@ async function registerFirebase(input: RegisterInput): Promise<AuthUser> {
     setDoc(doc(db, collections.users, credential.user.uid), { ...profile, createdAt: Date.now() }),
     updateFirebaseProfile(credential.user, { displayName: profile.name }),
   ])
+  let verificationEmailSent: boolean | undefined
   if (requireEmailVerification) {
-    auth.languageCode = 'pl'
-    await sendEmailVerification(credential.user, verificationActionSettings()).catch(() => {})
+    try {
+      await requestVerificationEmailCurrentUser(true)
+      verificationEmailSent = true
+    } catch {
+      verificationEmailSent = false
+    }
   }
-  return { id: credential.user.uid, ...profile, emailVerified: credential.user.emailVerified }
+  return { id: credential.user.uid, ...profile, emailVerified: credential.user.emailVerified, verificationEmailSent }
 }
 
 async function loginFirebase(input: LoginInput): Promise<AuthUser> {
@@ -323,6 +358,75 @@ async function updateUserProfileFirebase(input: UpdateProfileInput): Promise<Aut
   return publicUser
 }
 
+function firebaseProviderState(): AuthProviderState {
+  const providerIds = auth?.currentUser?.providerData.map((provider) => provider.providerId) ?? []
+  return {
+    hasPasswordProvider: providerIds.includes('password'),
+    providerIds,
+  }
+}
+
+async function reauthenticatePasswordUser(currentPassword: string): Promise<void> {
+  if (!auth?.currentUser?.email) {
+    throw new Error('Musisz być zalogowany, aby wykonać tę operację.')
+  }
+  const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword)
+  try {
+    await reauthenticateWithCredential(auth.currentUser, credential)
+  } catch (error) {
+    const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : ''
+    if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      throw new Error('Obecne hasło jest nieprawidłowe.')
+    }
+    if (code === 'auth/too-many-requests') {
+      throw new Error('Zbyt wiele prób. Spróbuj ponownie za chwilę.')
+    }
+    throw new Error('Nie udało się potwierdzić tożsamości. Spróbuj ponownie.')
+  }
+}
+
+async function changePasswordFirebase(input: ChangePasswordInput): Promise<void> {
+  if (!auth?.currentUser) throw new Error('Musisz być zalogowany, aby zmienić hasło.')
+  if (!firebaseProviderState().hasPasswordProvider) {
+    throw new Error('To konto nie używa hasła Runbee. Zmień hasło u dostawcy logowania.')
+  }
+  await reauthenticatePasswordUser(input.currentPassword)
+  try {
+    const currentUser = auth.currentUser
+    await runPasswordChangeWithSecurityNotification({
+      changePassword: () => updatePassword(currentUser, input.newPassword),
+      getIdToken: () => currentUser.getIdToken(true),
+      notifyPasswordChanged: requestPasswordChangedNotification,
+    })
+  } catch (error) {
+    const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : ''
+    if (code === 'auth/weak-password') throw new Error('Nowe hasło jest zbyt słabe.')
+    if (code === 'auth/requires-recent-login') throw new Error('Ze względów bezpieczeństwa zaloguj się ponownie i spróbuj jeszcze raz.')
+    throw new Error('Nie udało się zmienić hasła.')
+  }
+}
+
+async function requestEmailChangeFirebase(input: RequestEmailChangeInput): Promise<void> {
+  if (!auth?.currentUser) throw new Error('Musisz być zalogowany, aby zmienić adres e-mail.')
+  const providers = firebaseProviderState()
+  if (providers.hasPasswordProvider) {
+    if (!input.currentPassword) throw new Error('Podaj obecne hasło.')
+    await reauthenticatePasswordUser(input.currentPassword)
+  } else {
+    throw new Error('Dla kont logowanych przez zewnętrznego dostawcę zmiana adresu e-mail wymaga ponownego logowania u tego dostawcy.')
+  }
+
+  const idToken = await auth.currentUser.getIdToken(true)
+  try {
+    await requestEmailChangeVerification(idToken, input.newEmail)
+  } catch (error) {
+    if (error instanceof AccountSecurityRequestError && error.code === 'requires-recent-login') {
+      throw new Error('Ze względów bezpieczeństwa zaloguj się ponownie i spróbuj jeszcze raz.')
+    }
+    throw error
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────
 
 export async function registerUser(input: RegisterInput): Promise<AuthUser> {
@@ -345,9 +449,22 @@ export async function updateUserProfile(input: UpdateProfileInput): Promise<Auth
   return isFirebaseConfigured ? updateUserProfileFirebase(input) : updateUserProfileMock(input)
 }
 
+export function getCurrentAuthProviderState(): AuthProviderState {
+  if (isFirebaseConfigured) return firebaseProviderState()
+  return { hasPasswordProvider: true, providerIds: ['password'] }
+}
+
+export async function changeCurrentUserPassword(input: ChangePasswordInput): Promise<void> {
+  return isFirebaseConfigured ? changePasswordFirebase(input) : changePasswordMock(input)
+}
+
+export async function requestCurrentUserEmailChange(input: RequestEmailChangeInput): Promise<void> {
+  return isFirebaseConfigured ? requestEmailChangeFirebase(input) : requestEmailChangeMock(input)
+}
+
 export async function resendEmailVerification(): Promise<void> {
   if (!isFirebaseConfigured || !auth?.currentUser) return
-  await sendVerificationEmailCurrentUser()
+  await requestVerificationEmailCurrentUser(true)
 }
 
 export async function refreshEmailVerification(): Promise<AuthUser | null> {

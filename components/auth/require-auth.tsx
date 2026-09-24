@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Loader2, MailCheck } from 'lucide-react'
+import { CheckCircle2, Loader2, LogOut, MailCheck, RefreshCw, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { requireEmailVerification } from '@/lib/email-verification'
+import { needsEmailVerificationGate } from '@/lib/auth-guards'
+import { EmailVerificationRequestError } from '@/lib/email-verification-client'
+import { BeeLogo } from '@/components/shared/bee-logo'
 import type { UserRole } from '@/lib/types'
 
 interface RequireAuthProps {
@@ -33,11 +36,12 @@ export function RequireAuth({ children, role }: RequireAuthProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null)
-  const [resending, setResending] = useState(false)
+  const [verificationTone, setVerificationTone] = useState<'success' | 'error' | 'muted'>('muted')
+  const [verificationState, setVerificationState] = useState<'idle' | 'sending' | 'sent' | 'checking' | 'verified' | 'rate-limited' | 'error'>('idle')
 
   const allowedRoles = role ? (Array.isArray(role) ? role : [role]) : null
   const wrongRole = status === 'authenticated' && allowedRoles !== null && !!user && !allowedRoles.includes(user.role)
-  const needsEmailVerification = requireEmailVerification && status === 'authenticated' && !!user && user.emailVerified === false
+  const needsEmailVerification = needsEmailVerificationGate(requireEmailVerification, status, user)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -48,43 +52,97 @@ export function RequireAuth({ children, role }: RequireAuthProps) {
   }, [status, wrongRole, user, router, pathname])
 
   async function handleResendVerification() {
-    setResending(true)
+    setVerificationState('sending')
     setVerificationMessage(null)
+    setVerificationTone('muted')
     try {
       await resendVerification()
-      setVerificationMessage('Wysłaliśmy nowy link. Jeśli testujesz kilka razy pod rząd, Firebase może chwilowo blokować kolejne wysyłki.')
+      setVerificationState('sent')
+      setVerificationTone('success')
+      setVerificationMessage('Wysłaliśmy nowy link weryfikacyjny.')
     } catch (err) {
-      const message = err instanceof Error && err.message.includes('too-many-requests')
-        ? 'Firebase tymczasowo zablokował kolejne wysyłki. Odczekaj chwilę i nie klikaj ponownie kilka razy z rzędu.'
-        : 'Nie udało się wysłać maila weryfikacyjnego. Sprawdź konfigurację Firebase Auth.'
-      setVerificationMessage(message)
-    } finally {
-      setResending(false)
+      const rateLimited = err instanceof EmailVerificationRequestError && err.status === 429
+      setVerificationState(rateLimited ? 'rate-limited' : 'error')
+      setVerificationTone(rateLimited ? 'muted' : 'error')
+      setVerificationMessage(rateLimited
+        ? 'Nową wiadomość będzie można wysłać za chwilę.'
+        : 'Nie udało się wysłać wiadomości. Spróbuj ponownie za chwilę.')
+    }
+  }
+
+  async function handleRefreshVerification() {
+    setVerificationState('checking')
+    setVerificationMessage(null)
+    setVerificationTone('muted')
+    try {
+      const fresh = await refreshVerification()
+      if (fresh?.emailVerified) {
+        setVerificationState('verified')
+        setVerificationTone('success')
+        setVerificationMessage('Adres e-mail został potwierdzony.')
+      } else {
+        setVerificationState('idle')
+        setVerificationTone('muted')
+        setVerificationMessage('Adres nie jest jeszcze potwierdzony. Sprawdź link w wiadomości e-mail.')
+      }
+    } catch {
+      setVerificationState('error')
+      setVerificationTone('error')
+      setVerificationMessage('Nie udało się odświeżyć statusu. Spróbuj ponownie.')
     }
   }
 
   if (needsEmailVerification) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent">
-          <MailCheck className="h-5 w-5 text-bee-yellow-dark" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">Potwierdź adres e-mail</h1>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Wysłaliśmy link aktywacyjny na {user.email}. Po kliknięciu linku wróć tutaj i odśwież status konta.
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:flex-row">
-          <Button variant="outline" onClick={handleResendVerification} disabled={resending} className="w-full">
-            {resending ? 'Wysyłanie...' : 'Wyślij ponownie'}
-          </Button>
-          <Button onClick={refreshVerification} className="w-full font-semibold">Sprawdziłem maila</Button>
-        </div>
-        {verificationMessage && <p className="text-xs leading-relaxed text-muted-foreground">{verificationMessage}</p>}
-        <button type="button" onClick={logout} className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
-          Użyj innego konta
-        </button>
+      <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-10 sm:px-6">
+        <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border bg-muted/35 px-5 py-4 sm:px-6">
+            <BeeLogo size="md" />
+          </div>
+          <div className="px-5 py-7 text-center sm:px-8 sm:py-8">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent">
+              {verificationState === 'verified' ? (
+                <CheckCircle2 className="h-6 w-6 text-bee-yellow-dark" aria-hidden="true" />
+              ) : (
+                <MailCheck className="h-6 w-6 text-bee-yellow-dark" aria-hidden="true" />
+              )}
+            </div>
+            <h1 className="mt-5 text-2xl font-bold tracking-tight text-foreground">Potwierdź swój adres e-mail</h1>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Na <span className="font-medium text-foreground">{user?.email}</span> wysłaliśmy wiadomość z linkiem weryfikacyjnym.
+              Potwierdź adres, aby korzystać ze wszystkich funkcji Runbee.
+            </p>
+
+            {verificationMessage && (
+              <p
+                className={
+                  verificationTone === 'success'
+                    ? 'mt-4 rounded-xl border border-success/30 bg-success-surface px-3 py-2 text-sm text-success-on-surface'
+                    : verificationTone === 'error'
+                      ? 'mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive'
+                      : 'mt-4 rounded-xl border border-border bg-muted/45 px-3 py-2 text-sm text-muted-foreground'
+                }
+              >
+                {verificationMessage}
+              </p>
+            )}
+
+            <div className="mt-6 flex flex-col gap-2">
+              <Button onClick={handleRefreshVerification} disabled={verificationState === 'checking'} className="h-10 w-full font-semibold">
+                {verificationState === 'checking' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Sprawdziłem maila
+              </Button>
+              <Button variant="outline" onClick={handleResendVerification} disabled={verificationState === 'sending'} className="h-10 w-full">
+                {verificationState === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Wyślij ponownie
+              </Button>
+              <button type="button" onClick={logout} className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Wyloguj się
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
     )
   }
