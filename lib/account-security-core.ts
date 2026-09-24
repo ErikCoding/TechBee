@@ -83,3 +83,15 @@ export async function runPasswordChangeWithSecurityNotification(input: {
     // as failed or attempt to roll it back.
   }
 }
+
+export async function completeEmailChangeAction<TSessionUser>(input: {
+  applyFirebaseActionCode: () => Promise<void>
+  syncFirestoreEmail: () => Promise<void>
+  reloadFirebaseUser: () => Promise<void>
+  refreshSessionUser: () => Promise<TSessionUser>
+}): Promise<TSessionUser> {
+  await input.applyFirebaseActionCode()
+  await input.syncFirestoreEmail()
+  await input.reloadFirebaseUser()
+  return input.refreshSessionUser()
+}

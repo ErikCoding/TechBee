@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   PASSWORD_RESET_SUCCESS_MESSAGE,
   buildRunbeeActionLink,
+  completeEmailChangeAction,
   normalizeEmail,
   runPasswordChangeWithSecurityNotification,
 } from '../lib/account-security-core.ts'
@@ -328,6 +329,48 @@ test('email change sync updates Firestore only after Firebase Auth has the new e
   assert.equal(consumed, true)
 })
 
+test('email change action refreshes AuthContext after Auth and Firestore are synchronized', async () => {
+  const events = []
+  const sessionUser = await completeEmailChangeAction({
+    applyFirebaseActionCode: async () => { events.push('auth-email-changed') },
+    syncFirestoreEmail: async () => { events.push('firestore-email-synced') },
+    reloadFirebaseUser: async () => { events.push('firebase-user-reloaded') },
+    refreshSessionUser: async () => {
+      events.push('auth-context-refreshed')
+      return { email: 'new@runbee.pl' }
+    },
+  })
+
+  assert.deepEqual(events, [
+    'auth-email-changed',
+    'firestore-email-synced',
+    'firebase-user-reloaded',
+    'auth-context-refreshed',
+  ])
+  assert.equal(sessionUser.email, 'new@runbee.pl')
+})
+
+test('email change action surfaces sync failure and does not pretend Settings is refreshed', async () => {
+  const events = []
+  await assert.rejects(
+    () => completeEmailChangeAction({
+      applyFirebaseActionCode: async () => { events.push('auth-email-changed') },
+      syncFirestoreEmail: async () => {
+        events.push('firestore-sync-failed')
+        throw new Error('sync failed')
+      },
+      reloadFirebaseUser: async () => { events.push('firebase-user-reloaded') },
+      refreshSessionUser: async () => {
+        events.push('auth-context-refreshed')
+        return { email: 'new@runbee.pl' }
+      },
+    }),
+    /sync failed/,
+  )
+
+  assert.deepEqual(events, ['auth-email-changed', 'firestore-sync-failed'])
+})
+
 test('email change sync rejects invalid/expired action and does not update Firestore', async () => {
   let updated = false
   const result = await handleSyncEmailChange({ oobCode: 'EXPIRED' }, {
@@ -365,6 +408,14 @@ test('email change sync refuses to update before Firebase Auth email changes', a
 
   assert.equal(result.status, 409)
   assert.equal(updated, false)
+})
+
+test('Settings email field reads the refreshed AuthContext user email', () => {
+  const source = readFileSync(new URL('../components/settings/settings-client.tsx', import.meta.url), 'utf8')
+
+  assert.equal(source.includes('refreshVerification'), true)
+  assert.equal(source.includes('visibilitychange'), true)
+  assert.equal(source.includes('value={user.email}'), true)
 })
 
 test('action link builder rewrites only expected Firebase modes', () => {

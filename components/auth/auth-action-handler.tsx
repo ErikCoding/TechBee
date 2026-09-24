@@ -10,11 +10,14 @@ import { Button } from '@/components/ui/button'
 import { buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { auth, isFirebaseConfigured } from '@/lib/firebase'
-import { syncEmailChangeAfterAction } from '@/lib/account-security-client'
+import { useAuth } from '@/lib/auth-context'
+import { completeEmailChangeAction } from '@/lib/account-security-core'
+import { AccountSecurityRequestError, syncEmailChangeAfterAction } from '@/lib/account-security-client'
 
 type ActionState = 'checking' | 'ready' | 'submitting' | 'success' | 'error'
 
 function safeFirebaseActionError(error: unknown): string {
+  if (error instanceof AccountSecurityRequestError) return error.message
   const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : ''
   if (code === 'auth/expired-action-code') return 'Ten link wygasł. Poproś o nowy link i spróbuj ponownie.'
   if (code === 'auth/invalid-action-code') return 'Ten link jest nieważny albo został już użyty.'
@@ -23,6 +26,7 @@ function safeFirebaseActionError(error: unknown): string {
 }
 
 export function AuthActionHandler() {
+  const { refreshVerification } = useAuth()
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode')
   const oobCode = searchParams.get('oobCode')
@@ -99,12 +103,16 @@ export function AuthActionHandler() {
 
   async function confirmEmailChange() {
     if (!auth || !oobCode) return
+    const firebaseAuth = auth
     setError(null)
     setState('submitting')
     try {
-      await applyActionCode(auth, oobCode)
-      await syncEmailChangeAfterAction(oobCode)
-      if (auth.currentUser) await reload(auth.currentUser).catch(() => {})
+      await completeEmailChangeAction({
+        applyFirebaseActionCode: () => applyActionCode(firebaseAuth, oobCode),
+        syncFirestoreEmail: () => syncEmailChangeAfterAction(oobCode),
+        reloadFirebaseUser: () => firebaseAuth.currentUser ? reload(firebaseAuth.currentUser) : Promise.resolve(),
+        refreshSessionUser: () => refreshVerification(),
+      })
       setState('success')
     } catch (err) {
       setError(safeFirebaseActionError(err))

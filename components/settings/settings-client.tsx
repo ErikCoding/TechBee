@@ -58,7 +58,7 @@ function SettingsSection({
 }
 
 export function SettingsClient() {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, refreshVerification } = useAuth()
   const [name, setName] = useState(user?.name ?? '')
   const [preferences, setPreferences] = useState<NotificationPreferences>(() => normalizeNotificationPreferences(null))
   const [loadingPrefs, setLoadingPrefs] = useState(true)
@@ -95,6 +95,27 @@ export function SettingsClient() {
       .finally(() => { if (!cancelled) setLoadingPrefs(false) })
     return () => { cancelled = true }
   }, [user])
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    void refreshVerification().catch(() => {})
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshVerification().catch(() => {})
+      }
+    }
+    const refreshOnFocus = () => {
+      void refreshVerification().catch(() => {})
+    }
+
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    window.addEventListener('focus', refreshOnFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      window.removeEventListener('focus', refreshOnFocus)
+    }
+  }, [refreshVerification, user?.id])
 
   const navItems = useMemo(() => [
     { href: '#konto', label: 'Konto' },
