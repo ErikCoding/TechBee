@@ -4,6 +4,7 @@ import { adminDb } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import { stripe } from '@/lib/stripe'
 import { LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { getStripePaymentFeeSnapshot } from '@/lib/stripe-payment-fees'
 import type { Lesson } from '@/lib/types'
 
 function paidCheckoutSession(session: Stripe.Checkout.Session): boolean {
@@ -53,6 +54,14 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
   }
 
   const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
+  let feeSnapshot: Awaited<ReturnType<typeof getStripePaymentFeeSnapshot>> = null
+  if (paymentIntentId) {
+    try {
+      feeSnapshot = await getStripePaymentFeeSnapshot(paymentIntentId)
+    } catch (err) {
+      console.error('[stripe/checkout] Failed to read Stripe fee snapshot:', err)
+    }
+  }
   const now = Date.now()
   const duration = Number(m.duration ?? 60)
   const scheduledStartAt = Number(m.scheduledStartAt)
@@ -84,6 +93,9 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     commissionSource: m.commissionSource === 'founding_teacher' ? 'founding_teacher' : 'standard',
     platformFeeGrosze: Number(m.platformFeeGrosze ?? 0),
     teacherAmountGrosze: Number(m.teacherAmountGrosze ?? 0),
+    ...(feeSnapshot ? {
+      stripeFeeGrosze: feeSnapshot.stripeFeeGrosze,
+    } : {}),
     stripeCheckoutSessionId: session.id,
     ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
     // See the Lesson.livemode doc comment (lib/types.ts) — this is what
@@ -121,6 +133,17 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
       }
     }
     tx.set(ref, lesson)
+    if (feeSnapshot) {
+      tx.set(database.collection(collections.lessonPaymentSnapshots).doc(ref.id), {
+        lessonId: ref.id,
+        ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+        stripeFeeGrosze: feeSnapshot.stripeFeeGrosze,
+        stripeChargeId: feeSnapshot.stripeChargeId,
+        stripeBalanceTransactionId: feeSnapshot.stripeBalanceTransactionId,
+        livemode: Boolean(session.livemode),
+        createdAt: now,
+      })
+    }
     return ref.id
   })
 

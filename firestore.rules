@@ -193,9 +193,14 @@ service cloud.firestore {
       ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'paymentStatus', 'priceGrosze', 'commissionPercent', 'effectiveCommissionPercent', 'commissionSource',
         'platformFeeGrosze', 'teacherAmountGrosze',
+        'stripeFeeGrosze', 'stripeBalanceTransactionId', 'stripeChargeId',
         'stripeCheckoutSessionId', 'stripePaymentIntentId', 'stripeTransferId', 'stripeRefundId'
       ]);
       allow delete: if isAdmin();
+    }
+
+    match /lessonPaymentSnapshots/{id} {
+      allow read, write, delete: if isAdmin();
     }
 
     // A student generates a short-lived single-use code so a parent can

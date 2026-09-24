@@ -333,6 +333,8 @@ export type Lesson = {
   commissionSource?: CommissionSource
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
+  /** Snapshot of Stripe's actual balance_transaction.fee for this payment, in grosze. Missing on older lessons until backfilled. */
+  stripeFeeGrosze?: number
   stripeCheckoutSessionId?: string
   stripePaymentIntentId?: string
   /** Set once the teacher's share has actually been moved via a real Stripe Transfer (see finalizeReportConfirmation in lessons.service.ts) — this, not `paymentReleased` alone, is what "money genuinely reached the teacher" means now. */
@@ -462,13 +464,19 @@ export type FoundingTeacherAdminDashboard = {
 
 export type PlatformWalletSummary = {
   commissionPercent: number
-  availableGrosze: number | null
-  pendingGrosze: number | null
-  grossPaidGrosze: number
-  platformFeesGrosze: number
-  teacherTransfersGrosze: number
-  pendingTeacherTransfersGrosze: number
-  refundedGrosze: number
+  paidVolumeGrosze: number
+  refundsGrosze: number
+  grossPlatformCommissionGrosze: number
+  stripeFeesGrosze: number
+  stripeFeesComplete: boolean
+  stripeFeesMissingCount: number
+  netPlatformRevenueGrosze: number | null
+  teacherAmountGrosze: number
+  teacherPendingReleaseGrosze: number
+  teacherReadyForTransferGrosze: number
+  teacherTransferredGrosze: number
+  stripeAvailableGrosze: number | null
+  stripePendingGrosze: number | null
 }
 
 export type PlatformWalletEntry = {
@@ -476,12 +484,29 @@ export type PlatformWalletEntry = {
   teacherName: string
   studentName: string
   topic: string
+  date: string
   grossGrosze: number
   platformFeeGrosze: number
+  effectiveCommissionPercent?: number
+  commissionSource?: CommissionSource
+  stripeFeeGrosze?: number
+  netPlatformRevenueGrosze?: number
   teacherAmountGrosze: number
   status: Lesson['paymentStatus']
-  transferStatus: 'pending' | 'sent'
+  settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded'
+  transferStatus: 'pending' | 'ready' | 'sent' | 'refunded'
   createdAt: number
+}
+
+export type LessonPaymentSnapshot = {
+  lessonId: string
+  stripePaymentIntentId?: string
+  stripeFeeGrosze: number
+  stripeChargeId: string
+  stripeBalanceTransactionId: string
+  livemode: boolean
+  createdAt: number
+  updatedAt?: number
 }
 
 export type LessonReportCardStatus = 'pending' | 'confirmed' | 'dispute_open' | 'dispute_resolved_teacher' | 'dispute_resolved_payer'
@@ -592,10 +617,12 @@ export type AdminStats = {
   totalStudents: number
   activeLessonsToday: number
   monthlyRevenue: number
+  monthlyNetRevenue?: number | null
+  monthlyNetRevenueComplete?: boolean
   revenueChange: number
   newSignupsThisWeek: number
   pendingVerifications: number
-  revenueChart: { month: string; amount: number; platformFee?: number; teacherAmount?: number }[]
+  revenueChart: { month: string; amount: number; platformFee?: number; teacherAmount?: number; netPlatformRevenue?: number | null; netPlatformRevenueComplete?: boolean }[]
   usersByRole: { role: string; count: number; color: string }[]
 }
 

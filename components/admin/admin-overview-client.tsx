@@ -85,7 +85,15 @@ export function AdminOverviewClient({ initialStats }: Props) {
 
   const cards = [
     { icon: Users, label: 'Użytkownicy łącznie', value: stats.totalUsers.toLocaleString('pl-PL'), sub: `${stats.totalTeachers} nauczycieli · ${stats.totalStudents.toLocaleString('pl-PL')} uczniów` },
-    { icon: Wallet, label: 'Przychód (miesiąc)', value: `${stats.monthlyRevenue.toLocaleString('pl-PL')} zł`, sub: `${stats.revenueChange > 0 ? '+' : ''}${stats.revenueChange}% vs poprzedni miesiąc`, trend: stats.revenueChange >= 0 },
+    {
+      icon: Wallet,
+      label: 'Obrót w miesiącu',
+      value: `${stats.monthlyRevenue.toLocaleString('pl-PL')} zł`,
+      sub: stats.monthlyNetRevenueComplete && typeof stats.monthlyNetRevenue === 'number'
+        ? `Runbee netto: ${stats.monthlyNetRevenue.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+        : `${stats.revenueChange > 0 ? '+' : ''}${stats.revenueChange}% vs poprzedni miesiąc`,
+      trend: stats.revenueChange >= 0,
+    },
     { icon: Activity, label: 'Aktywne lekcje dziś', value: stats.activeLessonsToday, sub: 'Na żywo w tej chwili' },
     { icon: UserPlus, label: 'Nowe rejestracje', value: stats.newSignupsThisWeek, sub: 'W tym tygodniu' },
   ]

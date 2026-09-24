@@ -25,6 +25,36 @@ async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextRes
 // just to separate test bookings from real ones.
 const CURRENT_ENV_IS_LIVE = Boolean(process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_'))
 
+function hasKnownStripeFee(lesson: Lesson): lesson is Lesson & { stripeFeeGrosze: number } {
+  return Number.isFinite(lesson.stripeFeeGrosze)
+}
+
+function lessonIsReadyForTransfer(lesson: Lesson): boolean {
+  if (lesson.paymentStatus !== 'paid' || lesson.stripeTransferId) return false
+  if (lesson.dispute?.status === 'open') return false
+  if (lesson.dispute?.status === 'resolved_teacher') return true
+  if (lesson.reportConfirmedAt || lesson.paymentReleased) return true
+  if (!lesson.reportSubmittedAt || !lesson.report) return false
+  return Date.now() - lesson.reportSubmittedAt >= 24 * 60 * 60 * 1000
+}
+
+function settlementStatus(lesson: Lesson): PlatformWalletEntry['settlementStatus'] {
+  if (lesson.paymentStatus === 'refunded') return 'refunded'
+  if (lesson.stripeTransferId) return 'transferred'
+  if (lessonIsReadyForTransfer(lesson)) return 'ready_for_transfer'
+  if (lesson.dispute?.status === 'open') return 'waiting_confirmation'
+  if (lesson.report) return 'waiting_confirmation'
+  if (lesson.status === 'pending') return 'waiting_teacher_acceptance'
+  if (lesson.status === 'upcoming') return 'waiting_lesson'
+  return 'waiting_report'
+}
+
+function transferStatus(lesson: Lesson): PlatformWalletEntry['transferStatus'] {
+  if (lesson.paymentStatus === 'refunded') return 'refunded'
+  if (lesson.stripeTransferId) return 'sent'
+  return lessonIsReadyForTransfer(lesson) ? 'ready' : 'pending'
+}
+
 async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
   const settings = await getPlatformPaymentSettings()
   const lessonsSnap = await adminDb!.collection(collections.lessons).get()
@@ -35,41 +65,67 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
   const lessons = allLessons.filter((lesson) => Boolean(lesson.livemode) === CURRENT_ENV_IS_LIVE)
   const paid = lessons.filter((lesson) => lesson.paymentStatus === 'paid')
   const refunded = lessons.filter((lesson) => lesson.paymentStatus === 'refunded')
+  const knownFeePaid = paid.filter(hasKnownStripeFee)
+  const missingFeeCount = paid.length - knownFeePaid.length
 
-  let availableGrosze: number | null = null
-  let pendingGrosze: number | null = null
+  let stripeAvailableGrosze: number | null = null
+  let stripePendingGrosze: number | null = null
   if (isStripeConfigured) {
     try {
       const balance = await stripe!.balance.retrieve()
-      availableGrosze = balance.available.find((b) => b.currency === STRIPE_CURRENCY)?.amount ?? 0
-      pendingGrosze = balance.pending.find((b) => b.currency === STRIPE_CURRENCY)?.amount ?? 0
+      stripeAvailableGrosze = balance.available.find((b) => b.currency === STRIPE_CURRENCY)?.amount ?? 0
+      stripePendingGrosze = balance.pending.find((b) => b.currency === STRIPE_CURRENCY)?.amount ?? 0
     } catch (err) {
       console.error('[admin/platform-wallet] Failed to fetch Stripe balance:', err)
     }
   }
 
+  const grossPlatformCommissionGrosze = paid.reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
+  const stripeFeesGrosze = knownFeePaid.reduce((sum, lesson) => sum + lesson.stripeFeeGrosze, 0)
+  const stripeFeesComplete = missingFeeCount === 0
+  const readyForTransfer = paid.filter(lessonIsReadyForTransfer)
+
   const summary: PlatformWalletSummary = {
     commissionPercent: settings.commissionPercent,
-    availableGrosze,
-    pendingGrosze,
-    grossPaidGrosze: paid.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0),
-    platformFeesGrosze: paid.reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0),
-    teacherTransfersGrosze: paid.filter((lesson) => lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
-    pendingTeacherTransfersGrosze: paid.filter((lesson) => !lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
-    refundedGrosze: refunded.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0),
+    paidVolumeGrosze: paid.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0),
+    refundsGrosze: refunded.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0),
+    grossPlatformCommissionGrosze,
+    stripeFeesGrosze,
+    stripeFeesComplete,
+    stripeFeesMissingCount: missingFeeCount,
+    netPlatformRevenueGrosze: stripeFeesComplete ? grossPlatformCommissionGrosze - stripeFeesGrosze : null,
+    teacherAmountGrosze: paid.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
+    teacherPendingReleaseGrosze: paid
+      .filter((lesson) => !lesson.stripeTransferId && !lessonIsReadyForTransfer(lesson))
+      .reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
+    teacherReadyForTransferGrosze: readyForTransfer.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
+    teacherTransferredGrosze: paid.filter((lesson) => lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
+    stripeAvailableGrosze,
+    stripePendingGrosze,
   }
 
-  const entries: PlatformWalletEntry[] = paid
+  const entries: PlatformWalletEntry[] = lessons
+    .filter((lesson) => lesson.paymentStatus === 'paid' || lesson.paymentStatus === 'refunded')
     .map((lesson) => ({
       lessonId: lesson.id,
       teacherName: lesson.teacherName,
       studentName: lesson.studentName,
       topic: lesson.topic,
+      date: lesson.date && lesson.time ? `${lesson.date}, ${lesson.time}` : lesson.date || lesson.time || '—',
       grossGrosze: lesson.priceGrosze ?? 0,
       platformFeeGrosze: lesson.platformFeeGrosze ?? 0,
+      ...(typeof (lesson.effectiveCommissionPercent ?? lesson.commissionPercent) === 'number'
+        ? { effectiveCommissionPercent: lesson.effectiveCommissionPercent ?? lesson.commissionPercent }
+        : {}),
+      ...(lesson.commissionSource ? { commissionSource: lesson.commissionSource } : {}),
+      ...(typeof lesson.stripeFeeGrosze === 'number' ? { stripeFeeGrosze: lesson.stripeFeeGrosze } : {}),
+      ...(lesson.paymentStatus === 'paid' && typeof lesson.stripeFeeGrosze === 'number'
+        ? { netPlatformRevenueGrosze: (lesson.platformFeeGrosze ?? 0) - lesson.stripeFeeGrosze }
+        : {}),
       teacherAmountGrosze: lesson.teacherAmountGrosze ?? 0,
       status: lesson.paymentStatus ?? 'paid',
-      transferStatus: lesson.stripeTransferId ? 'sent' as const : 'pending' as const,
+      settlementStatus: settlementStatus(lesson),
+      transferStatus: transferStatus(lesson),
       createdAt: lesson.createdAt ?? 0,
     }))
     .sort((a, b) => b.createdAt - a.createdAt)
