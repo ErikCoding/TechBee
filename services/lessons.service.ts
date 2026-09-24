@@ -9,6 +9,7 @@ import { resolveConfirmingParty } from '@/services/family-link.service'
 import { getOrCreateConversation, sendMessage, sendReportCardMessage, toParticipant, updateReportCardStatus } from '@/services/chat.service'
 import { getUserProfileById } from '@/services/auth.service'
 import { canManageLessonReport, computeReportManagerIds, getReportManagerIds } from '@/lib/report-permissions'
+import { isReportAutoConfirmEligible } from '@/lib/lesson-report-auto-confirm'
 import { slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
 import type { BookedLessonSlot, Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, LessonDisputeReason, LessonReport, LessonReportCard, LessonReportCardStatus, StudentStats, TeacherDashboardData } from '@/lib/types'
 
@@ -51,8 +52,6 @@ import type { BookedLessonSlot, Lesson, LessonBookingInput, LessonChangeRequest,
 // ─────────────────────────────────────────────────────────────
 
 const DEMO_STUDENT_ID = 'u3'
-const REPORT_AUTO_CONFIRM_MS = 24 * 60 * 60 * 1000
-
 function isBrowser() {
   return typeof window !== 'undefined'
 }
@@ -257,13 +256,13 @@ async function getLessonByIdFirebase(id: string): Promise<Lesson | undefined> {
   return snap.exists() ? mapLessonDoc(snap.id, snap.data()) : undefined
 }
 
-// ── Escrow report auto-confirmation (lazy, no cron needed) ──────
+// ── Escrow report auto-confirmation (lazy fallback) ──────────────
 //
-// There's no scheduled-function infra in this stack, so the
-// blueprint's "24h auto-confirm" rule is enforced opportunistically:
-// every time a lesson list (or a single lesson) is fetched, any
-// report that's been sitting unconfirmed/undisputed past the window
-// is finalized right there before the result is returned.
+// The external scheduler endpoint is the primary scheduled process for
+// the 24h auto-confirm window. This remains as a fallback: every time a
+// lesson list (or a single lesson) is fetched, any report that's been
+// sitting unconfirmed/undisputed past the window is finalized before
+// the result is returned.
 
 async function finalizeReportConfirmation(lesson: Lesson, chatStatus: LessonReportCardStatus = 'confirmed'): Promise<void> {
   if (isFirebaseConfigured) {
@@ -317,8 +316,7 @@ async function flipReportCardStatus(lesson: Lesson, status: LessonReportCardStat
 }
 
 async function autoConfirmIfOverdue(lesson: Lesson): Promise<Lesson> {
-  if (!lesson.report || lesson.reportConfirmedAt || lesson.dispute || !lesson.reportSubmittedAt) return lesson
-  if (Date.now() - lesson.reportSubmittedAt < REPORT_AUTO_CONFIRM_MS) return lesson
+  if (!isReportAutoConfirmEligible(lesson)) return lesson
   try {
     await finalizeReportConfirmation(lesson)
     return { ...lesson, reportConfirmedAt: Date.now(), paymentReleased: true }
@@ -793,6 +791,8 @@ export async function submitLessonReport(lesson: Lesson, report: LessonReport): 
   await updateLessonDoc(lesson.id, {
     report,
     reportSubmittedAt: Date.now(),
+    reportConfirmedAt: null,
+    paymentReleased: false,
     confirmingPartyId: confirmingParty.id,
     confirmingPartyRole: confirmingParty.role,
     studentCanManageReport: confirmingParty.studentCanManage,

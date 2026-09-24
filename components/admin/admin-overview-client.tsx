@@ -38,7 +38,7 @@ export function AdminOverviewClient({ initialStats }: Props) {
   const metricOptions = [
     { id: 'gross', label: 'Obrót', color: '#F4B400', value: (amount: number) => amount },
     { id: 'commission', label: 'Prowizja Runbee', color: '#10B981', value: (amount: number) => amount },
-    { id: 'teacher', label: 'Wypłaty nauczycieli', color: '#3B82F6', value: (amount: number) => amount },
+    { id: 'teacher', label: 'Dla nauczycieli', color: '#3B82F6', value: (amount: number) => amount },
   ]
   const selectedMetrics = metricOptions.filter((metric) => activeSeries.includes(metric.id))
   const revenueRows = stats.revenueChart.map((entry) => ({

@@ -1,0 +1,27 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "lessons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "paymentStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paymentReleased",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "reportConfirmedAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "reportSubmittedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

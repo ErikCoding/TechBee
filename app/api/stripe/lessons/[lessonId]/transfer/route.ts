@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { stripe } from '@/lib/stripe'
 import { adminDb } from '@/lib/firebase-admin'
 import { requireStripeBackend, verifyCaller } from '@/lib/stripe-server-auth'
 import { collections } from '@/lib/firebase'
-import { STRIPE_CURRENCY } from '@/lib/stripe-config'
+import { releaseLessonTeacherPayment } from '@/lib/lesson-release.server'
+import { REPORT_AUTO_CONFIRM_MS } from '@/lib/lesson-report-auto-confirm'
 import { canManageLessonReport } from '@/lib/report-permissions'
 import type { Lesson } from '@/lib/types'
 
@@ -44,14 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ les
   if (!lessonSnap.exists) return NextResponse.json({ error: 'Nie znaleziono lekcji.' }, { status: 404 })
   const lesson = lessonSnap.data() as Lesson
 
-  // roleSnap (needed for the isAdmin check below) and teacherSnap
-  // (needed later for the Connect account id) both only depend on data
-  // already known from lessonSnap — neither depends on the other, so
-  // fetch them concurrently instead of one after another.
-  const [roleSnap, teacherSnap] = await Promise.all([
-    adminDb!.collection(collections.users).doc(uid).get(),
-    adminDb!.collection(collections.teachers).doc(lesson.teacherId).get(),
-  ])
+  const roleSnap = await adminDb!.collection(collections.users).doc(uid).get()
   const isAdmin = roleSnap.data()?.role === 'admin'
 
   // Only someone genuinely party to this lesson (payer, student,
@@ -85,34 +78,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ les
   // this, or the 24h auto-confirm window has genuinely elapsed, or it's
   // an admin resolving a dispute in the teacher's favor.
   const confirmingPartyApproved = canManageLessonReport(lesson, uid)
-  const autoConfirmWindowElapsed = Boolean(lesson.reportSubmittedAt) && Date.now() - lesson.reportSubmittedAt! >= 24 * 60 * 60 * 1000
+  const autoConfirmWindowElapsed = Boolean(lesson.reportSubmittedAt) && Date.now() - lesson.reportSubmittedAt! >= REPORT_AUTO_CONFIRM_MS
   const disputeResolvedForTeacher = lesson.dispute?.status === 'resolved_teacher'
   if (!confirmingPartyApproved && !autoConfirmWindowElapsed && !disputeResolvedForTeacher && !isAdmin) {
     return NextResponse.json({ error: 'Zwolnienie płatności nie jest jeszcze możliwe.' }, { status: 403 })
   }
 
-  const teacherAccountId = teacherSnap.data()?.stripe?.accountId as string | undefined
-  if (!teacherAccountId) {
-    return NextResponse.json({ error: 'Nauczyciel nie ma jeszcze skonfigurowanego konta Stripe.' }, { status: 400 })
-  }
-
-  const amount = lesson.teacherAmountGrosze ?? 0
-  if (amount <= 0) {
-    return NextResponse.json({ error: 'Nieprawidłowa kwota do wypłaty.' }, { status: 400 })
-  }
-
-  try {
-    const transfer = await stripe!.transfers.create({
-      amount,
-      currency: STRIPE_CURRENCY,
-      destination: teacherAccountId,
-      transfer_group: `lesson_${lessonId}`,
-      metadata: { lessonId, teacherId: lesson.teacherId },
-    })
-    await lessonRef.update({ stripeTransferId: transfer.id, reportConfirmedAt: Date.now(), paymentReleased: true })
-    return NextResponse.json({ transferId: transfer.id })
-  } catch (err) {
-    console.error('[stripe/lessons/transfer] Failed:', err)
-    return NextResponse.json({ error: 'Nie udało się zwolnić płatności. Spróbuj ponownie.' }, { status: 500 })
-  }
+  const release = await releaseLessonTeacherPayment(lessonId)
+  if (!release.ok) return NextResponse.json({ error: release.error }, { status: release.status })
+  return NextResponse.json({ transferId: release.transferId, alreadyTransferred: release.alreadyTransferred })
 }
