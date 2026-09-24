@@ -151,16 +151,16 @@ export function AdminPlatformWallet() {
         ) : (
           <div className="flex flex-col gap-5">
             <div className="grid gap-3 lg:grid-cols-[1.15fr_1fr_1fr]">
-              <div className="rounded-xl border border-success/30 bg-success-surface p-4">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase text-success-on-surface">
+              <div className="rounded-xl border border-success/25 bg-[linear-gradient(135deg,var(--background)_0%,color-mix(in_oklab,var(--success)_10%,var(--background))_100%)] p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase text-success">
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                   Runbee
                 </div>
-                <p className="mt-3 text-xs text-success-on-surface/80">Zarobek netto Runbee</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-success-on-surface">
+                <p className="mt-3 text-xs text-muted-foreground">Zarobek netto Runbee</p>
+                <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
                   {summary?.netPlatformRevenueGrosze === null ? 'Niepełne dane' : pln(summary?.netPlatformRevenueGrosze)}
                 </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-success-on-surface/75">Po odjęciu kosztów obsługi płatności</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Po odjęciu kosztów obsługi płatności</p>
                 {feeIncomplete && (
                   <p className="mt-3 rounded-lg border border-success/30 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
                     Brakuje snapshotu Stripe fee dla {summary?.stripeFeesMissingCount ?? 0} starszych transakcji.
@@ -168,12 +168,12 @@ export function AdminPlatformWallet() {
                 )}
                 <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
                   <div>
-                    <p className="text-success-on-surface/70">Prowizja Runbee</p>
-                    <p className="font-semibold tabular-nums text-success-on-surface">{pln(summary?.grossPlatformCommissionGrosze)}</p>
+                    <p className="text-muted-foreground">Prowizja Runbee</p>
+                    <p className="font-semibold tabular-nums text-success">{pln(summary?.grossPlatformCommissionGrosze)}</p>
                   </div>
                   <div>
-                    <p className="text-success-on-surface/70">Koszty Stripe</p>
-                    <p className="font-semibold tabular-nums text-success-on-surface">{signedPln(summary ? -summary.stripeFeesGrosze : undefined)}</p>
+                    <p className="text-muted-foreground">Koszty Stripe</p>
+                    <p className="font-semibold tabular-nums text-muted-foreground">{signedPln(summary ? -summary.stripeFeesGrosze : undefined)}</p>
                   </div>
                 </div>
               </div>
