@@ -46,6 +46,14 @@ type FirebaseOobResponse = {
   oobLink?: string
 }
 
+type GoogleErrorResponse = {
+  error?: {
+    code?: number
+    message?: string
+    status?: string
+  }
+}
+
 type AccessTokenResult = {
   accessToken?: string
 }
@@ -65,10 +73,110 @@ type AdminAuthRestClient = {
 
 let adminAuthClient: AdminAuthRestClient | null = null
 
-function authError(code: string, message: string): Error {
-  const error = new Error(message) as Error & { code?: string }
+export type FirebaseAuthDiagnosticCode =
+  | 'verify_id_token_failed'
+  | 'get_user_failed'
+  | 'firebase_auth_config_missing'
+  | 'firebase_auth_project_mismatch'
+  | 'firebase_auth_iam_error'
+  | 'unknown_server_auth_error'
+
+type AuthErrorContext = {
+  diagnosticCode?: FirebaseAuthDiagnosticCode
+  operation?: string
+  httpStatus?: number
+  googleHttpStatus?: number
+  googleErrorCode?: string
+  missingEnv?: string
+}
+
+export type FirebaseAuthDiagnosticError = Error & {
+  code?: string
+  diagnosticCode?: FirebaseAuthDiagnosticCode
+  operation?: string
+  httpStatus?: number
+  googleHttpStatus?: number
+  googleErrorCode?: string
+  missingEnv?: string
+}
+
+function authError(code: string, message: string, context: AuthErrorContext = {}): FirebaseAuthDiagnosticError {
+  const error = new Error(message) as FirebaseAuthDiagnosticError
   error.code = code
+  error.diagnosticCode = context.diagnosticCode
+  error.operation = context.operation
+  error.httpStatus = context.httpStatus
+  error.googleHttpStatus = context.googleHttpStatus
+  error.googleErrorCode = context.googleErrorCode
+  error.missingEnv = context.missingEnv
   return error
+}
+
+function googleErrorCode(data: GoogleErrorResponse, fallback: string): string {
+  if (data.error?.status) return data.error.status
+  const message = data.error?.message ?? ''
+  const match = message.match(/[A-Z][A-Z0-9_]+/)
+  return match?.[0] ?? fallback
+}
+
+function classifyGoogleAuthError(
+  operation: string,
+  responseStatus: number,
+  data: GoogleErrorResponse,
+): FirebaseAuthDiagnosticError {
+  const upstreamCode = googleErrorCode(data, `HTTP_${responseStatus}`)
+  if (upstreamCode === 'INVALID_ID_TOKEN' || upstreamCode === 'USER_DISABLED') {
+    return authError('auth/invalid-id-token', 'Firebase ID token is invalid.', {
+      diagnosticCode: 'verify_id_token_failed',
+      operation,
+      httpStatus: 401,
+      googleHttpStatus: responseStatus,
+      googleErrorCode: upstreamCode,
+    })
+  }
+
+  if (upstreamCode === 'USER_NOT_FOUND' || upstreamCode === 'EMAIL_NOT_FOUND') {
+    return authError('auth/user-not-found', 'Firebase Auth user was not found.', {
+      diagnosticCode: 'get_user_failed',
+      operation,
+      httpStatus: 401,
+      googleHttpStatus: responseStatus,
+      googleErrorCode: upstreamCode,
+    })
+  }
+
+  if (responseStatus === 401 || responseStatus === 403 || upstreamCode === 'PERMISSION_DENIED' || upstreamCode === 'UNAUTHENTICATED') {
+    return authError('auth/insufficient-permission', 'Firebase Auth service account is not authorized.', {
+      diagnosticCode: 'firebase_auth_iam_error',
+      operation,
+      httpStatus: 503,
+      googleHttpStatus: responseStatus,
+      googleErrorCode: upstreamCode,
+    })
+  }
+
+  if (
+    responseStatus === 404
+    || upstreamCode === 'PROJECT_NOT_FOUND'
+    || upstreamCode === 'INVALID_PROJECT_ID'
+    || upstreamCode === 'PROJECT_ID_MISMATCH'
+  ) {
+    return authError('auth/project-not-found', 'Firebase project configuration does not match.', {
+      diagnosticCode: 'firebase_auth_project_mismatch',
+      operation,
+      httpStatus: 503,
+      googleHttpStatus: responseStatus,
+      googleErrorCode: upstreamCode,
+    })
+  }
+
+  return authError('auth/internal-error', 'Firebase Auth request failed.', {
+    diagnosticCode: 'unknown_server_auth_error',
+    operation,
+    httpStatus: 503,
+    googleHttpStatus: responseStatus,
+    googleErrorCode: upstreamCode,
+  })
 }
 
 function firebaseProjectId(): string | null {
@@ -83,7 +191,12 @@ async function getAccessToken(): Promise<string> {
   const credential = adminApp?.options.credential as AppCredentialWithAccessToken | undefined
   const token = await credential?.getAccessToken?.()
   if (!token?.accessToken) {
-    throw authError('auth/invalid-credential', 'Firebase Admin credentials are not configured.')
+    throw authError('auth/invalid-credential', 'Firebase Admin credentials are not configured.', {
+      diagnosticCode: 'firebase_auth_config_missing',
+      operation: 'firebase_admin_get_access_token',
+      httpStatus: 503,
+      missingEnv: 'FIREBASE_SERVICE_ACCOUNT_KEY',
+    })
   }
   return token.accessToken
 }
@@ -115,26 +228,37 @@ function mapFirebaseUser(user: FirebaseLookupUser | undefined): AdminAuthUser {
 async function identityToolkitRequest<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const projectId = firebaseProjectId()
   if (!projectId) {
-    throw authError('auth/invalid-credential', 'Firebase project ID is not configured.')
+    throw authError('auth/invalid-credential', 'Firebase project ID is not configured.', {
+      diagnosticCode: 'firebase_auth_config_missing',
+      operation: `projects.${path}`,
+      httpStatus: 503,
+      missingEnv: 'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+    })
   }
 
   const accessToken = await getAccessToken()
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
+  let response: Response
+  const operation = `projects.${path}`
+  try {
+    response = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    throw authError('auth/internal-error', 'Firebase Auth request failed.', {
+      diagnosticCode: 'unknown_server_auth_error',
+      operation,
+      httpStatus: 503,
+    })
+  }
 
-  const data = await response.json().catch(() => ({})) as { error?: { message?: string } }
+  const data = await response.json().catch(() => ({})) as GoogleErrorResponse
   if (!response.ok) {
-    const message = data.error?.message ?? `Firebase Auth request failed with status ${response.status}.`
-    const code = message.includes('EMAIL_NOT_FOUND') || message.includes('USER_NOT_FOUND')
-      ? 'auth/user-not-found'
-      : 'auth/internal-error'
-    throw authError(code, message)
+    throw classifyGoogleAuthError(operation, response.status, data)
   }
 
   return data as T
@@ -143,23 +267,43 @@ async function identityToolkitRequest<T>(path: string, body: Record<string, unkn
 async function verifyIdToken(idToken: string): Promise<VerifiedIdToken> {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
   if (!apiKey) {
-    throw authError('auth/invalid-credential', 'Firebase API key is not configured.')
+    throw authError('auth/invalid-credential', 'Firebase API key is not configured.', {
+      diagnosticCode: 'firebase_auth_config_missing',
+      operation: 'accounts.lookup.verify_id_token',
+      httpStatus: 503,
+      missingEnv: 'NEXT_PUBLIC_FIREBASE_API_KEY',
+    })
   }
 
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken }),
-  })
+  let response: Response
+  const operation = 'accounts.lookup.verify_id_token'
+  try {
+    response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    })
+  } catch {
+    throw authError('auth/internal-error', 'Firebase Auth token verification failed.', {
+      diagnosticCode: 'unknown_server_auth_error',
+      operation,
+      httpStatus: 503,
+    })
+  }
 
+  const data = await response.json().catch(() => ({})) as FirebaseLookupResponse & GoogleErrorResponse
   if (!response.ok) {
-    throw authError('auth/invalid-id-token', 'Firebase ID token is invalid.')
+    throw classifyGoogleAuthError(operation, response.status, data)
   }
 
-  const data = await response.json().catch(() => ({})) as FirebaseLookupResponse
   const uid = data.users?.[0]?.localId
   if (!uid) {
-    throw authError('auth/invalid-id-token', 'Firebase ID token is invalid.')
+    throw authError('auth/invalid-id-token', 'Firebase ID token is invalid.', {
+      diagnosticCode: 'verify_id_token_failed',
+      operation,
+      httpStatus: 401,
+      googleErrorCode: 'MISSING_LOCAL_ID',
+    })
   }
 
   const payload = decodeJwtPayload(idToken)

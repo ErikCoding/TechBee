@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { handleSendVerificationEmailRequest } from '../lib/email-verification-endpoint.ts'
+import { validateEmailVerificationServerConfig } from '../lib/email-verification-server-config.ts'
 import { evaluateEmailVerificationRateLimit } from '../lib/email-verification-rate-limit.ts'
 import { EmailVerificationRequestError, requestEmailVerificationEmail } from '../lib/email-verification-client.ts'
 
@@ -50,9 +51,19 @@ function deps(patch = {}) {
         calls.sentTo = input.to
         calls.sentFirstName = input.firstName
       },
+      logDiagnostic: () => {},
       ...patch,
     },
   }
+}
+
+function diagnosticError(diagnosticCode, httpStatus, operation, extra = {}) {
+  const err = new Error('diagnostic test error')
+  err.diagnosticCode = diagnosticCode
+  err.httpStatus = httpStatus
+  err.operation = operation
+  Object.assign(err, extra)
+  return err
 }
 
 test('verification endpoint rejects missing Authorization', async () => {
@@ -63,11 +74,55 @@ test('verification endpoint rejects missing Authorization', async () => {
   assert.equal(setup.calls.send, 0)
 })
 
+test('verification endpoint rejects malformed Authorization', async () => {
+  const setup = deps()
+  const result = await handleSendVerificationEmailRequest('Token abc', setup.deps)
+
+  assert.equal(result.status, 401)
+  assert.equal(setup.calls.send, 0)
+})
+
 test('verification endpoint rejects invalid Firebase token', async () => {
   const setup = deps()
   const result = await handleSendVerificationEmailRequest('Bearer invalid', setup.deps)
 
   assert.equal(result.status, 401)
+  assert.equal(setup.calls.send, 0)
+})
+
+test('verification endpoint returns server error for verifyIdToken config failure', async () => {
+  const setup = deps({
+    verifyIdToken: async () => {
+      throw diagnosticError(
+        'firebase_auth_config_missing',
+        503,
+        'accounts.lookup.verify_id_token',
+        { missingEnv: 'NEXT_PUBLIC_FIREBASE_API_KEY' },
+      )
+    },
+  })
+  const result = await handleSendVerificationEmailRequest('Bearer valid', setup.deps)
+
+  assert.notEqual(result.status, 401)
+  assert.equal(result.status, 503)
+  assert.equal(setup.calls.send, 0)
+})
+
+test('verification endpoint returns server error for getUser IAM failure', async () => {
+  const setup = deps({
+    getUser: async () => {
+      throw diagnosticError(
+        'firebase_auth_iam_error',
+        503,
+        'projects.accounts.lookup',
+        { googleHttpStatus: 403, googleErrorCode: 'PERMISSION_DENIED' },
+      )
+    },
+  })
+  const result = await handleSendVerificationEmailRequest('Bearer valid', setup.deps)
+
+  assert.notEqual(result.status, 401)
+  assert.equal(result.status, 503)
   assert.equal(setup.calls.send, 0)
 })
 
@@ -82,6 +137,32 @@ test('verified user gets neutral success without email send', async () => {
   assert.equal(result.body.alreadyVerified, true)
   assert.equal(setup.calls.rateLimit, 0)
   assert.equal(setup.calls.send, 0)
+})
+
+test('verification server config validation catches missing env', () => {
+  const result = validateEmailVerificationServerConfig({
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'runbee-prod',
+    FIREBASE_SERVICE_ACCOUNT_KEY: JSON.stringify({ project_id: 'runbee-prod' }),
+    RESEND_API_KEY: 'resend-key',
+  })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 503)
+  assert.equal(result.diagnosticCode, 'firebase_auth_config_missing')
+  assert.equal(result.missingEnv, 'NEXT_PUBLIC_FIREBASE_API_KEY')
+})
+
+test('verification server config validation catches project mismatch', () => {
+  const result = validateEmailVerificationServerConfig({
+    NEXT_PUBLIC_FIREBASE_API_KEY: 'firebase-api-key',
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'runbee-prod',
+    FIREBASE_SERVICE_ACCOUNT_KEY: JSON.stringify({ project_id: 'different-project' }),
+    RESEND_API_KEY: 'resend-key',
+  })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 503)
+  assert.equal(result.diagnosticCode, 'firebase_auth_project_mismatch')
 })
 
 test('user without email gets safe error', async () => {
