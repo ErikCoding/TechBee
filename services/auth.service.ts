@@ -12,6 +12,7 @@ import {
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { requireEmailVerification } from '@/lib/email-verification'
+import { resolveAuthSession, type AuthSessionResult } from '@/lib/auth-session-core'
 import { syncParticipantProfile, toParticipant } from '@/services/chat.service'
 import { syncTeacherPublicIdentity } from '@/services/teachers.service'
 import { runPasswordChangeWithSecurityNotification } from '@/lib/account-security-core'
@@ -484,17 +485,24 @@ export async function getUserProfileById(userId: string): Promise<AuthUser | nul
  * (`onAuthStateChanged`); in mock mode it reads localStorage once and
  * calls back immediately. Always returns an unsubscribe function.
  */
-export function subscribeToAuthState(callback: (user: AuthUser | null) => void): () => void {
+export function subscribeToAuthState(callback: (result: AuthSessionResult) => void): () => void {
   if (isFirebaseConfigured && auth) {
     return onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        callback(null)
-        return
+      const result = await resolveAuthSession({
+        firebaseUser: firebaseUser ? { uid: firebaseUser.uid, emailVerified: firebaseUser.emailVerified } : null,
+        fetchProfile: fetchFirebaseProfile,
+      })
+      if (result.status === 'error') {
+        console.error('[auth] Failed to resolve authenticated user profile:', result.error)
       }
-      const profile = await fetchFirebaseProfile(firebaseUser.uid)
-      callback(profile ? { ...profile, emailVerified: firebaseUser.emailVerified } : null)
+      callback(result)
     })
   }
-  callback(getStoredSessionMock())
+  const mockUser = getStoredSessionMock()
+  if (mockUser) {
+    callback({ status: 'authenticated', user: mockUser, error: null })
+  } else {
+    callback({ status: 'unauthenticated', user: null, error: null })
+  }
   return () => {}
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { CheckCircle2, Loader2, LogOut, MailCheck, RefreshCw, Send } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, LogOut, MailCheck, RefreshCw, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { requireEmailVerification } from '@/lib/email-verification'
@@ -32,7 +32,7 @@ const dashboardFor: Record<UserRole, string> = {
  * session checks without changing how pages use it.
  */
 export function RequireAuth({ children, role }: RequireAuthProps) {
-  const { user, status, resendVerification, refreshVerification, logout } = useAuth()
+  const { user, status, error, resendVerification, refreshVerification, logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null)
@@ -90,6 +90,32 @@ export function RequireAuth({ children, role }: RequireAuthProps) {
       setVerificationTone('error')
       setVerificationMessage('Nie udało się odświeżyć statusu. Spróbuj ponownie.')
     }
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-4 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+          <AlertCircle className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Nie udało się sprawdzić dostępu do konta.</p>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            {error ?? 'Odśwież stronę albo zaloguj się ponownie.'}
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button type="button" onClick={() => window.location.reload()} className="h-10 font-semibold">
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Spróbuj ponownie
+          </Button>
+          <Button type="button" variant="outline" onClick={logout} className="h-10">
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Wyloguj się
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   if (needsEmailVerification) {

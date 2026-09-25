@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, LogIn, AlertCircle } from 'lucide-react'
@@ -11,17 +11,52 @@ import { useAuth } from '@/lib/auth-context'
 import { demoAccounts } from '@/services/auth.service'
 import { isFirebaseConfigured } from '@/lib/firebase'
 import { dashboardPathForRole } from '@/lib/utils'
+import type { UserRole } from '@/lib/types'
 
 export function LoginForm() {
-  const { login } = useAuth()
+  const { status, login, refreshVerification } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect')
+  const verifiedReturn = searchParams.get('verified') === '1'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  function postLoginRedirect(role: UserRole) {
+    if (redirect?.startsWith('/') && !redirect.startsWith('//') && !redirect.startsWith('/login')) {
+      return redirect
+    }
+    return dashboardPathForRole(role)
+  }
+
+  useEffect(() => {
+    if (!verifiedReturn || status === 'loading') return
+    if (status !== 'authenticated') return
+
+    let cancelled = false
+    setError(null)
+    setLoading(true)
+    refreshVerification()
+      .then((fresh) => {
+        if (cancelled) return
+        if (fresh?.emailVerified) {
+          router.replace(postLoginRedirect(fresh.role))
+        } else {
+          setError('Adres e-mail nie jest jeszcze potwierdzony. Sprawdź link w wiadomości i spróbuj ponownie.')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('Nie udało się odświeżyć statusu weryfikacji. Spróbuj zalogować się ponownie.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [verifiedReturn, status, refreshVerification, router, redirect])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -29,7 +64,8 @@ export function LoginForm() {
     setLoading(true)
     try {
       const user = await login({ email, password })
-      router.push(redirect ?? dashboardPathForRole(user.role))
+      router.push(postLoginRedirect(user.role))
+      setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nie udało się zalogować.')
       setLoading(false)
