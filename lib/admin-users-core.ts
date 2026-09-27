@@ -48,3 +48,17 @@ export function buildAdminUserRows(
     })
     .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
 }
+
+export async function buildAdminUserRowsWithOptionalAuthLookup(
+  profiles: StoredAdminUserProfile[],
+  lookupAuthUsers: (uids: string[]) => Promise<AdminAuthUser[]>,
+  onLookupFailed?: (err: unknown) => void,
+): Promise<AdminUserRow[]> {
+  try {
+    const authUsers = await lookupAuthUsers(profiles.map((profile) => profile.id))
+    return buildAdminUserRows(profiles, authUsers)
+  } catch (err) {
+    onLookupFailed?.(err)
+    return buildAdminUserRows(profiles, [])
+  }
+}

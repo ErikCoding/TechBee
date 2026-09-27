@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { buildAdminUserRows } from '../lib/admin-users-core.ts'
+import { buildAdminUserRows, buildAdminUserRowsWithOptionalAuthLookup } from '../lib/admin-users-core.ts'
 
 const profiles = [
   {
@@ -64,15 +64,61 @@ test('admin user rows do not invent verification state when Firebase Auth user i
   assert.equal(row.role, 'parent')
 })
 
+test('admin user rows preserve Firestore users when Firebase Auth lookup succeeds', async () => {
+  const rows = await buildAdminUserRowsWithOptionalAuthLookup(profiles, async () => [
+    { uid: 'verified-user', email: 'verified@runbee.pl', emailVerified: true },
+    { uid: 'unverified-user', email: 'unverified@runbee.pl', emailVerified: false },
+  ])
+
+  assert.equal(rows.length, profiles.length)
+  assert.equal(rows.find((item) => item.id === 'verified-user')?.emailVerified, true)
+  assert.equal(rows.find((item) => item.id === 'unverified-user')?.emailVerified, false)
+  assert.equal(rows.find((item) => item.id === 'missing-auth-user')?.emailVerified, null)
+})
+
+test('admin user rows preserve Firestore users when Firebase Auth lookup throws', async () => {
+  const errors = []
+  const rows = await buildAdminUserRowsWithOptionalAuthLookup(
+    profiles,
+    async () => {
+      throw Object.assign(new Error('permission denied'), { code: 'auth/insufficient-permission' })
+    },
+    (err) => errors.push(err),
+  )
+
+  assert.equal(rows.length, profiles.length)
+  assert.equal(errors.length, 1)
+  assert.deepEqual(rows.map((item) => item.emailVerified), [null, null, null])
+  assert.equal(rows.find((item) => item.id === 'verified-user')?.email, 'old-verified@runbee.pl')
+})
+
+test('admin user rows handle an empty Firestore list', async () => {
+  const rows = await buildAdminUserRowsWithOptionalAuthLookup([], async () => [])
+  assert.deepEqual(rows, [])
+})
+
 test('admin users route is admin-only and does not expose a public client path', () => {
   const routeSource = readFileSync(new URL('../app/api/admin/users/route.ts', import.meta.url), 'utf8')
   const serviceSource = readFileSync(new URL('../services/admin.service.ts', import.meta.url), 'utf8')
   const tableSource = readFileSync(new URL('../components/admin/admin-users-table.tsx', import.meta.url), 'utf8')
+  const pageClientSource = readFileSync(new URL('../components/admin/admin-users-page-client.tsx', import.meta.url), 'utf8')
+  const adminApiAuthSource = readFileSync(new URL('../lib/admin-api-auth.ts', import.meta.url), 'utf8')
 
   assert.equal(routeSource.includes('requireAdminRequest'), true)
   assert.equal(routeSource.includes('auth.getUsers'), true)
+  assert.equal(routeSource.includes('Failed to list Firestore users'), true)
+  assert.equal(routeSource.includes('firebase_auth_lookup_failed'), true)
+  assert.equal(routeSource.includes('buildAdminUserRows(profiles, [])'), true)
   assert.equal(serviceSource.includes("adminJson<{ users: AdminUserRow[] }>('/api/admin/users', 'POST')"), true)
+  assert.equal(adminApiAuthSource.includes('status: 401'), true)
+  assert.equal(adminApiAuthSource.includes('status: 403'), true)
   assert.equal(tableSource.includes('E-mail:'), true)
   assert.equal(tableSource.includes('Zweryfikowany'), true)
   assert.equal(tableSource.includes('Niezweryfikowany'), true)
+  assert.equal(tableSource.includes('Nieznany'), true)
+  assert.equal(tableSource.includes('Ładowanie użytkowników'), true)
+  assert.equal(tableSource.includes('Brak użytkowników.'), true)
+  assert.equal(tableSource.includes('Spróbuj ponownie'), true)
+  assert.equal(pageClientSource.includes('.catch((err)'), true)
+  assert.equal(pageClientSource.includes('setError'), true)
 })

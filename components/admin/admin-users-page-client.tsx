@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { getAdminUsers } from '@/services/admin.service'
 import { AdminUsersTable } from '@/components/admin/admin-users-table'
@@ -13,17 +13,45 @@ interface Props {
 export function AdminUsersPageClient({ initialUsers }: Props) {
   const { user } = useAuth()
   const [users, setUsers] = useState(initialUsers)
+  const [loading, setLoading] = useState(initialUsers.length === 0)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadUsers = useCallback(async () => {
     if (!user || user.role !== 'admin') return
-    let cancelled = false
-    getAdminUsers().then((fresh) => {
-      if (!cancelled) setUsers(fresh)
-    })
-    return () => {
-      cancelled = true
+    setLoading(true)
+    setError(null)
+    try {
+      const fresh = await getAdminUsers()
+      setUsers(fresh)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się pobrać użytkowników.')
+    } finally {
+      setLoading(false)
     }
   }, [user])
 
-  return <AdminUsersTable users={users} />
+  useEffect(() => {
+    let active = true
+    if (!user || user.role !== 'admin') {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    getAdminUsers()
+      .then((fresh) => {
+        if (active) setUsers(fresh)
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : 'Nie udało się pobrać użytkowników.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  return <AdminUsersTable users={users} loading={loading} error={error} onRetry={loadUsers} />
 }

@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowDownUp, Search, Sparkles } from 'lucide-react'
+import { ArrowDownUp, Loader2, Search, Sparkles } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -10,6 +11,9 @@ import type { AdminUserRow } from '@/lib/types'
 
 interface AdminUsersTableProps {
   users: AdminUserRow[]
+  loading?: boolean
+  error?: string | null
+  onRetry?: () => void
 }
 
 const roleLabels: Record<AdminUserRow['role'], string> = {
@@ -55,7 +59,7 @@ function isNewUser(user: AdminUserRow): boolean {
   return Boolean(user.createdAt && Date.now() - user.createdAt <= NEW_USER_WINDOW_MS)
 }
 
-export function AdminUsersTable({ users }: AdminUsersTableProps) {
+export function AdminUsersTable({ users, loading = false, error = null, onRetry }: AdminUsersTableProps) {
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<AdminUserRow['role'] | 'all'>('all')
   const [sortMode, setSortMode] = useState<SortMode>('newest')
@@ -86,7 +90,13 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj po nazwisku lub e-mailu..." className="pl-9" aria-label="Szukaj użytkowników" />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>{filtered.length} z {users.length} kont</span>
+            <span>
+              {loading
+                ? 'Ładowanie użytkowników...'
+                : error
+                  ? 'Nie udało się pobrać użytkowników'
+                  : `${filtered.length} z ${users.length} kont`}
+            </span>
             {newUsersCount > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 font-semibold text-accent-foreground">
                 <Sparkles className="h-3 w-3" aria-hidden="true" />
@@ -141,7 +151,7 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((u) => {
+            {!loading && !error && filtered.map((u) => {
               const status = statusConfig[u.status]
               const emailStatus = emailVerificationConfig(u.emailVerified)
               const newUser = isNewUser(u)
@@ -189,10 +199,34 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
                 </tr>
               )
             })}
-            {filtered.length === 0 && (
+            {loading && (
               <tr>
                 <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  Brak użytkowników pasujących do filtrów.
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Ładowanie użytkowników...
+                  </span>
+                </td>
+              </tr>
+            )}
+            {!loading && error && (
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-sm text-muted-foreground">{error}</p>
+                    {onRetry && (
+                      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                        Spróbuj ponownie
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
+            {!loading && !error && filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  {users.length === 0 ? 'Brak użytkowników.' : 'Brak użytkowników pasujących do filtrów.'}
                 </td>
               </tr>
             )}
