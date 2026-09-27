@@ -1,6 +1,7 @@
 import 'server-only'
 
-import { adminApp } from '@/lib/firebase-admin'
+import { adminApp, firebaseAdminCredential, firebaseAdminCredentialStatus, firebaseAdminProjectId } from '@/lib/firebase-admin'
+import { mintFirebaseAccessToken, type FirebaseServerCredentialDiagnosticCode } from '@/lib/firebase-server-credentials'
 
 export type AdminActionCodeSettings = {
   url: string
@@ -54,14 +55,6 @@ type GoogleErrorResponse = {
   }
 }
 
-type AccessTokenResult = {
-  accessToken?: string
-}
-
-type AppCredentialWithAccessToken = {
-  getAccessToken?: () => Promise<AccessTokenResult>
-}
-
 type AdminAuthRestClient = {
   verifyIdToken: (idToken: string) => Promise<VerifiedIdToken>
   getUser: (uid: string) => Promise<AdminAuthUser>
@@ -78,6 +71,7 @@ export type FirebaseAuthDiagnosticCode =
   | 'verify_id_token_failed'
   | 'get_user_failed'
   | 'firebase_auth_config_missing'
+  | FirebaseServerCredentialDiagnosticCode
   | 'firebase_auth_project_mismatch'
   | 'firebase_auth_iam_error'
   | 'unknown_server_auth_error'
@@ -184,22 +178,12 @@ function firebaseProjectId(): string | null {
   return process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
     || process.env.GCLOUD_PROJECT
     || process.env.GOOGLE_CLOUD_PROJECT
-    || adminApp?.options.projectId
+    || firebaseAdminProjectId
     || null
 }
 
 async function getAccessToken(): Promise<string> {
-  const credential = adminApp?.options.credential as AppCredentialWithAccessToken | undefined
-  const token = await credential?.getAccessToken?.()
-  if (!token?.accessToken) {
-    throw authError('auth/invalid-credential', 'Firebase Admin credentials are not configured.', {
-      diagnosticCode: 'firebase_auth_config_missing',
-      operation: 'firebase_admin_get_access_token',
-      httpStatus: 503,
-      missingEnv: 'FIREBASE_SERVICE_ACCOUNT_KEY',
-    })
-  }
-  return token.accessToken
+  return mintFirebaseAccessToken(firebaseAdminCredential, firebaseAdminCredentialStatus)
 }
 
 function decodeJwtPayload(idToken: string): Record<string, unknown> {
@@ -238,6 +222,48 @@ async function identityToolkitRequest<T>(path: string, body: Record<string, unkn
   }
 
   const accessToken = await getAccessToken()
+  let response: Response
+  const operation = `projects.${path}`
+  try {
+    response = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    throw authError('auth/internal-error', 'Firebase Auth request failed.', {
+      diagnosticCode: 'unknown_server_auth_error',
+      operation,
+      httpStatus: 503,
+    })
+  }
+
+  const data = await response.json().catch(() => ({})) as GoogleErrorResponse
+  if (!response.ok) {
+    throw classifyGoogleAuthError(operation, response.status, data)
+  }
+
+  return data as T
+}
+
+async function identityToolkitRequestWithAccessToken<T>(
+  path: string,
+  body: Record<string, unknown>,
+  accessToken: string,
+): Promise<T> {
+  const projectId = firebaseProjectId()
+  if (!projectId) {
+    throw authError('auth/invalid-credential', 'Firebase project ID is not configured.', {
+      diagnosticCode: 'firebase_auth_config_missing',
+      operation: `projects.${path}`,
+      httpStatus: 503,
+      missingEnv: 'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+    })
+  }
+
   let response: Response
   const operation = `projects.${path}`
   try {
@@ -329,6 +355,17 @@ async function getUsers(uids: string[]): Promise<AdminAuthUser[]> {
     users.push(...(data.users ?? []).map((user) => mapFirebaseUser(user)))
   }
   return users
+}
+
+const diagnosticLookupUid = 'runbee-diagnostic-nonexistent-user'
+
+export async function runFirebaseAuthReadOnlyDiagnostic(): Promise<void> {
+  const accessToken = await getAccessToken()
+  await identityToolkitRequestWithAccessToken<FirebaseLookupResponse>(
+    'accounts:lookup',
+    { localId: [diagnosticLookupUid] },
+    accessToken,
+  )
 }
 
 async function getUserByEmail(email: string): Promise<AdminAuthUser> {

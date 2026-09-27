@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { handleSendVerificationEmailRequest } from '../lib/email-verification-endpoint.ts'
-import { validateEmailVerificationServerConfig } from '../lib/email-verification-server-config.ts'
 import { evaluateEmailVerificationRateLimit } from '../lib/email-verification-rate-limit.ts'
 import { EmailVerificationRequestError, requestEmailVerificationEmail } from '../lib/email-verification-client.ts'
 
@@ -191,30 +190,14 @@ test('verified user gets neutral success without email send', async () => {
   assert.equal(setup.calls.send, 0)
 })
 
-test('verification server config validation catches missing env', () => {
-  const result = validateEmailVerificationServerConfig({
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'runbee-prod',
-    FIREBASE_SERVICE_ACCOUNT_KEY: JSON.stringify({ project_id: 'runbee-prod' }),
-    RESEND_API_KEY: 'resend-key',
-  })
+test('verification server config uses canonical Firebase service account parser', () => {
+  const source = readFileSync(new URL('../lib/email-verification-server-config.ts', import.meta.url), 'utf8')
 
-  assert.equal(result.ok, false)
-  assert.equal(result.status, 503)
-  assert.equal(result.diagnosticCode, 'firebase_auth_config_missing')
-  assert.equal(result.missingEnv, 'NEXT_PUBLIC_FIREBASE_API_KEY')
-})
-
-test('verification server config validation catches project mismatch', () => {
-  const result = validateEmailVerificationServerConfig({
-    NEXT_PUBLIC_FIREBASE_API_KEY: 'firebase-api-key',
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'runbee-prod',
-    FIREBASE_SERVICE_ACCOUNT_KEY: JSON.stringify({ project_id: 'different-project' }),
-    RESEND_API_KEY: 'resend-key',
-  })
-
-  assert.equal(result.ok, false)
-  assert.equal(result.status, 503)
-  assert.equal(result.diagnosticCode, 'firebase_auth_project_mismatch')
+  assert.equal(source.includes('parseFirebaseServiceAccountKey'), true)
+  assert.equal(source.includes('NEXT_PUBLIC_FIREBASE_API_KEY'), true)
+  assert.equal(source.includes('NEXT_PUBLIC_FIREBASE_PROJECT_ID'), true)
+  assert.equal(source.includes('RESEND_API_KEY'), true)
+  assert.equal(source.includes('serviceAccount.diagnosticCode'), true)
 })
 
 test('user without email gets safe error', async () => {

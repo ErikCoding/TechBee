@@ -122,3 +122,12 @@ test('admin users route is admin-only and does not expose a public client path',
   assert.equal(pageClientSource.includes('.catch((err)'), true)
   assert.equal(pageClientSource.includes('setError'), true)
 })
+
+test('admin Firebase Auth diagnostic endpoint requires admin authorization', () => {
+  const routeSource = readFileSync(new URL('../app/api/admin/diagnostics/firebase-auth/route.ts', import.meta.url), 'utf8')
+
+  assert.equal(routeSource.includes('export async function GET'), true)
+  assert.equal(routeSource.includes('requireAdminRequest'), true)
+  assert.equal(routeSource.includes('Bearer '), true)
+  assert.equal(routeSource.includes('status: result.ok ? 200 : 503'), true)
+})

@@ -1,4 +1,4 @@
-import type { AdminActionCodeSettings } from '@/lib/firebase-admin-auth'
+import type { AdminActionCodeSettings, FirebaseAuthDiagnosticCode } from '@/lib/firebase-admin-auth'
 
 type VerifiedToken = {
   uid: string
@@ -37,12 +37,7 @@ export type SendVerificationEmailResult = {
 export type SendVerificationDiagnosticCode =
   | 'missing_authorization'
   | 'malformed_authorization'
-  | 'verify_id_token_failed'
-  | 'get_user_failed'
-  | 'firebase_auth_config_missing'
-  | 'firebase_auth_project_mismatch'
-  | 'firebase_auth_iam_error'
-  | 'unknown_server_auth_error'
+  | FirebaseAuthDiagnosticCode
 
 export type SendVerificationDiagnostic = {
   diagnosticCode: SendVerificationDiagnosticCode

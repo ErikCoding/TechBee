@@ -1,6 +1,7 @@
 import 'server-only'
-import { cert, getApps, initializeApp, type App } from 'firebase-admin/app'
+import { cert, getApps, initializeApp, type App, type Credential } from 'firebase-admin/app'
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
+import { parseFirebaseServiceAccountKey, type FirebaseServerCredentialState } from '@/lib/firebase-server-credentials'
 
 // ─────────────────────────────────────────────────────────────
 // Trusted, server-only Firestore access — used ONLY by the Stripe
@@ -26,38 +27,39 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 // falling back to trusting a client-supplied payment status.
 // ─────────────────────────────────────────────────────────────
 
-function parseServiceAccountKey(raw: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    // Fall through to try base64 — pasting multi-line JSON into a
-    // single-line .env value is error-prone, so base64 is the
-    // recommended form (see .env.example).
-  }
-  try {
-    return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
-  } catch {
-    return null
-  }
-}
-
 const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+const credentialState = parseFirebaseServiceAccountKey(rawKey, process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)
 
 let app: App | null = null
 let dbInstance: Firestore | null = null
+let credentialInstance: Credential | null = null
+let credentialStatus: FirebaseServerCredentialState = credentialState
 
-if (rawKey) {
-  const serviceAccount = parseServiceAccountKey(rawKey)
-  if (serviceAccount) {
-    try {
-      app = getApps().length ? getApps()[0] : initializeApp({ credential: cert(serviceAccount as never) })
-      dbInstance = getFirestore(app)
-    } catch (err) {
-      console.error('[firebase-admin] Failed to initialize with FIREBASE_SERVICE_ACCOUNT_KEY:', err)
+if (credentialState.ok) {
+  try {
+    credentialInstance = cert(credentialState.credentialInput)
+    app = getApps().length ? getApps()[0] : initializeApp({ credential: credentialInstance })
+    dbInstance = getFirestore(app)
+  } catch {
+    credentialInstance = null
+    app = null
+    dbInstance = null
+    credentialStatus = {
+      ok: false,
+      diagnosticCode: 'firebase_service_account_invalid',
+      invalidField: 'private_key',
     }
-  } else {
-    console.error('[firebase-admin] FIREBASE_SERVICE_ACCOUNT_KEY is set but is not valid JSON or base64-encoded JSON.')
+    console.error('[firebase-admin] Failed to initialize Firebase Admin credential.', {
+      diagnosticCode: credentialStatus.diagnosticCode,
+      invalidField: credentialStatus.invalidField,
+    })
   }
+} else if (credentialState.diagnosticCode !== 'firebase_service_account_missing') {
+  console.error('[firebase-admin] Firebase Admin credential is not usable.', {
+    diagnosticCode: credentialState.diagnosticCode,
+    invalidField: credentialState.invalidField,
+    missingEnv: credentialState.missingEnv,
+  })
 }
 
 /** True once a real, trusted server-side Firestore connection is available. */
@@ -68,3 +70,12 @@ export const adminApp = app
 
 /** Trusted Firestore instance for server-only money-integrity writes, or `null` if FIREBASE_SERVICE_ACCOUNT_KEY isn't set. */
 export const adminDb = dbInstance
+
+/** Canonical credential created from FIREBASE_SERVICE_ACCOUNT_KEY, used by Admin app and Auth REST helpers. */
+export const firebaseAdminCredential = credentialInstance
+
+/** Safe, non-secret status of the canonical Firebase server credential. */
+export const firebaseAdminCredentialStatus = credentialStatus
+
+/** Firebase project id from the validated service account, or null when server credentials are not usable. */
+export const firebaseAdminProjectId = credentialStatus.ok ? credentialStatus.serviceAccount.project_id : null
