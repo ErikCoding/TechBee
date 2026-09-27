@@ -65,6 +65,7 @@ type AppCredentialWithAccessToken = {
 type AdminAuthRestClient = {
   verifyIdToken: (idToken: string) => Promise<VerifiedIdToken>
   getUser: (uid: string) => Promise<AdminAuthUser>
+  getUsers: (uids: string[]) => Promise<AdminAuthUser[]>
   getUserByEmail: (email: string) => Promise<AdminAuthUser>
   generateEmailVerificationLink: (email: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   generateVerifyAndChangeEmailLink: (email: string, newEmail: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
@@ -316,6 +317,20 @@ async function getUser(uid: string): Promise<AdminAuthUser> {
   return mapFirebaseUser(data.users?.[0])
 }
 
+async function getUsers(uids: string[]): Promise<AdminAuthUser[]> {
+  const uniqueUids = [...new Set(uids.filter((uid) => uid.trim()))]
+  if (uniqueUids.length === 0) return []
+
+  const users: AdminAuthUser[] = []
+  const chunkSize = 100
+  for (let i = 0; i < uniqueUids.length; i += chunkSize) {
+    const chunk = uniqueUids.slice(i, i + chunkSize)
+    const data = await identityToolkitRequest<FirebaseLookupResponse>('accounts:lookup', { localId: chunk })
+    users.push(...(data.users ?? []).map((user) => mapFirebaseUser(user)))
+  }
+  return users
+}
+
 async function getUserByEmail(email: string): Promise<AdminAuthUser> {
   const data = await identityToolkitRequest<FirebaseLookupResponse>('accounts:lookup', { email: [email] })
   return mapFirebaseUser(data.users?.[0])
@@ -368,6 +383,7 @@ export async function getAdminAuth(): Promise<AdminAuthRestClient | null> {
   adminAuthClient ??= {
     verifyIdToken,
     getUser,
+    getUsers,
     getUserByEmail,
     generateEmailVerificationLink: (email, settings) => generateActionLink('VERIFY_EMAIL', email, settings),
     generateVerifyAndChangeEmailLink: (email, newEmail, settings) => generateActionLink('VERIFY_AND_CHANGE_EMAIL', email, settings, newEmail),

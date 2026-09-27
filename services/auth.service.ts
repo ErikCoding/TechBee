@@ -487,16 +487,25 @@ export async function getUserProfileById(userId: string): Promise<AuthUser | nul
  */
 export function subscribeToAuthState(callback: (result: AuthSessionResult) => void): () => void {
   if (isFirebaseConfigured && auth) {
-    return onAuthStateChanged(auth, async (firebaseUser) => {
+    let active = true
+    let sequence = 0
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const currentSequence = ++sequence
       const result = await resolveAuthSession({
         firebaseUser: firebaseUser ? { uid: firebaseUser.uid, emailVerified: firebaseUser.emailVerified } : null,
         fetchProfile: fetchFirebaseProfile,
       })
+      if (!active || currentSequence !== sequence) return
       if (result.status === 'error') {
         console.error('[auth] Failed to resolve authenticated user profile:', result.error)
       }
       callback(result)
     })
+    return () => {
+      active = false
+      sequence += 1
+      unsubscribe()
+    }
   }
   const mockUser = getStoredSessionMock()
   if (mockUser) {

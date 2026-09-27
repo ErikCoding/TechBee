@@ -34,6 +34,28 @@ test('auth session resolves an unverified Firebase user without falling back to 
   assert.equal(result.user.emailVerified, false)
 })
 
+test('old unverified Firebase account with an existing Firestore profile reaches the verification gate state', async () => {
+  const result = await resolveAuthSession({
+    firebaseUser: { uid: 'legacy-user', emailVerified: false },
+    fetchProfile: async () => ({ ...profile, id: 'legacy-user' }),
+  })
+
+  assert.equal(result.status, 'authenticated')
+  assert.equal(result.user.id, 'legacy-user')
+  assert.equal(result.user.emailVerified, false)
+})
+
+test('old verified Firebase account with an existing Firestore profile gets normal authenticated access', async () => {
+  const result = await resolveAuthSession({
+    firebaseUser: { uid: 'legacy-user', emailVerified: true },
+    fetchProfile: async () => ({ ...profile, id: 'legacy-user' }),
+  })
+
+  assert.equal(result.status, 'authenticated')
+  assert.equal(result.user.id, 'legacy-user')
+  assert.equal(result.user.emailVerified, true)
+})
+
 test('auth session fails safe when the Firestore profile is missing', async () => {
   const result = await resolveAuthSession({
     firebaseUser: { uid: 'missing-user', emailVerified: true },
@@ -99,4 +121,14 @@ test('login verified return refreshes Firebase user state before redirecting', (
   assert.equal(source.includes('refreshVerification()'), true)
   assert.equal(source.includes('fresh?.emailVerified'), true)
   assert.equal(source.includes('router.replace(postLoginRedirect(fresh.role))'), true)
+})
+
+test('auth subscription ignores stale async callbacks after newer auth state or logout', () => {
+  const source = readFileSync(new URL('../services/auth.service.ts', import.meta.url), 'utf8')
+
+  assert.equal(source.includes('let active = true'), true)
+  assert.equal(source.includes('let sequence = 0'), true)
+  assert.equal(source.includes('const currentSequence = ++sequence'), true)
+  assert.equal(source.includes('currentSequence !== sequence'), true)
+  assert.equal(source.includes('active = false'), true)
 })

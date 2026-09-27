@@ -25,6 +25,12 @@ const statusConfig: Record<AdminUserRow['status'], { label: string; tone: Status
   suspended: { label: 'Zawieszony', tone: 'error' },
 }
 
+function emailVerificationConfig(emailVerified: AdminUserRow['emailVerified']): { label: string; tone: StatusTone } {
+  if (emailVerified === true) return { label: 'Zweryfikowany', tone: 'success' }
+  if (emailVerified === false) return { label: 'Niezweryfikowany', tone: 'warning' }
+  return { label: 'Nieznany', tone: 'neutral' }
+}
+
 const roleFilters: { value: AdminUserRow['role'] | 'all'; label: string }[] = [
   { value: 'all', label: 'Wszyscy' },
   { value: 'student', label: 'Uczniowie' },
@@ -137,6 +143,7 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
           <tbody>
             {filtered.map((u) => {
               const status = statusConfig[u.status]
+              const emailStatus = emailVerificationConfig(u.emailVerified)
               const newUser = isNewUser(u)
               return (
                 <tr
@@ -162,7 +169,12 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
                             </span>
                           )}
                         </div>
-                        <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                          <StatusBadge tone={emailStatus.tone} dot={false} className="px-2 py-0.5 text-[10px]">
+                            E-mail: {emailStatus.label}
+                          </StatusBadge>
+                        </div>
                       </div>
                     </div>
                   </td>

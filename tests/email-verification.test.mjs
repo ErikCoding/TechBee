@@ -108,6 +108,41 @@ test('verification endpoint returns server error for verifyIdToken config failur
   assert.equal(setup.calls.send, 0)
 })
 
+test('verification endpoint returns server error for token from the wrong Firebase project', async () => {
+  const setup = deps({
+    verifyIdToken: async () => {
+      throw diagnosticError(
+        'firebase_auth_project_mismatch',
+        503,
+        'accounts.lookup.verify_id_token',
+        { googleHttpStatus: 400, googleErrorCode: 'PROJECT_ID_MISMATCH' },
+      )
+    },
+  })
+  const result = await handleSendVerificationEmailRequest('Bearer valid-from-other-project', setup.deps)
+
+  assert.notEqual(result.status, 401)
+  assert.equal(result.status, 503)
+  assert.equal(setup.calls.send, 0)
+})
+
+test('verification endpoint returns server error for Firebase/Google upstream failure', async () => {
+  const setup = deps({
+    verifyIdToken: async () => {
+      throw diagnosticError(
+        'unknown_server_auth_error',
+        503,
+        'accounts.lookup.verify_id_token',
+        { googleHttpStatus: 503, googleErrorCode: 'UNAVAILABLE' },
+      )
+    },
+  })
+  const result = await handleSendVerificationEmailRequest('Bearer valid', setup.deps)
+
+  assert.equal(result.status, 503)
+  assert.equal(setup.calls.send, 0)
+})
+
 test('verification endpoint returns server error for getUser IAM failure', async () => {
   const setup = deps({
     getUser: async () => {
@@ -124,6 +159,23 @@ test('verification endpoint returns server error for getUser IAM failure', async
   assert.notEqual(result.status, 401)
   assert.equal(result.status, 503)
   assert.equal(setup.calls.send, 0)
+})
+
+test('old unverified user can request a branded verification email', async () => {
+  const setup = deps({
+    verifyIdToken: async () => ({ uid: 'legacy-user' }),
+    getUser: async (uid) => ({
+      uid,
+      email: 'legacy@runbee.pl',
+      emailVerified: false,
+      displayName: 'Legacy User',
+    }),
+  })
+  const result = await handleSendVerificationEmailRequest('Bearer legacy-token', setup.deps)
+
+  assert.equal(result.status, 200)
+  assert.equal(setup.calls.generatedForEmail, 'legacy@runbee.pl')
+  assert.equal(setup.calls.sentTo, 'legacy@runbee.pl')
 })
 
 test('verified user gets neutral success without email send', async () => {

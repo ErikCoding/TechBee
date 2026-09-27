@@ -91,32 +91,9 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
 }
 
 async function getAdminUsersFirebase(): Promise<AdminUserRow[]> {
-  if (!db || !auth?.currentUser) return []
-  const snap = await getDocs(collection(db, collections.users))
-  return snap.docs
-    .map((d) => {
-      const data = d.data() as { name?: string; email?: string; role?: AdminUserRow['role']; initials?: string; avatarColor?: string; photoUrl?: string; createdAt?: number }
-      return {
-        id: d.id,
-        name: data.name ?? 'Bez nazwy',
-        initials: data.initials ?? '??',
-        avatarColor: data.avatarColor ?? '#94A3B8',
-        ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
-        email: data.email ?? '—',
-        role: data.role ?? 'student',
-        // There's no suspension flow yet, so every real account reads as
-        // active — this replaces the old fully-fabricated status field.
-        status: 'active' as const,
-        joined: data.createdAt
-          ? new Date(data.createdAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
-          : '—',
-        createdAt: data.createdAt ?? 0,
-        // Per-user lesson counts aren't cheaply computable client-side
-        // without an aggregate query/Cloud Function yet.
-        lessons: 0,
-      } satisfies AdminUserRow
-    })
-    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+  if (typeof window === 'undefined' || !auth?.currentUser) return []
+  const data = await adminJson<{ users: AdminUserRow[] }>('/api/admin/users', 'POST')
+  return data.users
 }
 
 export async function getAdminStats(): Promise<AdminStats> {

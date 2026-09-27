@@ -663,6 +663,7 @@ export type AdminUserRow = {
   avatarColor: string
   photoUrl?: string
   email: string
+  emailVerified: boolean | null
   role: UserRole
   status: 'active' | 'pending' | 'suspended'
   joined: string
