@@ -43,6 +43,12 @@ function formatElapsed(totalSeconds: number): string {
   return `${m}:${s}`
 }
 
+function mediaErrorMessage(deviceKind: 'microphone' | 'camera'): string {
+  return deviceKind === 'microphone'
+    ? 'Nie udało się uruchomić mikrofonu. Sprawdź uprawnienia przeglądarki lub wybierz inne urządzenie.'
+    : 'Nie udało się uruchomić kamery. Sprawdź uprawnienia przeglądarki lub wybierz inne urządzenie.'
+}
+
 /**
  * The actual call UI — everything here runs *inside* `<LiveKitRoom>`
  * (see lesson-room-client.tsx), which is what makes the LiveKit hooks
@@ -79,9 +85,11 @@ export function LessonRoomStage({
   const [draft, setDraft] = useState('')
   const [elapsed, setElapsed] = useState(0)
   const [now, setNow] = useState(Date.now())
+  const [mediaErrors, setMediaErrors] = useState<{ microphone?: string; camera?: string }>({})
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const reportedCameraErrorRef = useRef<string | null>(null)
   const reportedMicrophoneErrorRef = useRef<string | null>(null)
+  const autoMediaStartedRef = useRef(false)
 
   const isConnected = connectionState === ConnectionState.Connected
   const remoteParticipants = participants.filter((p) => p.identity !== localParticipant.identity)
@@ -103,10 +111,36 @@ export function LessonRoomStage({
   }, [connectionState, onConnectionStateChange])
 
   useEffect(() => {
+    if (!isConnected || autoMediaStartedRef.current) return
+    autoMediaStartedRef.current = true
+
+    localParticipant.setMicrophoneEnabled(true)
+      .then(() => {
+        setMediaErrors((current) => ({ ...current, microphone: undefined }))
+      })
+      .catch((error: unknown) => {
+        const err = error instanceof Error ? error : new Error('Nie udało się uruchomić mikrofonu.')
+        setMediaErrors((current) => ({ ...current, microphone: mediaErrorMessage('microphone') }))
+        onMediaDeviceError?.({ deviceKind: 'audioinput', error: err })
+      })
+
+    localParticipant.setCameraEnabled(true)
+      .then(() => {
+        setMediaErrors((current) => ({ ...current, camera: undefined }))
+      })
+      .catch((error: unknown) => {
+        const err = error instanceof Error ? error : new Error('Nie udało się uruchomić kamery.')
+        setMediaErrors((current) => ({ ...current, camera: mediaErrorMessage('camera') }))
+        onMediaDeviceError?.({ deviceKind: 'videoinput', error: err })
+      })
+  }, [isConnected, localParticipant, onMediaDeviceError])
+
+  useEffect(() => {
     if (!lastCameraError) return
     const signature = `${lastCameraError.name}:${lastCameraError.message}`
     if (reportedCameraErrorRef.current === signature) return
     reportedCameraErrorRef.current = signature
+    setMediaErrors((current) => ({ ...current, camera: mediaErrorMessage('camera') }))
     onMediaDeviceError?.({ deviceKind: 'videoinput', error: lastCameraError })
   }, [lastCameraError, onMediaDeviceError])
 
@@ -115,6 +149,7 @@ export function LessonRoomStage({
     const signature = `${lastMicrophoneError.name}:${lastMicrophoneError.message}`
     if (reportedMicrophoneErrorRef.current === signature) return
     reportedMicrophoneErrorRef.current = signature
+    setMediaErrors((current) => ({ ...current, microphone: mediaErrorMessage('microphone') }))
     onMediaDeviceError?.({ deviceKind: 'audioinput', error: lastMicrophoneError })
   }, [lastMicrophoneError, onMediaDeviceError])
 
@@ -131,17 +166,25 @@ export function LessonRoomStage({
 
   async function toggleMic() {
     try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
-    } catch {
-      // surfaced to the user via lastMicrophoneError below
+      const nextEnabled = !isMicrophoneEnabled
+      await localParticipant.setMicrophoneEnabled(nextEnabled)
+      if (nextEnabled) setMediaErrors((current) => ({ ...current, microphone: undefined }))
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error('Nie udało się uruchomić mikrofonu.')
+      setMediaErrors((current) => ({ ...current, microphone: mediaErrorMessage('microphone') }))
+      onMediaDeviceError?.({ deviceKind: 'audioinput', error: err })
     }
   }
 
   async function toggleCamera() {
     try {
-      await localParticipant.setCameraEnabled(!isCameraEnabled)
-    } catch {
-      // surfaced to the user via lastCameraError below
+      const nextEnabled = !isCameraEnabled
+      await localParticipant.setCameraEnabled(nextEnabled)
+      if (nextEnabled) setMediaErrors((current) => ({ ...current, camera: undefined }))
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error('Nie udało się uruchomić kamery.')
+      setMediaErrors((current) => ({ ...current, camera: mediaErrorMessage('camera') }))
+      onMediaDeviceError?.({ deviceKind: 'videoinput', error: err })
     }
   }
 
@@ -335,10 +378,11 @@ export function LessonRoomStage({
         )}
       </div>
 
-      {(lastMicrophoneError || lastCameraError) && (
-        <p className="mx-4 -mt-2 mb-2 text-center text-[11px] text-red-400">
-          {lastMicrophoneError ? 'Brak dostępu do mikrofonu — sprawdź uprawnienia przeglądarki.' : 'Brak dostępu do kamery — sprawdź uprawnienia przeglądarki.'}
-        </p>
+      {(mediaErrors.microphone || mediaErrors.camera) && (
+        <div className="mx-4 -mt-2 mb-2 rounded-lg border border-yellow-400/25 bg-yellow-400/10 px-3 py-2 text-center text-[11px] leading-relaxed text-yellow-100">
+          {mediaErrors.microphone && <p>{mediaErrors.microphone}</p>}
+          {mediaErrors.camera && <p>{mediaErrors.camera}</p>}
+        </div>
       )}
 
       {/* Controls */}

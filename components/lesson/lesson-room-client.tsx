@@ -302,8 +302,8 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
       serverUrl={connection.url}
       token={connection.token}
       connect
-      audio
-      video
+      audio={false}
+      video={false}
       onDisconnected={handleDisconnected}
       onError={handleLiveKitError}
       onMediaDeviceFailure={handleMediaDeviceFailure}
