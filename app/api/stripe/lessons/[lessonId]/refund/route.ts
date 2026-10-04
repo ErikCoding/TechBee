@@ -61,6 +61,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ les
   if (lesson.paymentStatus !== 'paid') {
     return NextResponse.json({ error: 'Ta lekcja nie ma płatności do zwrotu.' }, { status: 400 })
   }
+  if (lesson.paymentSource === 'package') {
+    return NextResponse.json({ error: 'Lekcja pochodzi z pakietu — zwroty pakietów wymagają osobnego procesu support/admin.' }, { status: 400 })
+  }
   if (lesson.stripeTransferId) {
     return NextResponse.json({ error: 'Płatność za tę lekcję została już przekazana nauczycielowi — skontaktuj się z supportem.' }, { status: 400 })
   }

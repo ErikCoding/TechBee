@@ -15,8 +15,11 @@ import { getCategories } from '@/services/categories.service'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
 import { getTeacherPublicStats } from '@/services/teacher-public-stats.service'
 import { formatLessonDurations } from '@/lib/lesson-durations'
+import { fromGrosze } from '@/lib/stripe-config'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
+import { normalizeOfferedLessonPackageSizes } from '@/lib/lesson-packages-core'
 import { normalizeTeachingLevels, teachingLevelLabel } from '@/lib/teaching-levels'
+import { resolveTeacherTrialLessonConfig } from '@/lib/trial-lessons'
 import { absoluteUrl, noIndexMetadata, pageMetadata } from '@/lib/seo'
 import type { WeekdayCode } from '@/lib/types'
 
@@ -77,6 +80,8 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
     ...getTeacherCustomSubjects(teacher),
   ]
   const teacherTeachingLevels = normalizeTeachingLevels(teacher.teachingLevels)
+  const offeredPackageSizes = normalizeOfferedLessonPackageSizes(teacher.lessonPackageSizes)
+  const trialConfig = resolveTeacherTrialLessonConfig(teacher)
   const profileUrl = absoluteUrl(`/teacher/${teacher.id}`)
   const teacherDescription = teacher.shortBio || teacher.bio
   const teacherImage = localImageUrl(teacher.photoUrl)
@@ -352,6 +357,16 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                       {teacher.responseTime}
                     </Badge>
                   </div>
+                  {trialConfig.enabled && (
+                    <div className="mt-3 rounded-xl border border-primary/25 bg-accent px-3 py-2 text-sm text-accent-foreground">
+                      <span className="font-semibold">Lekcja próbna:</span> {trialConfig.duration} min · {fromGrosze(trialConfig.priceGrosze)} zł
+                    </div>
+                  )}
+                  {offeredPackageSizes.length > 0 && (
+                    <div className="mt-3 rounded-xl border border-border bg-background/70 px-3 py-2 text-sm text-muted-foreground">
+                      Pakiety {offeredPackageSizes.map((size) => `${size} lekcji`).join(' i ')} dostępne przy rezerwacji.
+                    </div>
+                  )}
 
                   <BookLessonActions
                     teacherId={teacher.id}

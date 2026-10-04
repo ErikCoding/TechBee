@@ -5,6 +5,7 @@ import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getStudentReviewForTeacher, getTeacherApplication, submitTeacherReview } from '@/services/teachers.service'
 import { createNotification } from '@/services/notifications.service'
 import { refundLessonPayment as stripeRefund, transferLessonPayment as stripeTransfer } from '@/services/stripe.service'
+import { completePackageLessonCredit as completePackageCredit, returnPackageLessonCredit as returnPackageCredit } from '@/services/lesson-packages.service'
 import { resolveConfirmingParty } from '@/services/family-link.service'
 import { getOrCreateConversation, sendMessage, sendReportCardMessage, toParticipant, updateReportCardStatus } from '@/services/chat.service'
 import { getUserProfileById } from '@/services/auth.service'
@@ -130,6 +131,7 @@ async function createBookingMock(input: LessonBookingInput): Promise<Lesson> {
     time: input.time,
     scheduledStartAt: input.scheduledStartAt,
     duration: input.duration,
+    lessonKind: input.lessonKind ?? 'regular',
     status: 'pending',
     price: input.price,
     topic: input.topic,
@@ -199,6 +201,11 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     time: data.time as string,
     scheduledStartAt: data.scheduledStartAt as number | undefined,
     duration: data.duration as number,
+    lessonKind: data.lessonKind as Lesson['lessonKind'],
+    paymentSource: data.paymentSource as Lesson['paymentSource'],
+    packageId: data.packageId as string | undefined,
+    packageCreditState: data.packageCreditState as Lesson['packageCreditState'],
+    recurringSeriesId: data.recurringSeriesId as string | undefined,
     status: (data.status as Lesson['status']) ?? 'upcoming',
     price: data.price as number,
     topic: data.topic as string,
@@ -223,12 +230,16 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     paymentStatus: data.paymentStatus as Lesson['paymentStatus'],
     priceGrosze: data.priceGrosze as number | undefined,
     commissionPercent: data.commissionPercent as number | undefined,
+    effectiveCommissionPercent: data.effectiveCommissionPercent as number | undefined,
+    commissionSource: data.commissionSource as Lesson['commissionSource'],
     platformFeeGrosze: data.platformFeeGrosze as number | undefined,
     teacherAmountGrosze: data.teacherAmountGrosze as number | undefined,
+    stripeFeeGrosze: data.stripeFeeGrosze as number | undefined,
     stripeCheckoutSessionId: data.stripeCheckoutSessionId as string | undefined,
     stripePaymentIntentId: data.stripePaymentIntentId as string | undefined,
     stripeTransferId: data.stripeTransferId as string | undefined,
     stripeRefundId: data.stripeRefundId as string | undefined,
+    livemode: data.livemode as boolean | undefined,
   }
 }
 
@@ -530,8 +541,12 @@ export async function createBooking(input: LessonBookingInput): Promise<Lesson> 
 /** Teacher accepts/rejects a pending booking request. A rejection refunds the escrow hold placed at booking time — an acceptance leaves it held until the lesson's report is confirmed. */
 export async function respondToBookingRequest(lesson: Lesson, decision: 'accepted' | 'rejected'): Promise<void> {
   const nextStatus = decision === 'accepted' ? 'upcoming' : 'cancelled'
-  await updateLessonDoc(lesson.id, { status: nextStatus })
-  if (decision === 'rejected' && isFirebaseConfigured) {
+  if (decision === 'rejected' && lesson.paymentSource === 'package') {
+    await returnPackageCredit(lesson.id)
+  } else {
+    await updateLessonDoc(lesson.id, { status: nextStatus })
+  }
+  if (decision === 'rejected' && isFirebaseConfigured && lesson.paymentSource !== 'package') {
     await stripeRefund(lesson.id).catch((err) => console.error('[respondToBookingRequest] Refund failed:', err))
   }
   createNotification({
@@ -588,7 +603,9 @@ export async function respondToLessonChange(lesson: Lesson, decision: 'accepted'
   let refunded = false
   if (decision === 'accepted' && change.type === 'cancel') {
     patch.status = 'cancelled'
-    if (isFirebaseConfigured) {
+    if (isFirebaseConfigured && lesson.paymentSource === 'package') {
+      await returnPackageCredit(lesson.id)
+    } else if (isFirebaseConfigured) {
       await stripeRefund(lesson.id).catch((err) => console.error('[respondToLessonChange] Refund failed:', err))
     }
     refunded = true
@@ -608,7 +625,9 @@ export async function respondToLessonChange(lesson: Lesson, decision: 'accepted'
     }
   }
 
-  await updateLessonDoc(lesson.id, patch)
+  if (!(decision === 'accepted' && change.type === 'cancel' && isFirebaseConfigured && lesson.paymentSource === 'package')) {
+    await updateLessonDoc(lesson.id, patch)
+  }
 
   const requesterId = change.requestedBy === 'student' ? lesson.studentId : lesson.teacherId
   const responderLabel = change.requestedBy === 'student' ? lesson.teacherName : lesson.studentName
@@ -637,7 +656,11 @@ export async function completeLesson(lessonId: string): Promise<void> {
   if (!lesson || lesson.status === 'completed' || lesson.status === 'cancelled') return
 
   const completedAt = Date.now()
-  await updateLessonDoc(lessonId, { status: 'completed', completedAt })
+  if (lesson.paymentSource === 'package') {
+    await completePackageCredit(lessonId)
+  } else {
+    await updateLessonDoc(lessonId, { status: 'completed', completedAt })
+  }
 
   createNotification({
     userId: lesson.teacherId,
@@ -908,7 +931,7 @@ export async function resolveDispute(lesson: Lesson, resolution: 'teacher' | 'pa
   if (resolution === 'teacher') {
     await finalizeReportConfirmation(lesson, 'dispute_resolved_teacher')
   } else {
-    if (isFirebaseConfigured) {
+    if (isFirebaseConfigured && lesson.paymentSource !== 'package') {
       await stripeRefund(lesson.id).catch((err) => console.error('[resolveDispute] Refund failed:', err))
     }
     flipReportCardStatus(lesson, 'dispute_resolved_payer') // not awaited — best-effort display update, see finalizeReportConfirmation

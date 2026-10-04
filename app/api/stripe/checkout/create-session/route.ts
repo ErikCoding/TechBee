@@ -12,7 +12,8 @@ import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-c
 import { BOOKING_WINDOW_DAYS, getAvailabilityHoursForWeekday } from '@/lib/availability'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
 import { slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
-import type { AvailabilityHours, BookedLessonSlot, FoundingTeacherPromotion, WeekdayCode } from '@/lib/types'
+import { resolveCheckoutLessonTerms, studentHasConsumedTrialLesson } from '@/lib/trial-lessons'
+import type { AvailabilityHours, BookedLessonSlot, FoundingTeacherPromotion, Lesson, LessonKind, WeekdayCode } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Starts payment for a specific lesson slot. A Lesson doc is
@@ -62,6 +63,7 @@ interface CheckoutRequestBody {
   dateIso?: string
   time?: string
   duration?: number
+  lessonKind?: LessonKind
   topic?: string
   subjectCategoryId?: string
   specialty?: string
@@ -81,7 +83,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe żądanie.' }, { status: 400 })
   }
 
+  if (body.lessonKind !== undefined && body.lessonKind !== 'regular' && body.lessonKind !== 'trial') {
+    return NextResponse.json({ error: 'Nieprawidłowy typ lekcji.' }, { status: 400 })
+  }
   const { teacherId, date, dateIso, time, duration, topic, subjectCategoryId, specialty, studentId, studentName, payer } = body
+  const lessonKind = body.lessonKind ?? 'regular'
   if (!teacherId || !date || !dateIso || !time || !duration || !topic?.trim() || !studentId || !studentName) {
     return NextResponse.json({ error: 'Brak wymaganych danych rezerwacji.' }, { status: 400 })
   }
@@ -121,13 +127,25 @@ export async function POST(request: Request) {
 
   const teacherSnap = await adminDb!.collection(collections.teachers).doc(teacherId).get()
   const teacher = teacherSnap.data() as
-    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; categoryId?: string; categoryIds?: string[]; customSubjects?: string[]; hourlyRate?: number; status?: string; lessonDurations?: number[]; availability?: string[]; availabilityStart?: string; availabilityEnd?: string; availabilityHours?: AvailabilityHours; foundingTeacherPromotion?: FoundingTeacherPromotion }
+    | { name?: string; initials?: string; avatarColor?: string; photoUrl?: string; specialty?: string; categoryId?: string; categoryIds?: string[]; customSubjects?: string[]; hourlyRate?: number; status?: string; lessonDurations?: number[]; trialLessonEnabled?: boolean; trialLessonDuration?: number; trialLessonPriceGrosze?: number; availability?: string[]; availabilityStart?: string; availabilityEnd?: string; availabilityHours?: AvailabilityHours; foundingTeacherPromotion?: FoundingTeacherPromotion }
     | undefined
   if (!teacher || !teacher.hourlyRate || (teacher.status && teacher.status !== 'approved')) {
     return NextResponse.json({ error: 'Nie znaleziono tego nauczyciela.' }, { status: 404 })
   }
-  if (!normalizeLessonDurations(teacher.lessonDurations).includes(duration)) {
+  if (lessonKind === 'regular' && !normalizeLessonDurations(teacher.lessonDurations).includes(duration)) {
     return NextResponse.json({ error: 'Ten nauczyciel nie oferuje wybranej długości lekcji.' }, { status: 409 })
+  }
+  if (lessonKind === 'trial') {
+    const previousStudentLessons = await adminDb!
+      .collection(collections.lessons)
+      .where('studentId', '==', studentId)
+      .get()
+    const previousTrials = previousStudentLessons.docs
+      .map((doc) => doc.data() as Lesson)
+      .filter((lesson) => lesson.teacherId === teacherId && lesson.lessonKind === 'trial')
+    if (studentHasConsumedTrialLesson(previousTrials)) {
+      return NextResponse.json({ error: 'Lekcja próbna u tego nauczyciela została już wykorzystana.' }, { status: 409 })
+    }
   }
   const teacherCategoryIds = getTeacherCategoryIds({
     categoryId: teacher.categoryId ?? '',
@@ -200,8 +218,21 @@ export async function POST(request: Request) {
   }
 
   // Authoritative price — recomputed server-side, never trusted from the client.
-  const pricePln = Math.round((teacher.hourlyRate / 60) * duration)
-  const priceGrosze = toGrosze(pricePln)
+  const regularPriceGrosze = toGrosze(Math.round((teacher.hourlyRate / 60) * duration))
+  const lessonTerms = resolveCheckoutLessonTerms({
+    lessonKind,
+    requestedDuration: duration,
+    regularPriceGrosze,
+    teacher,
+  })
+  if (!lessonTerms.ok) {
+    return NextResponse.json({
+      error: lessonTerms.error === 'invalid_trial_duration'
+        ? 'Nieprawidłowa długość lekcji próbnej.'
+        : 'Ten nauczyciel nie oferuje lekcji próbnej.',
+    }, { status: 409 })
+  }
+  const priceGrosze = lessonTerms.priceGrosze
   const paymentSettings = await getPlatformPaymentSettings()
   const { effectiveCommissionPercent, commissionSource } = resolveEffectiveCommission({
     standardCommissionPercent: paymentSettings.commissionPercent,
@@ -222,7 +253,7 @@ export async function POST(request: Request) {
         {
           price_data: {
             currency: STRIPE_CURRENCY,
-            product_data: { name: `Lekcja: ${topic.trim()}`, description: `${teacher.name} · ${selectedSpecialty} · ${date} o ${time} · ${duration} min` },
+            product_data: { name: `${lessonTerms.lessonKind === 'trial' ? 'Lekcja próbna' : 'Lekcja'}: ${topic.trim()}`, description: `${teacher.name} · ${selectedSpecialty} · ${date} o ${time} · ${duration} min` },
             unit_amount: priceGrosze,
           },
           quantity: 1,
@@ -245,6 +276,7 @@ export async function POST(request: Request) {
         time,
         scheduledStartAt: String(scheduledStartAt),
         duration: String(duration),
+        lessonKind: lessonTerms.lessonKind,
         topic: safeMetaText(topic.trim()),
         priceGrosze: String(priceGrosze),
         commissionPercent: String(effectiveCommissionPercent),

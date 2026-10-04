@@ -8,8 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { formatLessonDurations } from '@/lib/lesson-durations'
+import { fromGrosze } from '@/lib/stripe-config'
 import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { formatTeachingLevels, normalizeTeachingLevels } from '@/lib/teaching-levels'
+import { normalizeOfferedLessonPackageSizes } from '@/lib/lesson-packages-core'
+import { resolveTeacherTrialLessonConfig } from '@/lib/trial-lessons'
 import { getCategories } from '@/services/categories.service'
 import { getPendingTeacherApplications, reviewTeacherApplication } from '@/services/teachers.service'
 import type { Category, Teacher, TeacherProfileSnapshot } from '@/lib/types'
@@ -75,6 +78,10 @@ function profileFromTeacher(app: Teacher): TeacherProfileSnapshot {
     skills: app.skills,
     languages: app.languages,
     lessonDurations: app.lessonDurations ?? [60],
+    trialLessonEnabled: app.trialLessonEnabled === true,
+    trialLessonDuration: app.trialLessonDuration,
+    trialLessonPriceGrosze: app.trialLessonPriceGrosze,
+    lessonPackageSizes: normalizeOfferedLessonPackageSizes(app.lessonPackageSizes),
     availability: app.availability,
     availabilityStart: app.availabilityStart,
     availabilityEnd: app.availabilityEnd,
@@ -94,6 +101,17 @@ function subjectNames(categories: Category[], profile: Pick<TeacherProfileSnapsh
     ...normalizeTeacherCategoryIds(profile.categoryId, profile.categoryIds).map((id) => categoryName(categories, id)),
     ...normalizeTeacherCustomSubjects(profile.customSubjects),
   ].join(', ')
+}
+
+function formatTrialLesson(profile: Pick<TeacherProfileSnapshot, 'trialLessonEnabled' | 'trialLessonDuration' | 'trialLessonPriceGrosze'>) {
+  const config = resolveTeacherTrialLessonConfig(profile)
+  if (!config.enabled) return 'Nie'
+  return `Tak · ${config.duration} min · ${fromGrosze(config.priceGrosze)} zł`
+}
+
+function formatLessonPackages(profile: Pick<TeacherProfileSnapshot, 'lessonPackageSizes'>) {
+  const sizes = normalizeOfferedLessonPackageSizes(profile.lessonPackageSizes)
+  return sizes.length ? sizes.map((size) => `Pakiet ${size} lekcji`).join(', ') : 'Nie'
 }
 
 function CompactMetric({
@@ -242,6 +260,8 @@ export function AdminVerificationsPanel() {
                   <CompactMetric icon={WalletCards} label="Stawka" value={`${app.hourlyRate} zł/godz.`} />
                   <CompactMetric icon={Sparkles} label="Specjalizacja" value={app.specialty} />
                   <CompactMetric icon={MapPin} label="Lokalizacja" value={app.location} />
+                  <CompactMetric icon={CalendarClock} label="Lekcja próbna" value={formatTrialLesson(next)} />
+                  <CompactMetric icon={WalletCards} label="Pakiety" value={formatLessonPackages(next)} />
                   <CompactMetric icon={CalendarClock} label="Dostępność" value={`${formatAvailability(next)} · ${formatLessonDurations(next.lessonDurations)}`} />
                 </div>
 
@@ -261,6 +281,8 @@ export function AdminVerificationsPanel() {
                     <ChangeRow label="Lokalizacja" before={previous?.location} after={next.location} />
                     <ChangeRow label="Doświadczenie" before={previous ? `${previous.experience} lat` : undefined} after={`${next.experience} lat`} />
                     <ChangeRow label="Długość lekcji" before={previous ? formatLessonDurations(previous.lessonDurations) : undefined} after={formatLessonDurations(next.lessonDurations)} />
+                    <ChangeRow label="Lekcja próbna" before={previous ? formatTrialLesson(previous) : undefined} after={formatTrialLesson(next)} />
+                    <ChangeRow label="Pakiety lekcji" before={previous ? formatLessonPackages(previous) : undefined} after={formatLessonPackages(next)} />
                     <ChangeRow label="Dostępność" before={previous ? formatAvailability(previous) : undefined} after={formatAvailability(next)} />
                     <ChangeRow label="Języki" before={previous ? formatList(previous.languages) : undefined} after={formatList(next.languages)} />
                     <ChangeRow label="Umiejętności" before={previous ? formatList(previous.skills) : undefined} after={formatList(next.skills)} />

@@ -11,13 +11,16 @@ import { ProfilePhotoPicker } from '@/components/profile/profile-photo-picker'
 import { useAuth } from '@/lib/auth-context'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
 import { timeToMinutes } from '@/lib/lesson-time'
+import { toGrosze, fromGrosze } from '@/lib/stripe-config'
 import { getCategories } from '@/services/categories.service'
 import { getTeacherApplication, submitTeacherApplication } from '@/services/teachers.service'
 import { toParticipant } from '@/services/chat.service'
 import { normalizeTeacherApplicationCategoryIds } from '@/lib/teacher-application-categories'
 import { normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { normalizeTeachingLevels, teachingLevels } from '@/lib/teaching-levels'
-import type { AvailabilityHours, Category, Teacher, WeekdayCode } from '@/lib/types'
+import { normalizeOfferedLessonPackageSizes } from '@/lib/lesson-packages-core'
+import { normalizeTrialLessonDuration, normalizeTrialLessonPriceGrosze } from '@/lib/trial-lessons'
+import type { AvailabilityHours, Category, LessonPackageSize, Teacher, WeekdayCode } from '@/lib/types'
 
 const WEEKDAYS = [
   { code: 'Mon', label: 'Pon' },
@@ -102,6 +105,10 @@ export function TeacherApplicationForm() {
   const [skills, setSkills] = useState('')
   const [languages, setLanguages] = useState('Polski')
   const [lessonDurations, setLessonDurations] = useState<number[]>([60])
+  const [trialLessonEnabled, setTrialLessonEnabled] = useState(false)
+  const [trialLessonDuration, setTrialLessonDuration] = useState(30)
+  const [trialLessonPrice, setTrialLessonPrice] = useState('')
+  const [lessonPackageSizes, setLessonPackageSizes] = useState<LessonPackageSize[]>([])
   const [availability, setAvailability] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
   const [availabilityStart, setAvailabilityStart] = useState('09:00')
   const [availabilityEnd, setAvailabilityEnd] = useState('17:00')
@@ -138,7 +145,12 @@ export function TeacherApplicationForm() {
         setBio(app.bio)
         setSkills(app.skills.join(', '))
         setLanguages(app.languages.join(', '))
-        setLessonDurations(normalizeLessonDurations(app.lessonDurations))
+        const normalizedDurations = normalizeLessonDurations(app.lessonDurations)
+        setLessonDurations(normalizedDurations)
+        setTrialLessonEnabled(app.trialLessonEnabled === true)
+        setTrialLessonDuration(normalizeTrialLessonDuration(app.trialLessonDuration) ?? normalizedDurations[0] ?? 60)
+        setTrialLessonPrice(app.trialLessonPriceGrosze ? String(fromGrosze(app.trialLessonPriceGrosze)) : '')
+        setLessonPackageSizes(normalizeOfferedLessonPackageSizes(app.lessonPackageSizes))
         setAvailability(app.availability)
         setAvailabilityStart(app.availabilityStart ?? DEFAULT_AVAILABILITY_START)
         setAvailabilityEnd(app.availabilityEnd ?? DEFAULT_AVAILABILITY_END)
@@ -197,6 +209,12 @@ export function TeacherApplicationForm() {
     ))
   }
 
+  function toggleLessonPackageSize(size: LessonPackageSize) {
+    setLessonPackageSizes((prev) => (
+      prev.includes(size) ? prev.filter((packageSize) => packageSize !== size) : normalizeOfferedLessonPackageSizes([...prev, size])
+    ))
+  }
+
   async function savePublicProfile(nextPhotoUrl = photoUrl) {
     if (!user) throw new Error('Musisz być zalogowany, aby zapisać profil.')
     const name = displayName.trim()
@@ -235,6 +253,15 @@ export function TeacherApplicationForm() {
       const selectedCustomSubjects = normalizeTeacherCustomSubjects(customSubjects.split(','))
       const normalizedTeachingLevels = normalizeTeachingLevels(selectedTeachingLevels)
       if (!selectedCategoryIds.length) throw new Error('Wybierz przynajmniej jedną dziedzinę nauczania.')
+      const selectedTrialDuration = normalizeTrialLessonDuration(trialLessonDuration)
+      const parsedTrialPrice = Number(trialLessonPrice.replace(',', '.'))
+      const selectedTrialPriceGrosze = normalizeTrialLessonPriceGrosze(toGrosze(parsedTrialPrice))
+      if (trialLessonEnabled && !selectedTrialDuration) {
+        throw new Error('Wybierz poprawną długość lekcji próbnej.')
+      }
+      if (trialLessonEnabled && !selectedTrialPriceGrosze) {
+        throw new Error('Podaj poprawną cenę lekcji próbnej.')
+      }
       assertValidHours(availabilityStart, availabilityEnd, 'Globalna dostępność')
       const selectedAvailabilityHours = customAvailabilityHours
         ? normalizeAvailabilityHours(availability, availabilityHours, { start: availabilityStart, end: availabilityEnd })
@@ -261,6 +288,10 @@ export function TeacherApplicationForm() {
         skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
         languages: languages.split(',').map((s) => s.trim()).filter(Boolean),
         lessonDurations: normalizeLessonDurations(lessonDurations),
+        trialLessonEnabled,
+        trialLessonDuration: trialLessonEnabled ? selectedTrialDuration : undefined,
+        trialLessonPriceGrosze: trialLessonEnabled ? selectedTrialPriceGrosze : undefined,
+        lessonPackageSizes: normalizeOfferedLessonPackageSizes(lessonPackageSizes),
         availability,
         availabilityStart,
         availabilityEnd,
@@ -549,6 +580,81 @@ export function TeacherApplicationForm() {
                   }`}
                 >
                   {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-background/60 p-4">
+          <label className="flex items-start justify-between gap-4">
+            <span>
+              <span className="block text-xs font-medium text-foreground">Oferuję lekcję próbną</span>
+              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                Lekcja próbna jest płatna i przechodzi przez standardową rezerwację oraz płatność Stripe.
+              </span>
+            </span>
+            <Switch checked={trialLessonEnabled} onCheckedChange={setTrialLessonEnabled} />
+          </label>
+
+          {trialLessonEnabled && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="trialLessonDuration" className="text-xs font-medium text-foreground">Długość lekcji próbnej</label>
+                <select
+                  id="trialLessonDuration"
+                  required
+                  value={trialLessonDuration}
+                  onChange={(e) => setTrialLessonDuration(Number(e.target.value))}
+                  className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:text-sm"
+                >
+                  {LESSON_DURATION_OPTIONS.map((option) => (
+                    <option key={option.minutes} value={option.minutes}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="trialLessonPrice" className="text-xs font-medium text-foreground">Cena lekcji próbnej (zł)</label>
+                <Input
+                  id="trialLessonPrice"
+                  type="number"
+                  min={1}
+                  step={1}
+                  required
+                  value={trialLessonPrice}
+                  onChange={(e) => setTrialLessonPrice(e.target.value)}
+                  placeholder="np. 50"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-background/60 p-4">
+          <div>
+            <p className="text-xs font-medium text-foreground">Pakiety lekcji</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Uczeń płaci za pakiet jednorazowo, a środki za poszczególne lekcje są rozliczane zgodnie z odbytymi lekcjami.
+            </p>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {[5, 10].map((size) => {
+              const packageSize = size as LessonPackageSize
+              const active = lessonPackageSizes.includes(packageSize)
+              return (
+                <button
+                  key={packageSize}
+                  type="button"
+                  onClick={() => toggleLessonPackageSize(packageSize)}
+                  aria-pressed={active}
+                  className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                    active
+                      ? 'border-primary bg-accent font-semibold text-accent-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <span>Pakiet {packageSize} lekcji</span>
+                  {active && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
                 </button>
               )
             })}

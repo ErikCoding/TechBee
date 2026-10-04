@@ -17,6 +17,14 @@ function restorePatch(previous: TeacherProfileSnapshot): UpdateData<Teacher> {
   return {
     ...previous,
     lessonDurations: normalizeLessonDurations(previous.lessonDurations),
+    trialLessonEnabled: previous.trialLessonEnabled === true,
+    trialLessonDuration: previous.trialLessonEnabled === true && previous.trialLessonDuration
+      ? previous.trialLessonDuration
+      : FieldValue.delete(),
+    trialLessonPriceGrosze: previous.trialLessonEnabled === true && previous.trialLessonPriceGrosze
+      ? previous.trialLessonPriceGrosze
+      : FieldValue.delete(),
+    lessonPackageSizes: previous.lessonPackageSizes ?? FieldValue.delete(),
     photoUrl: previous.photoUrl ?? FieldValue.delete(),
     availabilityHours: previous.availabilityHours ?? FieldValue.delete(),
     status: 'approved',

@@ -5,6 +5,7 @@ import { collections } from '@/lib/firebase'
 import { stripe } from '@/lib/stripe'
 import { LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
 import { getStripePaymentFeeSnapshot } from '@/lib/stripe-payment-fees'
+import { checkoutAutoRefundIdempotencyKey, normalizeLessonKind, trialLessonConsumesEligibility } from '@/lib/trial-lessons'
 import type { Lesson } from '@/lib/types'
 
 function paidCheckoutSession(session: Stripe.Checkout.Session): boolean {
@@ -21,12 +22,18 @@ function slotLockIds(teacherId: string, dateIso: string, time: string, duration:
   return ids
 }
 
+function trialGuardId(studentId: string, teacherId: string): string {
+  return `${encodeURIComponent(studentId)}__${encodeURIComponent(teacherId)}`
+}
+
 async function refundPaidSession(session: Stripe.Checkout.Session) {
   const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
   if (!paymentIntentId || !stripe) return
   await stripe.refunds.create({
     payment_intent: paymentIntentId,
     metadata: { reason: 'lesson_slot_unavailable_after_payment', checkoutSessionId: session.id },
+  }, {
+    idempotencyKey: checkoutAutoRefundIdempotencyKey(session.id),
   })
 }
 
@@ -65,6 +72,7 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
   const now = Date.now()
   const duration = Number(m.duration ?? 60)
   const scheduledStartAt = Number(m.scheduledStartAt)
+  const lessonKind = normalizeLessonKind(m.lessonKind)
   const lesson: Omit<Lesson, 'id'> = {
     teacherId: m.teacherId,
     studentId: m.studentId,
@@ -80,6 +88,7 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     time: m.time ?? '',
     ...(Number.isFinite(scheduledStartAt) && scheduledStartAt > 0 ? { scheduledStartAt } : {}),
     duration,
+    lessonKind,
     status: 'pending',
     price: Math.round(Number(m.priceGrosze)) / 100,
     topic: m.topic ?? '',
@@ -106,19 +115,34 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
 
   const lockIds = m.dateIso && m.time ? slotLockIds(m.teacherId, m.dateIso, m.time, duration) : []
   const ref = database.collection(collections.lessons).doc()
-  const lessonId = await database.runTransaction(async (tx) => {
+  const result = await database.runTransaction(async (tx): Promise<{ lessonId: string | null; reason?: 'slot_unavailable' | 'trial_already_used' }> => {
+    const trialGuardRef = lessonKind === 'trial'
+      ? database.collection(collections.trialLessonGuards).doc(trialGuardId(m.studentId, m.teacherId))
+      : null
+    if (trialGuardRef) {
+      const guardSnap = await tx.get(trialGuardRef)
+      if (guardSnap.exists) {
+        const guardedLessonId = guardSnap.data()?.lessonId
+        if (typeof guardedLessonId !== 'string') return { lessonId: null, reason: 'trial_already_used' }
+        const guardedLessonSnap = await tx.get(database.collection(collections.lessons).doc(guardedLessonId))
+        if (!guardedLessonSnap.exists) return { lessonId: null, reason: 'trial_already_used' }
+        const guardedLesson = { id: guardedLessonSnap.id, ...guardedLessonSnap.data() } as Lesson
+        if (trialLessonConsumesEligibility(guardedLesson)) return { lessonId: null, reason: 'trial_already_used' }
+      }
+    }
+
     if (lockIds.length > 0) {
       const lockRefs = lockIds.map((id) => database.collection(collections.lessonSlotLocks).doc(id))
       const lockSnaps = await Promise.all(lockRefs.map((lockRef) => tx.get(lockRef)))
       for (const lockSnap of lockSnaps) {
         if (!lockSnap.exists) continue
         const lockedLessonId = lockSnap.data()?.lessonId
-        if (typeof lockedLessonId !== 'string') return null
+        if (typeof lockedLessonId !== 'string') return { lessonId: null, reason: 'slot_unavailable' }
         const lockedLessonSnap = await tx.get(database.collection(collections.lessons).doc(lockedLessonId))
         if (!lockedLessonSnap.exists) continue
         const lockedLesson = { id: lockedLessonSnap.id, ...lockedLessonSnap.data() } as Lesson
         if (slotOverlapsBookedLesson({ dateIso: m.dateIso, time: m.time, duration, booked: [lockedLesson] })) {
-          return null
+          return { lessonId: null, reason: 'slot_unavailable' }
         }
       }
       for (const lockRef of lockRefs) {
@@ -132,6 +156,15 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
         })
       }
     }
+    if (trialGuardRef) {
+      tx.set(trialGuardRef, {
+        teacherId: m.teacherId,
+        studentId: m.studentId,
+        lessonId: ref.id,
+        checkoutSessionId: session.id,
+        createdAt: now,
+      })
+    }
     tx.set(ref, lesson)
     if (feeSnapshot) {
       tx.set(database.collection(collections.lessonPaymentSnapshots).doc(ref.id), {
@@ -144,16 +177,18 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
         createdAt: now,
       })
     }
-    return ref.id
+    return { lessonId: ref.id }
   })
 
-  if (!lessonId) {
+  if (!result.lessonId) {
     await refundPaidSession(session)
     await database.collection(collections.notifications).add({
       userId: m.payerId || m.studentId,
       type: 'payment',
-      title: 'Termin został zajęty',
-      description: `Płatność za lekcję „${m.topic}" została zwrócona, ponieważ ktoś zarezerwował ten termin chwilę wcześniej. Wybierz inną godzinę.`,
+      title: result.reason === 'trial_already_used' ? 'Lekcja próbna została już wykorzystana' : 'Termin został zajęty',
+      description: result.reason === 'trial_already_used'
+        ? `Płatność za lekcję próbną „${m.topic}" została zwrócona, ponieważ u tego nauczyciela można wykorzystać tylko jedną opłaconą lekcję próbną.`
+        : `Płatność za lekcję „${m.topic}" została zwrócona, ponieważ ktoś zarezerwował ten termin chwilę wcześniej. Wybierz inną godzinę.`,
       date: new Date(now).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
       read: false,
       createdAt: now,
@@ -171,6 +206,6 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     createdAt: now,
   })
 
-  console.log(`[stripe/checkout] Created lesson ${lessonId} from checkout session ${session.id}`)
-  return lessonId
+  console.log(`[stripe/checkout] Created lesson ${result.lessonId} from checkout session ${session.id}`)
+  return result.lessonId
 }

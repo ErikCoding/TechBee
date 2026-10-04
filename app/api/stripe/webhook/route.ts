@@ -3,6 +3,7 @@ import type Stripe from 'stripe'
 import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { ensureLessonForCheckoutSession } from '@/lib/stripe-checkout-lessons'
+import { ensureLessonPackageForCheckoutSession } from '@/lib/stripe-lesson-packages.server'
 import { persistStripeRefundFinancialEvent } from '@/lib/stripe-financial-events'
 import { alreadyProcessed, markProcessed } from '@/lib/stripe-webhook-shared'
 
@@ -38,6 +39,10 @@ import { alreadyProcessed, markProcessed } from '@/lib/stripe-webhook-shared'
 export const runtime = 'nodejs'
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  if (session.metadata?.paymentType === 'lesson_package') {
+    await ensureLessonPackageForCheckoutSession(session)
+    return
+  }
   await ensureLessonForCheckoutSession(session)
 }
 

@@ -2,6 +2,8 @@ import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, onSnap
 import { teachersData } from '@/data/teachers.data'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { normalizeLessonDurations } from '@/lib/lesson-durations'
+import { normalizeOfferedLessonPackageSizes } from '@/lib/lesson-packages-core'
+import { resolveTeacherTrialLessonConfig } from '@/lib/trial-lessons'
 import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects, teacherMatchesCategory } from '@/lib/teacher-categories'
 import { normalizeTeachingLevels } from '@/lib/teaching-levels'
 import { teacherIsPublicMarketplaceVisible } from '@/lib/teacher-visibility'
@@ -170,6 +172,10 @@ function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
     skills: teacher.skills,
     languages: teacher.languages,
     lessonDurations: normalizeLessonDurations(teacher.lessonDurations),
+    trialLessonEnabled: teacher.trialLessonEnabled === true,
+    ...(teacher.trialLessonEnabled === true && teacher.trialLessonDuration ? { trialLessonDuration: teacher.trialLessonDuration } : {}),
+    ...(teacher.trialLessonEnabled === true && teacher.trialLessonPriceGrosze ? { trialLessonPriceGrosze: teacher.trialLessonPriceGrosze } : {}),
+    lessonPackageSizes: normalizeOfferedLessonPackageSizes(teacher.lessonPackageSizes),
     availability: teacher.availability,
     ...(teacher.availabilityStart ? { availabilityStart: teacher.availabilityStart } : {}),
     ...(teacher.availabilityEnd ? { availabilityEnd: teacher.availabilityEnd } : {}),
@@ -181,7 +187,18 @@ function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
 }
 
 function restoreProfileFromSnapshot(teacher: Teacher, previous: TeacherProfileSnapshot): Teacher {
-  const { photoUrl: _oldPhotoUrl, availabilityHours: _oldAvailabilityHours, lessonDurations: _oldLessonDurations, previousProfile: _oldPreviousProfile, verificationKind: _oldVerificationKind, ...withoutDraftMeta } = teacher
+  const {
+    photoUrl: _oldPhotoUrl,
+    availabilityHours: _oldAvailabilityHours,
+    lessonDurations: _oldLessonDurations,
+    trialLessonEnabled: _oldTrialLessonEnabled,
+    trialLessonDuration: _oldTrialLessonDuration,
+    trialLessonPriceGrosze: _oldTrialLessonPriceGrosze,
+    lessonPackageSizes: _oldLessonPackageSizes,
+    previousProfile: _oldPreviousProfile,
+    verificationKind: _oldVerificationKind,
+    ...withoutDraftMeta
+  } = teacher
   return {
     ...withoutDraftMeta,
     ...previous,
@@ -227,6 +244,11 @@ function buildTeacherFromApplication(
     : selectedCategoryIds[0] ?? input.categoryId
   const customSubjects = normalizeTeacherCustomSubjects(input.customSubjects)
   const teachingLevels = normalizeTeachingLevels(input.teachingLevels)
+  const trialConfig = resolveTeacherTrialLessonConfig(input)
+  const lessonPackageSizes = normalizeOfferedLessonPackageSizes(input.lessonPackageSizes)
+  if (input.trialLessonEnabled === true && !trialConfig.enabled) {
+    throw new Error('Lekcja próbna wymaga poprawnej długości i ceny.')
+  }
 
   return {
     id: authUser.id,
@@ -251,6 +273,12 @@ function buildTeacherFromApplication(
     skills: input.skills,
     languages: input.languages,
     lessonDurations: normalizeLessonDurations(input.lessonDurations),
+    trialLessonEnabled: trialConfig.enabled,
+    ...(trialConfig.enabled ? {
+      trialLessonDuration: trialConfig.duration,
+      trialLessonPriceGrosze: trialConfig.priceGrosze,
+    } : {}),
+    lessonPackageSizes,
     education: existing?.education ?? [],
     reviews: existing?.reviews ?? [],
     availability: input.availability,
@@ -431,6 +459,8 @@ async function submitApplicationFirebase(
   await setDoc(ref, {
     ...teacher,
     availabilityHours: input.availabilityHours ?? deleteField(),
+    trialLessonDuration: teacher.trialLessonEnabled ? teacher.trialLessonDuration : deleteField(),
+    trialLessonPriceGrosze: teacher.trialLessonEnabled ? teacher.trialLessonPriceGrosze : deleteField(),
   }, { merge: true })
   return teacher
 }

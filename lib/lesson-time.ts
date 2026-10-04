@@ -6,6 +6,8 @@ export const LESSON_END_WARNING_MINUTES = 10
 export const LESSON_TIME_ZONE = 'Europe/Warsaw'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const WEEK_MS = 7 * DAY_MS
+const WEEKDAY_LABELS_PL = ['Niedz', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob']
 const MONTHS_PL = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru']
 const TIME_ZONE_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat | null>()
 
@@ -116,6 +118,64 @@ export function dateIsoFromLocalDate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+function dateFromIsoAtNoonUtc(dateIso: string): Date | null {
+  const [year, month, day] = dateIso.split('-').map(Number)
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null
+  }
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0))
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function dateIsoFromUtcDate(date: Date): string {
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export function addWeeksToDateIso(dateIso: string, weeks: number): string | null {
+  if (!Number.isInteger(weeks) || weeks < 0) return null
+  const date = dateFromIsoAtNoonUtc(dateIso)
+  if (!date) return null
+  return dateIsoFromUtcDate(new Date(date.getTime() + weeks * WEEK_MS))
+}
+
+export function polishDayLabelFromDateIso(dateIso: string): string | null {
+  const date = dateFromIsoAtNoonUtc(dateIso)
+  if (!date) return null
+  return `${WEEKDAY_LABELS_PL[date.getUTCDay()]}, ${date.getUTCDate()} ${MONTHS_PL[date.getUTCMonth()]}`
+}
+
+export function buildWeeklyLessonOccurrences({
+  firstDateIso,
+  time,
+  count,
+}: {
+  firstDateIso: string
+  time: string
+  count: number
+}): { dateIso: string; date: string; time: string; scheduledStartAt: number }[] | null {
+  if (!Number.isInteger(count) || count < 1) return null
+  const occurrences = []
+  for (let i = 0; i < count; i += 1) {
+    const dateIso = addWeeksToDateIso(firstDateIso, i)
+    const date = dateIso ? polishDayLabelFromDateIso(dateIso) : null
+    const scheduledStartAt = dateIso ? zonedDateTimeToMs(dateIso, time) : null
+    if (!dateIso || !date || scheduledStartAt === null) return null
+    occurrences.push({ dateIso, date, time, scheduledStartAt })
+  }
+  return occurrences
 }
 
 export function parsePolishDayLabel(dayLabel: string, reference = new Date()): string | null {

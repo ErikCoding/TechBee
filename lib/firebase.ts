@@ -80,4 +80,10 @@ export const collections = {
   stripeEvents: 'stripeEvents',
   /** Short-lived slot locks written by the Stripe webhook while turning paid sessions into lessons, preventing overlapping paid bookings from racing into the same teacher time. */
   lessonSlotLocks: 'lessonSlotLocks',
+  /** Internal one-trial-per-student-teacher guard written by the Stripe webhook in the same transaction that creates a paid trial lesson. */
+  trialLessonGuards: 'trialLessonGuards',
+  /** Paid 5/10 lesson packages. Written/consumed by trusted server endpoints only; clients may only read their own packages. */
+  lessonPackages: 'lessonPackages',
+  /** Internal idempotency ledger for package-credit bookings, including recurring weekly series. */
+  lessonPackageBookingRequests: 'lessonPackageBookingRequests',
 } as const

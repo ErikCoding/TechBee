@@ -1,5 +1,5 @@
 import { auth } from '@/lib/firebase'
-import type { TeacherStripeAccount, TeacherWalletSummary, WalletHistoryEntry, PayoutRecord } from '@/lib/types'
+import type { LessonKind, TeacherStripeAccount, TeacherWalletSummary, WalletHistoryEntry, PayoutRecord } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Client-side helpers for every app/api/stripe/* route. Same posture
@@ -69,6 +69,7 @@ export async function startLessonCheckout(input: {
   dateIso: string
   time: string
   duration: number
+  lessonKind?: LessonKind
   topic: string
   subjectCategoryId?: string
   specialty: string
@@ -80,12 +81,35 @@ export async function startLessonCheckout(input: {
   return url
 }
 
+/** Starts a single Stripe Checkout for a 5/10 lesson package. The backend recomputes the authoritative package price. */
+export async function startLessonPackageCheckout(input: {
+  teacherId: string
+  packageSize: 5 | 10
+  duration: number
+  subjectCategoryId?: string
+  specialty: string
+  studentId: string
+  studentName: string
+  payer?: { id: string; role: 'student' | 'parent' }
+}): Promise<string> {
+  const { url } = await postJson<{ url: string }>('/api/stripe/packages/create-session', input)
+  return url
+}
+
 /** Polls whether a Checkout Session's lesson has been created yet — used by /payment/success to bridge the brief gap before the webhook lands. */
-export async function getCheckoutSessionLessonId(sessionId: string): Promise<string | null> {
+export async function getCheckoutSessionResult(sessionId: string): Promise<{ type: 'lesson'; lessonId: string } | { type: 'lesson_package'; packageId: string } | null> {
   const res = await fetch(`/api/stripe/checkout/status?session_id=${encodeURIComponent(sessionId)}`)
   const data = await res.json().catch(() => ({}) as Record<string, unknown>)
   if (!res.ok) return null
-  return typeof data.lessonId === 'string' ? data.lessonId : null
+  if (data.type === 'lesson' && typeof data.lessonId === 'string') return { type: 'lesson', lessonId: data.lessonId }
+  if (data.type === 'lesson_package' && typeof data.packageId === 'string') return { type: 'lesson_package', packageId: data.packageId }
+  return null
+}
+
+/** Backward-compatible convenience wrapper for old call sites that only care about single-lesson checkouts. */
+export async function getCheckoutSessionLessonId(sessionId: string): Promise<string | null> {
+  const result = await getCheckoutSessionResult(sessionId)
+  return result?.type === 'lesson' ? result.lessonId : null
 }
 
 /** Moves a lesson's teacher share from Runbee's Stripe balance to the teacher's connected account (a real Transfer) — see app/api/stripe/lessons/[lessonId]/transfer/route.ts. Best-effort by design (same posture as the old releaseLessonPayment): the caller should still let the underlying confirm/auto-confirm/dispute-resolve action succeed even if this throws, and can surface the error separately. */

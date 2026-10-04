@@ -191,6 +191,7 @@ service cloud.firestore {
         isAdmin() ||
         isLinkedParentOf(resource.data.studentId)
       ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'lessonKind', 'paymentSource', 'packageId', 'packageCreditState',
         'paymentStatus', 'priceGrosze', 'commissionPercent', 'effectiveCommissionPercent', 'commissionSource',
         'platformFeeGrosze', 'teacherAmountGrosze',
         'stripeFeeGrosze', 'stripeBalanceTransactionId', 'stripeChargeId',
@@ -333,6 +334,29 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Paid lesson packages ──
+    // Created from Stripe Checkout and consumed by trusted server
+    // endpoints only. Browsers may read packages for their own student
+    // account, the payer account, linked children, or admin views, but
+    // cannot edit credits, ownership or financial snapshots directly.
+    match /lessonPackages/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.payerId == request.auth.uid ||
+        isLinkedParentOf(resource.data.studentId) ||
+        isAdmin()
+      );
+      allow write: if false;
+    }
+
+    // ── Internal package booking idempotency ledger ──
+    // Written only by trusted server endpoints while consuming package
+    // credits, so double-submitted recurring bookings can return the
+    // same lesson ids instead of reserving another series.
+    match /lessonPackageBookingRequests/{id} {
+      allow read, write: if false;
+    }
+
     // ── Stripe webhook idempotency ledger ──
     // One doc per processed Stripe event id (see
     // app/api/stripe/webhook/route.ts) — purely an internal dedupe
@@ -361,6 +385,15 @@ service cloud.firestore {
     // same teacher time. The booking UI gets public-safe occupied slots
     // through app/api/teachers/{teacherId}/availability instead.
     match /lessonSlotLocks/{id} {
+      allow read, write: if false;
+    }
+
+    // ── Internal paid-trial guards ──
+    // Written only by the trusted Stripe webhook in the same transaction
+    // that creates a paid trial lesson. Prevents two paid Checkout
+    // sessions from creating two trial lessons for the same student and
+    // teacher.
+    match /trialLessonGuards/{id} {
       allow read, write: if false;
     }
 

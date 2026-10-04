@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
-import { getCheckoutSessionLessonId } from '@/services/stripe.service'
+import { getCheckoutSessionResult } from '@/services/stripe.service'
 import { dashboardPathForRole } from '@/lib/utils'
 
 const POLL_INTERVAL_MS = 1500
@@ -23,6 +23,7 @@ export function PaymentSuccessClient() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')
   const [lessonId, setLessonId] = useState<string | null>(null)
+  const [packageId, setPackageId] = useState<string | null>(null)
   const [timedOut, setTimedOut] = useState(false)
   const attemptsRef = useRef(0)
 
@@ -31,10 +32,14 @@ export function PaymentSuccessClient() {
     let cancelled = false
 
     async function poll() {
-      const id = await getCheckoutSessionLessonId(sessionId!)
+      const result = await getCheckoutSessionResult(sessionId!)
       if (cancelled) return
-      if (id) {
-        setLessonId(id)
+      if (result?.type === 'lesson') {
+        setLessonId(result.lessonId)
+        return
+      }
+      if (result?.type === 'lesson_package') {
+        setPackageId(result.packageId)
         return
       }
       attemptsRef.current += 1
@@ -64,6 +69,21 @@ export function PaymentSuccessClient() {
         <CheckCircle2 className="mx-auto h-10 w-10 text-success-on-surface" aria-hidden="true" />
         <h1 className="mt-3 text-lg font-semibold text-foreground">Płatność przyjęta — rezerwacja utworzona!</h1>
         <p className="mt-1 text-sm text-muted-foreground">Lekcja pojawi się w panelu, gdy nauczyciel potwierdzi termin.</p>
+        <div className="mt-6 flex justify-center">
+          <Button onClick={() => router.push(dashboardPathForRole(user?.role))} className="font-semibold">
+            Przejdź do panelu
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (packageId) {
+    return (
+      <div className="animate-fade-in-up rounded-2xl border border-success/30 bg-success-surface p-8 text-center">
+        <CheckCircle2 className="mx-auto h-10 w-10 text-success-on-surface" aria-hidden="true" />
+        <h1 className="mt-3 text-lg font-semibold text-foreground">Płatność przyjęta — pakiet aktywny!</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Możesz teraz rezerwować lekcje z pakietu u wybranego nauczyciela.</p>
         <div className="mt-6 flex justify-center">
           <Button onClick={() => router.push(dashboardPathForRole(user?.role))} className="font-semibold">
             Przejdź do panelu

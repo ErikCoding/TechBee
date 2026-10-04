@@ -3,6 +3,7 @@ import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { ensureLessonForCheckoutSession } from '@/lib/stripe-checkout-lessons'
+import { ensureLessonPackageForCheckoutSession } from '@/lib/stripe-lesson-packages.server'
 
 // ─────────────────────────────────────────────────────────────
 // Polled by app/payment/success while the webhook is still catching
@@ -19,15 +20,23 @@ export async function GET(request: Request) {
   const sessionId = new URL(request.url).searchParams.get('session_id')
   if (!sessionId) return NextResponse.json({ error: 'Brak session_id.' }, { status: 400 })
 
-  const snap = await adminDb!.collection(collections.lessons).where('stripeCheckoutSessionId', '==', sessionId).limit(1).get()
-  if (!snap.empty) return NextResponse.json({ lessonId: snap.docs[0].id })
+  const [lessonSnap, packageSnap] = await Promise.all([
+    adminDb!.collection(collections.lessons).where('stripeCheckoutSessionId', '==', sessionId).limit(1).get(),
+    adminDb!.collection(collections.lessonPackages).where('stripeCheckoutSessionId', '==', sessionId).limit(1).get(),
+  ])
+  if (!lessonSnap.empty) return NextResponse.json({ type: 'lesson', lessonId: lessonSnap.docs[0].id })
+  if (!packageSnap.empty) return NextResponse.json({ type: 'lesson_package', packageId: packageSnap.docs[0].id })
 
   if (!isStripeConfigured) return NextResponse.json({ lessonId: null })
 
   try {
     const session = await stripe!.checkout.sessions.retrieve(sessionId)
+    if (session.metadata?.paymentType === 'lesson_package') {
+      const packageId = await ensureLessonPackageForCheckoutSession(session)
+      return NextResponse.json({ type: packageId ? 'lesson_package' : null, packageId })
+    }
     const lessonId = await ensureLessonForCheckoutSession(session)
-    return NextResponse.json({ lessonId })
+    return NextResponse.json({ type: lessonId ? 'lesson' : null, lessonId })
   } catch (err) {
     console.error('[stripe/checkout/status] Failed to reconcile session:', err)
     return NextResponse.json({ lessonId: null })

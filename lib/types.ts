@@ -56,6 +56,10 @@ export type TeacherProfileSnapshot = {
   skills: string[]
   languages: string[]
   lessonDurations?: number[]
+  trialLessonEnabled?: boolean
+  trialLessonDuration?: number
+  trialLessonPriceGrosze?: number
+  lessonPackageSizes?: LessonPackageSize[]
   availability: string[]
   availabilityStart?: string
   availabilityEnd?: string
@@ -137,6 +141,10 @@ export type Teacher = {
   education: { degree: string; institution: string; year: number }[]
   reviews: ReviewItem[]
   lessonDurations?: number[]
+  trialLessonEnabled?: boolean
+  trialLessonDuration?: number
+  trialLessonPriceGrosze?: number
+  lessonPackageSizes?: LessonPackageSize[]
   availability: string[]
   /** Daily working-hours window (e.g. "09:00"–"17:00") the booking calendar generates real time slots from. Optional so legacy demo teachers without it fall back to a default range. */
   availabilityStart?: string
@@ -179,6 +187,10 @@ export type TeacherApplicationInput = {
   skills: string[]
   languages: string[]
   lessonDurations: number[]
+  trialLessonEnabled?: boolean
+  trialLessonDuration?: number
+  trialLessonPriceGrosze?: number
+  lessonPackageSizes?: LessonPackageSize[]
   availability: string[]
   availabilityStart: string
   availabilityEnd: string
@@ -228,6 +240,9 @@ export type SupportMessage = {
  * or approved a cancel request — held funds are refunded).
  */
 export type LessonStatus = 'pending' | 'upcoming' | 'completed' | 'cancelled'
+
+export type LessonKind = 'regular' | 'trial'
+export type LessonPackageSize = 5 | 10
 
 /** A student- or teacher-initiated request to cancel or reschedule an already-confirmed lesson — sits on the lesson until the *other* party accepts/rejects it via a real notification. */
 export type LessonChangeRequest = {
@@ -282,6 +297,12 @@ export type Lesson = {
   /** Epoch ms for the scheduled local start time. New lessons set it explicitly so countdowns do not depend on display text. */
   scheduledStartAt?: number
   duration: number
+  /** Missing/undefined on legacy lessons means a regular paid lesson. */
+  lessonKind?: LessonKind
+  paymentSource?: 'stripe_checkout' | 'package'
+  packageId?: string
+  packageCreditState?: 'reserved' | 'used' | 'returned'
+  recurringSeriesId?: string
   status: LessonStatus
   price: number
   topic: string
@@ -379,6 +400,41 @@ export type PayoutRecord = {
   createdAt: number
   payoutAttemptId?: string
   failureMessage?: string
+}
+
+export type LessonPackageStatus = 'active' | 'exhausted' | 'cancelled' | 'refunded'
+
+export type LessonPackage = {
+  id: string
+  teacherId: string
+  teacherName: string
+  teacherInitials: string
+  teacherColor: string
+  teacherPhotoUrl?: string
+  studentId: string
+  studentName: string
+  payerId: string
+  payerRole: 'student' | 'parent'
+  packageSize: 5 | 10
+  remainingCredits: number
+  reservedCredits: number
+  usedCredits: number
+  subjectKey: string
+  subjectCategoryId?: string
+  specialty: string
+  duration: number
+  totalPriceGrosze: number
+  perLessonGrossGrosze: number
+  platformFeePerLessonGrosze: number
+  teacherAmountPerLessonGrosze: number
+  effectiveCommissionPercent: number
+  commissionSource: CommissionSource
+  stripeCheckoutSessionId: string
+  stripePaymentIntentId?: string
+  livemode: boolean
+  status: LessonPackageStatus
+  createdAt: number
+  updatedAt?: number
 }
 
 /** The teacher wallet card's numbers — `availableGrosze`/`pendingGrosze` are read live from Stripe's own balance for the teacher's connected account (cache-for-UI only, see app/api/stripe/wallet/route.ts); the rest are computed from the teacher's own lesson docs, same as today's earnings chart. */
@@ -722,6 +778,7 @@ export type LessonBookingInput = {
   time: string
   scheduledStartAt?: number
   duration: number
+  lessonKind?: LessonKind
   price: number
   topic: string
   /** Who's actually paying — omit for a student booking themselves; pass the parent's identity when a linked parent books/pays on the student's behalf (see components/parent/book-for-student-button.tsx). */
