@@ -9,6 +9,7 @@ import { computePlatformFinance } from '@/lib/stripe-financial-metrics'
 import { classifyLessonFinanceEntry, classifyPackageFinanceEntry } from '@/lib/admin-finance-classification'
 import { readPlatformStripeCostFinancialEvents } from '@/lib/stripe-financial-events'
 import { syncMissingStripeFeesForReporting } from '@/lib/stripe-fee-sync.server'
+import { mergeAndSortPlatformWalletEntries } from '@/lib/admin-platform-wallet-history'
 import type { Lesson, LessonPackage, PlatformStripeCostBreakdownEntry, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
 
 async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextResponse> {
@@ -233,8 +234,10 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
       createdAt: event.createdAt ?? 0,
     }))
 
-  const entries = [...lessonEntries, ...packageEntries, ...refundEntries]
-    .sort((a, b) => b.createdAt - a.createdAt)
+  const entries = mergeAndSortPlatformWalletEntries(
+    [...lessonEntries, ...packageEntries, ...refundEntries],
+    stripeCostBreakdown,
+  )
 
   return { summary, entries: entries.slice(0, 12) }
 }

@@ -573,10 +573,15 @@ export type PlatformStripeCostBreakdownEntry = {
 
 export type PlatformWalletEntry = {
   id: string
-  transactionType: 'single_lesson' | 'trial_lesson' | 'package_purchase' | 'package_lesson' | 'refund'
+  transactionType: 'single_lesson' | 'trial_lesson' | 'package_purchase' | 'package_lesson' | 'refund' | 'stripe_connect_fee'
   lessonId?: string
   packageId?: string
   stripeRefundId?: string
+  stripeBalanceTransactionId?: string
+  stripeType?: string
+  stripeDescription?: string
+  stripeSource?: string
+  stripeCostFinanceCategory?: PlatformStripeCostBreakdownEntry['financeCategory']
   packageSize?: LessonPackageSize
   usedCredits?: number
   reservedCredits?: number
@@ -594,9 +599,9 @@ export type PlatformWalletEntry = {
   stripeFeeGrosze?: number
   netPlatformRevenueGrosze?: number
   teacherAmountGrosze: number
-  status: Lesson['paymentStatus'] | LessonPackageStatus
-  settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded'
-  transferStatus: 'pending' | 'ready' | 'sent' | 'refunded'
+  status: Lesson['paymentStatus'] | LessonPackageStatus | 'posted'
+  settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded' | 'stripe_cost'
+  transferStatus: 'pending' | 'ready' | 'sent' | 'refunded' | 'not_applicable'
   createdAt: number
 }
 

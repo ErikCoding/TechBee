@@ -30,3 +30,11 @@ test('admin finance UI labels per-row net as transaction net, not full Runbee ne
   assert.equal(source.includes('Runbee netto'), false)
   assert.equal(source.includes('Zarobek netto Runbee'), false)
 })
+
+test('global Stripe/Connect details moved out of the green summary tile and into payment history', () => {
+  const source = readFileSync(new URL('../components/admin/admin-platform-wallet.tsx', import.meta.url), 'utf8')
+
+  assert.equal(source.includes('Ostatnie płatności i koszty'), true)
+  assert.equal(source.includes('Globalne koszty Stripe/Connect'), false)
+  assert.equal(source.includes("entry.transactionType === 'stripe_connect_fee'"), true)
+})
