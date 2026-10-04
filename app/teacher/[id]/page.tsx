@@ -13,6 +13,7 @@ import { StarRating } from '@/components/shared/star-rating'
 import { BookLessonActions } from '@/components/teacher/book-lesson-actions'
 import { getCategories } from '@/services/categories.service'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
+import { getTeacherPublicStats } from '@/services/teacher-public-stats.service'
 import { formatLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { normalizeTeachingLevels, teachingLevelLabel } from '@/lib/teaching-levels'
@@ -68,6 +69,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
   const { bookingForId, bookingForName } = await searchParams
   const [teacher, categories] = await Promise.all([getTeacherById(id), getCategories()])
   if (!teacher || !isTeacherApproved(teacher)) notFound()
+  const teacherStats = await getTeacherPublicStats(teacher.id)
   const bookingFor = bookingForId && bookingForName ? { id: bookingForId, name: bookingForName } : undefined
   const categoryMap = new Map(categories.map((category) => [category.id, category.name]))
   const teacherCategories = [
@@ -78,7 +80,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
   const profileUrl = absoluteUrl(`/teacher/${teacher.id}`)
   const teacherDescription = teacher.shortBio || teacher.bio
   const teacherImage = localImageUrl(teacher.photoUrl)
-  const completionRateLabel = teacher.lessons > 0 ? `${teacher.completionRate}%` : 'Brak danych'
+  const completionRateLabel = teacherStats.lessons > 0 ? `${teacher.completionRate}%` : 'Brak danych'
   const knowsAbout = [...new Set([teacher.specialty, ...teacherCategories, ...teacher.skills].filter(Boolean))]
   const structuredData = {
     '@context': 'https://schema.org',
@@ -230,8 +232,8 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
             {/* Stats row */}
             <div className="mt-6 grid grid-cols-2 divide-x divide-border border-y border-border sm:grid-cols-4">
               {[
-                { icon: Users, value: teacher.students, label: 'Uczniowie' },
-                { icon: BookOpen, value: teacher.lessons.toLocaleString('pl-PL'), label: 'Lekcje' },
+                { icon: Users, value: teacherStats.students.toLocaleString('pl-PL'), label: 'Uczniowie' },
+                { icon: BookOpen, value: teacherStats.lessons.toLocaleString('pl-PL'), label: 'Lekcje' },
                 { icon: CalendarDays, value: `${teacher.experience} lat`, label: 'Doświadczenie' },
                 { icon: Star, value: completionRateLabel, label: 'Ukończenie' },
               ].map(({ icon: Icon, value, label }, i) => (

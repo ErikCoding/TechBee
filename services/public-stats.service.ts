@@ -6,6 +6,7 @@ import { getTeachers } from '@/services/teachers.service'
 import type { Lesson, Teacher } from '@/lib/types'
 
 export type PublicPlatformStats = {
+  teachers: number
   approvedTeachers: number
   verifiedTeachers: number
   activeStudents: number
@@ -36,6 +37,7 @@ export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
   if (!adminDb) {
     const teachers = await getTeachers()
     return {
+      teachers: teachers.length,
       approvedTeachers: teachers.length,
       verifiedTeachers: teachers.filter((t) => t.verified).length,
       activeStudents: 0,
@@ -57,6 +59,7 @@ export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
   const lessons = lessonsSnap.docs.map((d) => d.data() as Lesson)
 
   return {
+    teachers: teachers.length,
     approvedTeachers: teachers.length,
     verifiedTeachers: teachers.filter((t) => t.verified).length,
     activeStudents: usersSnap.size,

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, BadgeCheck, CalendarDays, CreditCard, Star, Video } from 'lucide-react'
+import { ArrowRight, BadgeCheck, BookOpen, CalendarDays, CreditCard, Star, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HeroSearch } from '@/components/landing/hero-search'
 import { getCategories } from '@/services/categories.service'
@@ -20,14 +20,15 @@ export async function HeroSection() {
   const [categories, stats] = await Promise.all([getCategories(), getPublicPlatformStats()])
   const publicCategories = categories.filter((category) => category.teacherCount > 0)
   const heroStats = [
-    { icon: BadgeCheck, label: 'Nauczyciele', value: String(stats.verifiedTeachers) },
-    ...(stats.ratingReviewCount >= 5
-      ? [{ icon: Star, label: 'Średnia ocena', value: stats.avgRating.toFixed(1) }]
-      : []),
-  ]
-  const activityStats = [
-    ...(stats.bookedLessons > 0 ? [{ label: 'Zarezerwowane', value: String(stats.bookedLessons) }] : []),
-    ...(stats.liveLessonsNow > 0 ? [{ label: 'Teraz na lekcji', value: String(stats.liveLessonsNow) }] : []),
+    { icon: BadgeCheck, label: 'Nauczyciele', value: String(stats.teachers) },
+    { icon: CalendarDays, label: 'Zarezerwowane', value: String(stats.bookedLessons) },
+    { icon: BookOpen, label: 'Odbyte lekcje', value: String(stats.completedLessons) },
+    {
+      icon: Star,
+      label: 'Średnia ocena',
+      value: stats.ratingReviewCount >= 5 ? stats.avgRating.toFixed(1) : 'Zbieramy opinie',
+      compact: stats.ratingReviewCount < 5,
+    },
   ]
   const trustSignals = [
     { icon: BadgeCheck, label: 'Zweryfikowani praktycy' },
@@ -152,22 +153,13 @@ export async function HeroSection() {
                       <Icon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                       {stat.label}
                     </dt>
-                    <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stat.value}</dd>
+                    <dd className={`mt-2 font-bold tabular-nums text-foreground ${stat.compact ? 'text-base leading-tight' : 'text-2xl'}`}>
+                      {stat.value}
+                    </dd>
                   </div>
                 )
               })}
             </dl>
-
-            {activityStats.length > 0 && (
-              <dl className="mt-3 grid grid-cols-2 gap-3">
-                {activityStats.map((stat) => (
-                  <div key={stat.label} className="rounded-lg border border-border bg-card/80 p-3">
-                    <dt className="text-xs text-muted-foreground">{stat.label}</dt>
-                    <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stat.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
 
             <div className="mt-4 rounded-lg border border-primary/25 bg-primary/10 p-3">
               <div className="flex items-start gap-3">
