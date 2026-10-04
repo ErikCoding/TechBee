@@ -16,6 +16,7 @@ import { CheckCircle2, Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Se
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDurationClock, LESSON_END_WARNING_MINUTES } from '@/lib/lesson-time'
+import type { LiveKitDisconnectSource } from '@/lib/livekit-diagnostics'
 import { cn, formatChatTime } from '@/lib/utils'
 
 interface Props {
@@ -27,6 +28,9 @@ interface Props {
   autoEndAtMs?: number
   onLeave: () => void
   onEndLesson: () => void
+  onDisconnectIntent?: (source: LiveKitDisconnectSource) => void
+  onConnectionStateChange?: (connectionState: string) => void
+  onMediaDeviceError?: (event: { deviceKind: MediaDeviceKind; error: Error }) => void
 }
 
 function initialsOf(name: string | undefined): string {
@@ -45,7 +49,18 @@ function formatElapsed(totalSeconds: number): string {
  * used below (useLocalParticipant, useTracks, useChat, ...) work: they
  * all read from the room context that component provides.
  */
-export function LessonRoomStage({ lessonId, topic, waitingForLabel, scheduledEndAtMs, autoEndAtMs, onLeave, onEndLesson }: Props) {
+export function LessonRoomStage({
+  lessonId,
+  topic,
+  waitingForLabel,
+  scheduledEndAtMs,
+  autoEndAtMs,
+  onLeave,
+  onEndLesson,
+  onDisconnectIntent,
+  onConnectionStateChange,
+  onMediaDeviceError,
+}: Props) {
   const room = useRoomContext()
   const connectionState = useConnectionState(room)
   const {
@@ -65,6 +80,8 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, scheduledEnd
   const [elapsed, setElapsed] = useState(0)
   const [now, setNow] = useState(Date.now())
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const reportedCameraErrorRef = useRef<string | null>(null)
+  const reportedMicrophoneErrorRef = useRef<string | null>(null)
 
   const isConnected = connectionState === ConnectionState.Connected
   const remoteParticipants = participants.filter((p) => p.identity !== localParticipant.identity)
@@ -82,10 +99,31 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, scheduledEnd
   }, [isConnected])
 
   useEffect(() => {
+    onConnectionStateChange?.(String(connectionState))
+  }, [connectionState, onConnectionStateChange])
+
+  useEffect(() => {
+    if (!lastCameraError) return
+    const signature = `${lastCameraError.name}:${lastCameraError.message}`
+    if (reportedCameraErrorRef.current === signature) return
+    reportedCameraErrorRef.current = signature
+    onMediaDeviceError?.({ deviceKind: 'videoinput', error: lastCameraError })
+  }, [lastCameraError, onMediaDeviceError])
+
+  useEffect(() => {
+    if (!lastMicrophoneError) return
+    const signature = `${lastMicrophoneError.name}:${lastMicrophoneError.message}`
+    if (reportedMicrophoneErrorRef.current === signature) return
+    reportedMicrophoneErrorRef.current = signature
+    onMediaDeviceError?.({ deviceKind: 'audioinput', error: lastMicrophoneError })
+  }, [lastMicrophoneError, onMediaDeviceError])
+
+  useEffect(() => {
     if (!autoEndAtMs || now < autoEndAtMs) return
+    onDisconnectIntent?.('autoEnd')
     room.disconnect()
     onEndLesson()
-  }, [autoEndAtMs, now, onEndLesson, room])
+  }, [autoEndAtMs, now, onDisconnectIntent, onEndLesson, room])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -116,12 +154,14 @@ export function LessonRoomStage({ lessonId, topic, waitingForLabel, scheduledEnd
   }
 
   function handleLeave() {
+    onDisconnectIntent?.('leave')
     room.disconnect()
     onLeave()
   }
 
   function handleEndLesson() {
     if (!window.confirm('Zakończyć lekcję na stałe? Po tym kroku wróci ona do panelu jako zakończona i nauczyciel będzie mógł wysłać raport.')) return
+    onDisconnectIntent?.('end')
     room.disconnect()
     onEndLesson()
   }

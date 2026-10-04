@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LiveKitRoom } from '@livekit/components-react'
+import type { DisconnectReason, MediaDeviceFailure } from 'livekit-client'
 import { PhoneCall, PhoneOff, Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
@@ -10,6 +11,7 @@ import { completeLesson, getLessonById } from '@/services/lessons.service'
 import { requestLiveKitToken } from '@/services/livekit.service'
 import { isLiveKitConfigured } from '@/lib/livekit-config'
 import { canJoinLesson, formatDurationClock, lessonAutoEndAtMs, lessonEndAtMs } from '@/lib/lesson-time'
+import { postLiveKitDiagnosticEvent, type LiveKitDisconnectSource } from '@/lib/livekit-diagnostics'
 import { dashboardPathForRole } from '@/lib/utils'
 import { LessonRoomStage } from '@/components/lesson/lesson-room-stage'
 import type { Lesson } from '@/lib/types'
@@ -26,6 +28,11 @@ function allowEarlyJoinForTesting(): boolean {
   if (process.env.NEXT_PUBLIC_ALLOW_EARLY_LESSON_JOIN === 'true') return true
   if (typeof window === 'undefined') return false
   return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+}
+
+function createClientSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 /**
@@ -46,6 +53,23 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
   const [now, setNow] = useState(Date.now())
   const endedRef = useRef(false)
   const intentionalDisconnectRef = useRef(false)
+  const clientSessionIdRef = useRef(createClientSessionId())
+  const lastDisconnectSourceRef = useRef<LiveKitDisconnectSource | undefined>(undefined)
+
+  const reportDiagnostic = useCallback((
+    event: Parameters<typeof postLiveKitDiagnosticEvent>[0]['event'],
+    details: Partial<Parameters<typeof postLiveKitDiagnosticEvent>[0]> = {},
+  ) => {
+    postLiveKitDiagnosticEvent({
+      clientSessionId: clientSessionIdRef.current,
+      lessonId,
+      uid: user?.id,
+      role: user?.role,
+      event,
+      timestamp: new Date().toISOString(),
+      ...details,
+    })
+  }, [lessonId, user?.id, user?.role])
 
   useEffect(() => {
     if (!user) return
@@ -92,6 +116,25 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
   }, [])
 
   useEffect(() => {
+    const reportPageLifecycle = (source: LiveKitDisconnectSource) => {
+      lastDisconnectSourceRef.current = source
+      reportDiagnostic('page_lifecycle', { disconnectSource: source })
+    }
+    const handlePageHide = () => reportPageLifecycle('pagehide')
+    const handleBeforeUnload = () => reportPageLifecycle('beforeunload')
+    const handleFreeze = () => reportPageLifecycle('freeze')
+
+    window.addEventListener('pagehide', handlePageHide)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('freeze', handleFreeze)
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('freeze', handleFreeze)
+    }
+  }, [reportDiagnostic])
+
+  useEffect(() => {
     if (state !== 'blocked' || !lesson || !user) return
     const joinState = canJoinLesson(lesson, now, { allowEarlyJoin: allowEarlyJoinForTesting() })
     if (!joinState.canJoin) return
@@ -112,7 +155,29 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
     setConnection(null)
   }
 
-  function handleDisconnected() {
+  const handleDisconnectIntent = useCallback((source: LiveKitDisconnectSource) => {
+    lastDisconnectSourceRef.current = source
+    reportDiagnostic('disconnect_intent', { disconnectSource: source })
+  }, [reportDiagnostic])
+
+  const handleConnectionStateDiagnostic = useCallback((connectionState: string) => {
+    reportDiagnostic('connection_state_changed', { connectionState })
+  }, [reportDiagnostic])
+
+  const handleStageMediaDeviceError = useCallback(({ deviceKind, error }: { deviceKind: MediaDeviceKind; error: Error }) => {
+    reportDiagnostic('media_device_error', {
+      deviceKind,
+      errorName: error.name,
+      errorMessage: error.message,
+    })
+  }, [reportDiagnostic])
+
+  function handleDisconnected(reason?: DisconnectReason) {
+    reportDiagnostic('disconnected', {
+      disconnectReason: reason === undefined ? undefined : String(reason),
+      disconnectSource: lastDisconnectSourceRef.current,
+    })
+    lastDisconnectSourceRef.current = undefined
     setConnection(null)
     if (endedRef.current) return
     if (intentionalDisconnectRef.current) {
@@ -120,6 +185,22 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
       return
     }
     setState('disconnected')
+  }
+
+  function handleLiveKitError(err: Error) {
+    reportDiagnostic('livekit_room_error', {
+      errorName: err.name,
+      errorMessage: err.message,
+    })
+    setError(err.message)
+    setState('error')
+  }
+
+  function handleMediaDeviceFailure(failure?: MediaDeviceFailure, kind?: MediaDeviceKind) {
+    reportDiagnostic('media_device_failure', {
+      deviceKind: kind,
+      mediaDeviceFailure: failure === undefined ? undefined : String(failure),
+    })
   }
 
   function reconnect() {
@@ -224,10 +305,8 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
       audio
       video
       onDisconnected={handleDisconnected}
-      onError={(err) => {
-        setError(err.message)
-        setState('error')
-      }}
+      onError={handleLiveKitError}
+      onMediaDeviceFailure={handleMediaDeviceFailure}
     >
       <LessonRoomStage
         lessonId={lessonId}
@@ -237,6 +316,9 @@ export function LessonRoomClient({ lessonId, topic, participantName }: Props) {
         autoEndAtMs={lesson ? lessonAutoEndAtMs(lesson) ?? undefined : undefined}
         onLeave={leaveCallTemporarily}
         onEndLesson={endLessonPermanently}
+        onDisconnectIntent={handleDisconnectIntent}
+        onConnectionStateChange={handleConnectionStateDiagnostic}
+        onMediaDeviceError={handleStageMediaDeviceError}
       />
     </LiveKitRoom>
   )
