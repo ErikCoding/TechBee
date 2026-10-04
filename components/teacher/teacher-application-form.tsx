@@ -14,7 +14,9 @@ import { timeToMinutes } from '@/lib/lesson-time'
 import { getCategories } from '@/services/categories.service'
 import { getTeacherApplication, submitTeacherApplication } from '@/services/teachers.service'
 import { toParticipant } from '@/services/chat.service'
+import { normalizeTeacherApplicationCategoryIds } from '@/lib/teacher-application-categories'
 import { normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
+import { normalizeTeachingLevels, teachingLevels } from '@/lib/teaching-levels'
 import type { AvailabilityHours, Category, Teacher, WeekdayCode } from '@/lib/types'
 
 const WEEKDAYS = [
@@ -32,23 +34,8 @@ const DEFAULT_AVAILABILITY_END = '17:00'
 
 const VISIBLE_CATEGORY_LIMIT = 9
 
-function normalizeSelectedCategoryIds(cats: Category[], primaryId: string, ids?: string[]) {
-  const availableIds = new Set(cats.map((cat) => cat.id))
-  return [...new Set([...(ids ?? []), primaryId].filter((id) => availableIds.has(id)))]
-}
-
-function inferCategoryIdsFromText(cats: Category[], values: string[]) {
-  const text = values.join(' ').toLowerCase()
-  return cats
-    .filter((cat) => text.includes(cat.name.toLowerCase()))
-    .map((cat) => cat.id)
-}
-
-function inferCategoryIdsFromProfile(cats: Category[], app: Teacher) {
-  const explicit = normalizeSelectedCategoryIds(cats, app.categoryId, app.categoryIds)
-  if (app.categoryIds?.length) return explicit
-  const inferred = inferCategoryIdsFromText(cats, [app.specialty, app.shortBio, app.bio, ...app.skills])
-  return normalizeSelectedCategoryIds(cats, app.categoryId, [...explicit, ...inferred])
+function categoryIdsFromProfile(cats: Category[], app: Teacher) {
+  return normalizeTeacherApplicationCategoryIds(cats, app.categoryId, app.categoryIds)
 }
 
 function assertValidHours(start: string, end: string, label: string) {
@@ -105,6 +92,7 @@ export function TeacherApplicationForm() {
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [categoriesExpanded, setCategoriesExpanded] = useState(false)
   const [customSubjects, setCustomSubjects] = useState('')
+  const [selectedTeachingLevels, setSelectedTeachingLevels] = useState<string[]>([])
   const [specialty, setSpecialty] = useState('')
   const [hourlyRate, setHourlyRate] = useState('150')
   const [location, setLocation] = useState('')
@@ -134,13 +122,14 @@ export function TeacherApplicationForm() {
       if (app) {
         setExisting(app)
         setPhotoUrl(app.photoUrl ?? user.photoUrl ?? '')
-        const selectedCategoryIds = inferCategoryIdsFromProfile(cats, app)
+        const selectedCategoryIds = categoryIdsFromProfile(cats, app)
         const primaryCategoryId = selectedCategoryIds.includes(app.categoryId)
           ? app.categoryId
           : selectedCategoryIds[0] ?? cats[0]?.id ?? ''
         setCategoryIds(selectedCategoryIds.length ? selectedCategoryIds : (cats[0] ? [cats[0].id] : []))
         setCategoryId(primaryCategoryId)
         setCustomSubjects(normalizeTeacherCustomSubjects(app.customSubjects).join(', '))
+        setSelectedTeachingLevels(normalizeTeachingLevels(app.teachingLevels))
         setSpecialty(app.specialty)
         setHourlyRate(String(app.hourlyRate))
         setLocation(app.location)
@@ -202,6 +191,12 @@ export function TeacherApplicationForm() {
     })
   }
 
+  function toggleTeachingLevel(id: string) {
+    setSelectedTeachingLevels((prev) => (
+      prev.includes(id) ? prev.filter((level) => level !== id) : [...prev, id]
+    ))
+  }
+
   async function savePublicProfile(nextPhotoUrl = photoUrl) {
     if (!user) throw new Error('Musisz być zalogowany, aby zapisać profil.')
     const name = displayName.trim()
@@ -236,9 +231,9 @@ export function TeacherApplicationForm() {
       const profileUser = identityChanged
         ? await savePublicProfile()
         : user
-      const inferredCategoryIds = inferCategoryIdsFromText(categories, [specialty, shortBio, bio, skills])
-      const selectedCategoryIds = normalizeSelectedCategoryIds(categories, categoryId, [...categoryIds, ...inferredCategoryIds])
+      const selectedCategoryIds = normalizeTeacherApplicationCategoryIds(categories, categoryId, categoryIds)
       const selectedCustomSubjects = normalizeTeacherCustomSubjects(customSubjects.split(','))
+      const normalizedTeachingLevels = normalizeTeachingLevels(selectedTeachingLevels)
       if (!selectedCategoryIds.length) throw new Error('Wybierz przynajmniej jedną dziedzinę nauczania.')
       assertValidHours(availabilityStart, availabilityEnd, 'Globalna dostępność')
       const selectedAvailabilityHours = customAvailabilityHours
@@ -256,6 +251,7 @@ export function TeacherApplicationForm() {
         categoryId: selectedCategoryIds.includes(categoryId) ? categoryId : selectedCategoryIds[0],
         categoryIds: selectedCategoryIds,
         customSubjects: selectedCustomSubjects,
+        teachingLevels: normalizedTeachingLevels,
         specialty: specialty.trim(),
         hourlyRate: Number(hourlyRate) || 0,
         location: location.trim(),
@@ -393,7 +389,6 @@ export function TeacherApplicationForm() {
               <p className="text-xs font-medium text-foreground">Dziedziny nauczania</p>
               <p className="text-xs text-muted-foreground">
                 Zaznacz wszystkie dziedziny, pod którymi profil ma pojawiać się w filtrach giełdy.
-                Jeśli nazwa dziedziny pojawi się w opisie lub umiejętnościach, system dopisze ją przy wysyłce.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -433,16 +428,46 @@ export function TeacherApplicationForm() {
           </div>
 
           <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label htmlFor="customSubjects" className="text-xs font-medium text-foreground">Inne dziedziny</label>
+            <label htmlFor="customSubjects" className="text-xs font-medium text-foreground">Dodatkowe tematy</label>
             <Input
               id="customSubjects"
               value={customSubjects}
               onChange={(e) => setCustomSubjects(e.target.value)}
-              placeholder="np. Podstawy programowania, Statystyka, Egzamin ósmoklasisty"
+              placeholder="np. Podstawy programowania, Statystyka, analiza arkuszy maturalnych"
             />
             <p className="text-xs text-muted-foreground">
               Wpisz po przecinku tylko te tematy, których nie ma na liście powyżej. Będą widoczne na profilu i przy rezerwacji.
             </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:col-span-2">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-foreground">Poziomy nauczania</p>
+              <p className="text-xs text-muted-foreground">
+                Zaznacz poziomy, na których prowadzisz zajęcia.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {teachingLevels.map((level) => {
+                const active = selectedTeachingLevels.includes(level.id)
+                return (
+                  <button
+                    key={level.id}
+                    type="button"
+                    onClick={() => toggleTeachingLevel(level.id)}
+                    aria-pressed={active}
+                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                      active
+                        ? 'border-primary bg-accent font-semibold text-accent-foreground'
+                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <span>{level.label}</span>
+                    {active && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -461,7 +486,10 @@ export function TeacherApplicationForm() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="specialty" className="text-xs font-medium text-foreground">Specjalizacja</label>
-            <Input id="specialty" required value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="np. Programowanie PLC — Siemens TIA Portal" />
+            <Input id="specialty" required value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="np. Matematyka maturalna, konwersacje po angielsku, programowanie PLC" />
+            <p className="text-xs text-muted-foreground">
+              Krótko opisz, w czym się specjalizujesz. Ta informacja będzie widoczna przy Twoim profilu.
+            </p>
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="location" className="text-xs font-medium text-foreground">Lokalizacja</label>

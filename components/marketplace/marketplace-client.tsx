@@ -11,6 +11,7 @@ import { MarketplaceFilterPanel } from '@/components/marketplace/marketplace-fil
 import { subscribeTeachers } from '@/services/teachers.service'
 import { teacherMatchesCategory } from '@/lib/teacher-categories'
 import { getSubjectPagesWithTeacherCount } from '@/lib/subject-pages'
+import { teachingLevelLabel } from '@/lib/teaching-levels'
 import {
   applyFilters, sortTeachers, countActiveFilters, deriveFacets, filtersToParams,
   EMPTY_FILTERS, SORT_OPTIONS, WEEKDAYS,
@@ -91,10 +92,14 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
 
   const activeCount = countActiveFilters(filters)
   const activeCategory = categories.find((c) => c.id === filters.category)
+  const activeTeachingLevelLabel = filters.teachingLevel ? teachingLevelLabel(filters.teachingLevel) : null
 
   /** One removable chip per narrowing filter — lets a student undo the specific thing that emptied the list. */
   const chips: { key: string; label: string; clear: () => void }[] = [
     ...(activeCategory ? [{ key: 'cat', label: activeCategory.name, clear: () => update({ category: null }) }] : []),
+    ...(activeTeachingLevelLabel
+      ? [{ key: 'level', label: activeTeachingLevelLabel, clear: () => update({ teachingLevel: null }) }]
+      : []),
     ...(filters.maxPrice !== null
       ? [{ key: 'price', label: `do ${filters.maxPrice} zł/godz.`, clear: () => update({ maxPrice: null }) }]
       : []),

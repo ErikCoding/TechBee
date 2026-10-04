@@ -3,6 +3,7 @@ import { teachersData } from '@/data/teachers.data'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { normalizeLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects, teacherMatchesCategory } from '@/lib/teacher-categories'
+import { normalizeTeachingLevels } from '@/lib/teaching-levels'
 import { teacherIsPublicMarketplaceVisible } from '@/lib/teacher-visibility'
 import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapshot } from '@/lib/types'
 
@@ -160,6 +161,7 @@ function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
     categoryId: teacher.categoryId,
     categoryIds: getTeacherCategoryIds(teacher),
     customSubjects: normalizeTeacherCustomSubjects(teacher.customSubjects),
+    teachingLevels: normalizeTeachingLevels(teacher.teachingLevels),
     hourlyRate: teacher.hourlyRate,
     location: teacher.location,
     experience: teacher.experience,
@@ -224,6 +226,7 @@ function buildTeacherFromApplication(
     ? input.categoryId
     : selectedCategoryIds[0] ?? input.categoryId
   const customSubjects = normalizeTeacherCustomSubjects(input.customSubjects)
+  const teachingLevels = normalizeTeachingLevels(input.teachingLevels)
 
   return {
     id: authUser.id,
@@ -235,6 +238,7 @@ function buildTeacherFromApplication(
     categoryId: primaryCategoryId,
     categoryIds: selectedCategoryIds,
     customSubjects,
+    teachingLevels,
     rating: existing?.rating ?? 0,
     reviewCount: existing?.reviewCount ?? 0,
     hourlyRate: input.hourlyRate,

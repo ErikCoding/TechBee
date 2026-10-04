@@ -61,6 +61,7 @@ export const collections = {
   reviews: 'reviews',
   linkCodes: 'linkCodes',
   payouts: 'payouts',
+  teacherPayoutLocks: 'teacherPayoutLocks',
   platformSettings: 'platformSettings',
   foundingTeacherSlots: 'foundingTeacherSlots',
   foundingTeacherAudit: 'foundingTeacherAudit',

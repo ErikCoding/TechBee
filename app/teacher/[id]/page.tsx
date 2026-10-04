@@ -15,6 +15,7 @@ import { getCategories } from '@/services/categories.service'
 import { getAllTeacherIds, getTeacherById, isTeacherApproved } from '@/services/teachers.service'
 import { formatLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
+import { normalizeTeachingLevels, teachingLevelLabel } from '@/lib/teaching-levels'
 import { absoluteUrl, noIndexMetadata, pageMetadata } from '@/lib/seo'
 import type { WeekdayCode } from '@/lib/types'
 
@@ -49,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${teacher.name} — ${teacher.specialty}`,
     description: `${teacher.name} prowadzi indywidualne lekcje online: ${teacher.specialty}. Stawka ${teacher.hourlyRate} zł/godz., ocena ${teacher.rating.toFixed(1)} na podstawie ${teacher.reviewCount} opinii.`,
     path: `/teacher/${teacher.id}`,
-    image: teacher.photoUrl ?? '/icon.svg',
+    image: teacher.photoUrl ?? '/og-image.png',
   })
 }
 
@@ -73,9 +74,11 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
     ...getTeacherCategoryIds(teacher).map((categoryId) => categoryMap.get(categoryId) ?? categoryId),
     ...getTeacherCustomSubjects(teacher),
   ]
+  const teacherTeachingLevels = normalizeTeachingLevels(teacher.teachingLevels)
   const profileUrl = absoluteUrl(`/teacher/${teacher.id}`)
   const teacherDescription = teacher.shortBio || teacher.bio
   const teacherImage = localImageUrl(teacher.photoUrl)
+  const completionRateLabel = teacher.lessons > 0 ? `${teacher.completionRate}%` : 'Brak danych'
   const knowsAbout = [...new Set([teacher.specialty, ...teacherCategories, ...teacher.skills].filter(Boolean))]
   const structuredData = {
     '@context': 'https://schema.org',
@@ -189,6 +192,14 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                     ))}
                   </div>
                 )}
+                {teacherTeachingLevels.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Poziomy:</span>
+                    {teacherTeachingLevels.map((level) => (
+                      <Badge key={level} variant="outline">{teachingLevelLabel(level)}</Badge>
+                    ))}
+                  </div>
+                )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1.5">
@@ -222,7 +233,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                 { icon: Users, value: teacher.students, label: 'Uczniowie' },
                 { icon: BookOpen, value: teacher.lessons.toLocaleString('pl-PL'), label: 'Lekcje' },
                 { icon: CalendarDays, value: `${teacher.experience} lat`, label: 'Doświadczenie' },
-                { icon: Star, value: `${teacher.completionRate}%`, label: 'Ukończenie' },
+                { icon: Star, value: completionRateLabel, label: 'Ukończenie' },
               ].map(({ icon: Icon, value, label }, i) => (
                 <div key={label} className={`flex items-center gap-2.5 px-4 py-3.5 ${i >= 2 ? 'border-t sm:border-t-0' : ''}`}>
                   <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
@@ -353,7 +364,7 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
                   <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
                     <div className="flex items-center justify-between">
                       <span>Wskaźnik ukończenia</span>
-                      <span className="font-semibold text-foreground">{teacher.completionRate}%</span>
+                      <span className="font-semibold text-foreground">{completionRateLabel}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Czas odpowiedzi</span>

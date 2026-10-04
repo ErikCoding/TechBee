@@ -41,8 +41,7 @@ export async function TeachersPreviewSection() {
               Praktycy, nie wykładowcy
             </h2>
             <p className="mt-3 text-balance leading-relaxed text-muted-foreground">
-              Każdy profil przechodzi ręczną weryfikację doświadczenia zawodowego, zanim trafi
-              na giełdę.
+              Każde zgłoszenie sprawdzamy indywidualnie, zanim profil trafi na giełdę.
             </p>
           </div>
 

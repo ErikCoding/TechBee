@@ -13,6 +13,7 @@ export type PublicPlatformStats = {
   bookedLessons: number
   liveLessonsNow: number
   avgRating: number
+  ratingReviewCount: number
 }
 
 function isLiveNow(lesson: Pick<Lesson, 'scheduledStartAt' | 'duration' | 'status'>): boolean {
@@ -27,6 +28,10 @@ function avgRating(teachers: Teacher[]) {
   return Math.round((rated.reduce((sum, t) => sum + t.rating, 0) / rated.length) * 10) / 10
 }
 
+function ratingReviewCount(teachers: Teacher[]) {
+  return teachers.reduce((sum, teacher) => sum + (teacher.reviewCount ?? 0), 0)
+}
+
 export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
   if (!adminDb) {
     const teachers = await getTeachers()
@@ -38,6 +43,7 @@ export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
       bookedLessons: 0,
       liveLessonsNow: 0,
       avgRating: avgRating(teachers),
+      ratingReviewCount: ratingReviewCount(teachers),
     }
   }
 
@@ -58,5 +64,6 @@ export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
     bookedLessons: lessons.filter((l) => l.status === 'pending' || l.status === 'upcoming').length,
     liveLessonsNow: lessons.filter(isLiveNow).length,
     avgRating: avgRating(teachers),
+    ratingReviewCount: ratingReviewCount(teachers),
   }
 }

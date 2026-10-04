@@ -18,6 +18,17 @@ import { getPublicPlatformStats } from '@/services/public-stats.service'
  */
 export async function HeroSection() {
   const [categories, stats] = await Promise.all([getCategories(), getPublicPlatformStats()])
+  const publicCategories = categories.filter((category) => category.teacherCount > 0)
+  const heroStats = [
+    { icon: BadgeCheck, label: 'Nauczyciele', value: String(stats.verifiedTeachers) },
+    ...(stats.ratingReviewCount >= 5
+      ? [{ icon: Star, label: 'Średnia ocena', value: stats.avgRating.toFixed(1) }]
+      : []),
+  ]
+  const activityStats = [
+    ...(stats.bookedLessons > 0 ? [{ label: 'Zarezerwowane', value: String(stats.bookedLessons) }] : []),
+    ...(stats.liveLessonsNow > 0 ? [{ label: 'Teraz na lekcji', value: String(stats.liveLessonsNow) }] : []),
+  ]
   const trustSignals = [
     { icon: BadgeCheck, label: 'Zweryfikowani praktycy' },
     { icon: Video, label: 'Lekcje online' },
@@ -64,7 +75,7 @@ export async function HeroSection() {
           </p>
 
           <div className="animate-fade-in-up mt-9" style={{ animationDelay: '170ms' }}>
-            <HeroSearch categories={categories} compact />
+            <HeroSearch categories={publicCategories} compact />
           </div>
 
           <div
@@ -97,7 +108,7 @@ export async function HeroSection() {
           <div
             className="animate-fade-in-up mt-8 flex flex-wrap gap-2.5"
             style={{ animationDelay: '280ms' }}
-            aria-label={`${stats.verifiedTeachers} zweryfikowanych nauczycieli, ${categories.length} dziedzin nauki`}
+            aria-label={`${stats.verifiedTeachers} zweryfikowanych nauczycieli, ${publicCategories.length} aktywnych dziedzin nauki`}
           >
             {trustSignals.map((signal) => {
               const Icon = signal.icon
@@ -133,32 +144,30 @@ export async function HeroSection() {
             </div>
 
             <dl className="mt-6 grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border bg-card/80 p-3">
-                <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <BadgeCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                  Nauczyciele
-                </dt>
-                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.verifiedTeachers}</dd>
-              </div>
-              <div className="rounded-lg border border-border bg-card/80 p-3">
-                <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Star className="h-3.5 w-3.5 fill-primary stroke-none" aria-hidden="true" />
-                  Średnia ocena
-                </dt>
-                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.avgRating.toFixed(1)}</dd>
-              </div>
+              {heroStats.map((stat) => {
+                const Icon = stat.icon
+                return (
+                  <div key={stat.label} className="rounded-lg border border-border bg-card/80 p-3">
+                    <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Icon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                      {stat.label}
+                    </dt>
+                    <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stat.value}</dd>
+                  </div>
+                )
+              })}
             </dl>
 
-            <dl className="mt-3 grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border bg-card/80 p-3">
-                <dt className="text-xs text-muted-foreground">Zarezerwowane</dt>
-                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.bookedLessons}</dd>
-              </div>
-              <div className="rounded-lg border border-border bg-card/80 p-3">
-                <dt className="text-xs text-muted-foreground">Teraz na lekcji</dt>
-                <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stats.liveLessonsNow}</dd>
-              </div>
-            </dl>
+            {activityStats.length > 0 && (
+              <dl className="mt-3 grid grid-cols-2 gap-3">
+                {activityStats.map((stat) => (
+                  <div key={stat.label} className="rounded-lg border border-border bg-card/80 p-3">
+                    <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+                    <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">{stat.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
 
             <div className="mt-4 rounded-lg border border-primary/25 bg-primary/10 p-3">
               <div className="flex items-start gap-3">

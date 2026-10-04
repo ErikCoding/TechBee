@@ -25,6 +25,7 @@ interface MarketplacePageProps {
   searchParams: Promise<{
     q?: string
     category?: string
+    level?: string
     maxPrice?: string
     minRating?: string
     days?: string

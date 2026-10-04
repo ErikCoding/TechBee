@@ -43,7 +43,7 @@ function buildBenefits(commissionPercent: number) {
   },
   {
     icon: ShieldCheck,
-    title: 'Rozliczenia bez faktur',
+    title: 'Proste rozliczenia',
     description: `Płatności obsługuje Stripe. Środki trafiają na Twoje konto po potwierdzeniu raportu z lekcji. Standardowa prowizja Runbee wynosi ${commissionLabel}% od zrealizowanej lekcji.`,
   },
   {
@@ -60,7 +60,7 @@ const steps = [
   {
     icon: UserPlus,
     title: 'Załóż profil nauczyciela',
-    description: 'Doświadczenie, specjalizacja, umiejętności i certyfikaty. Profil przechodzi weryfikację.',
+    description: 'Doświadczenie, specjalizacja, umiejętności i sposób prowadzenia zajęć. Profil przechodzi weryfikację.',
   },
   {
     icon: CalendarCheck,
@@ -296,8 +296,8 @@ export default async function TeachPage() {
                 Cztery kroki do pierwszej lekcji
               </h2>
               <p className="mt-3 leading-relaxed text-muted-foreground">
-                Wymagamy co najmniej trzech lat praktycznego doświadczenia zawodowego
-                w Twojej specjalizacji.
+                Liczy się praktyczna wiedza i umiejętność jej przekazywania.
+                Każde zgłoszenie nauczyciela sprawdzamy indywidualnie przed publikacją profilu.
               </p>
             </Reveal>
 

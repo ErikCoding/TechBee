@@ -13,6 +13,7 @@ import { getTeacherWallet, requestTeacherPayout } from '@/services/stripe.servic
 import { getTeacherApplication } from '@/services/teachers.service'
 import { useAuth } from '@/lib/auth-context'
 import { fromGrosze } from '@/lib/stripe-config'
+import { TEACHER_MIN_PAYOUT_ERROR, TEACHER_MIN_PAYOUT_GROSZE, TEACHER_MIN_PAYOUT_LABEL } from '@/lib/teacher-payout-core'
 import type { PayoutRecord, TeacherStripeAccount, TeacherWalletSummary, WalletHistoryEntry } from '@/lib/types'
 
 const payoutStatusConfig: Record<PayoutRecord['status'], { label: string; tone: StatusTone }> = {
@@ -78,10 +79,19 @@ export function TeacherWalletClient() {
       setError('Podaj kwotę większą od zera.')
       return
     }
+    const amountGrosze = Math.round(value * 100)
+    if (amountGrosze < TEACHER_MIN_PAYOUT_GROSZE) {
+      setError(TEACHER_MIN_PAYOUT_ERROR)
+      return
+    }
+    if (amountGrosze > available) {
+      setError('Kwota przekracza dostępne saldo.')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
-      await requestTeacherPayout(Math.round(value * 100))
+      await requestTeacherPayout(amountGrosze)
       setModalOpen(false)
       setAmount('')
       await load()
@@ -112,6 +122,7 @@ export function TeacherWalletClient() {
   }
 
   const available = summary?.availableGrosze ?? 0
+  const canRequestPayout = available >= TEACHER_MIN_PAYOUT_GROSZE
 
   return (
     <>
@@ -128,10 +139,16 @@ export function TeacherWalletClient() {
             <p className="text-sm font-semibold text-primary-foreground/70">Dostępne środki</p>
             <p className="mt-1 break-words text-4xl font-bold tracking-tight text-primary-foreground sm:text-5xl">{pln(available)}</p>
             <p className="mt-1 text-sm text-primary-foreground/70">Oczekujące: {pln(summary?.pendingGrosze ?? 0)}</p>
+            <p className="mt-2 text-xs font-medium text-primary-foreground/75">Minimalna kwota wypłaty: {TEACHER_MIN_PAYOUT_LABEL}</p>
+            {!canRequestPayout && (
+              <p className="mt-1 max-w-sm text-xs text-primary-foreground/65">
+                Środki możesz wypłacić po osiągnięciu minimum {TEACHER_MIN_PAYOUT_LABEL}.
+              </p>
+            )}
           </div>
           <Button
             onClick={() => { setModalOpen(true); setAmount(''); setError(null) }}
-            disabled={available <= 0}
+            disabled={!canRequestPayout}
             className="w-fit bg-primary-foreground text-primary hover:bg-primary-foreground/90 font-semibold transition-transform hover:-translate-y-0.5 disabled:opacity-50"
           >
             <CreditCard className="mr-2 h-4 w-4" />
@@ -206,13 +223,13 @@ export function TeacherWalletClient() {
           <DialogContent showClose={!submitting}>
             <DialogHeader>
               <DialogTitle>Wypłata środków</DialogTitle>
-              <DialogDescription>Dostępne: {pln(available)}. Realna testowa wypłata Stripe.</DialogDescription>
+              <DialogDescription>Dostępne: {pln(available)}. Minimum wypłaty: {TEACHER_MIN_PAYOUT_LABEL}.</DialogDescription>
             </DialogHeader>
 
             <DialogBody>
               <Input
                 type="number"
-                min={1}
+                min={fromGrosze(TEACHER_MIN_PAYOUT_GROSZE)}
                 max={fromGrosze(available)}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -224,7 +241,7 @@ export function TeacherWalletClient() {
             </DialogBody>
 
             <DialogFooter>
-              <Button onClick={handlePayout} disabled={submitting} className="w-full font-semibold">
+              <Button onClick={handlePayout} disabled={submitting || !canRequestPayout} className="w-full font-semibold">
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Wypłać na konto
               </Button>

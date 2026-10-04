@@ -1,6 +1,7 @@
 import type { Teacher } from '@/lib/types'
 import { deprecatedCategoryIds } from '@/data/categories.data'
 import { teacherMatchesCategory } from '@/lib/teacher-categories'
+import { normalizeTeachingLevelFilter, teacherMatchesTeachingLevelFilter } from '@/lib/teaching-levels'
 
 /**
  * The marketplace's filtering rules, kept out of the components.
@@ -40,6 +41,7 @@ export const WEEKDAYS = [
 export interface MarketplaceFilters {
   query: string
   category: string | null
+  teachingLevel: string | null
   /** Inclusive upper bound on `hourlyRate`; `null` means no cap. */
   maxPrice: number | null
   /** Inclusive lower bound on `rating`; `null` means any. */
@@ -54,6 +56,7 @@ export interface MarketplaceFilters {
 export const EMPTY_FILTERS: MarketplaceFilters = {
   query: '',
   category: null,
+  teachingLevel: null,
   maxPrice: null,
   minRating: null,
   days: [],
@@ -88,6 +91,7 @@ export function applyFilters(teachers: Teacher[], f: MarketplaceFilters): Teache
     )
   }
   if (f.category) result = result.filter((t) => teacherMatchesCategory(t, f.category!))
+  if (f.teachingLevel) result = result.filter((t) => teacherMatchesTeachingLevelFilter(t, f.teachingLevel))
   if (f.maxPrice !== null) result = result.filter((t) => t.hourlyRate <= f.maxPrice!)
   if (f.minRating !== null) result = result.filter((t) => t.rating >= f.minRating!)
   if (f.days.length > 0) result = result.filter((t) => f.days.some((d) => t.availability.includes(d)))
@@ -117,6 +121,7 @@ export function sortTeachers(teachers: Teacher[], sort: SortValue): Teacher[] {
 export function countActiveFilters(f: MarketplaceFilters): number {
   return (
     (f.category ? 1 : 0) +
+    (f.teachingLevel ? 1 : 0) +
     (f.maxPrice !== null ? 1 : 0) +
     (f.minRating !== null ? 1 : 0) +
     (f.days.length > 0 ? 1 : 0) +
@@ -139,6 +144,7 @@ export function filtersToParams(f: MarketplaceFilters, extra?: Record<string, st
   const params = new URLSearchParams()
   if (f.query.trim()) params.set('q', f.query.trim())
   if (f.category) params.set('category', f.category)
+  if (f.teachingLevel) params.set('level', f.teachingLevel)
   if (f.maxPrice !== null) params.set('maxPrice', String(f.maxPrice))
   if (f.minRating !== null) params.set('minRating', String(f.minRating))
   if (f.days.length) params.set('days', f.days.join(','))
@@ -152,6 +158,7 @@ export function filtersToParams(f: MarketplaceFilters, extra?: Record<string, st
 export function filtersFromParams(params: {
   q?: string
   category?: string
+  level?: string
   maxPrice?: string
   minRating?: string
   days?: string
@@ -161,9 +168,11 @@ export function filtersFromParams(params: {
 }): MarketplaceFilters {
   const sort = SORT_OPTIONS.find((o) => o.value === params.sort)?.value ?? 'featured'
   const category = params.category && !deprecatedCategoryIds.includes(params.category) ? params.category : null
+  const teachingLevel = normalizeTeachingLevelFilter(params.level)
   return {
     query: params.q ?? '',
     category,
+    teachingLevel,
     maxPrice: params.maxPrice && !Number.isNaN(Number(params.maxPrice)) ? Number(params.maxPrice) : null,
     minRating: params.minRating && !Number.isNaN(Number(params.minRating)) ? Number(params.minRating) : null,
     days: params.days ? params.days.split(',').filter((d) => WEEKDAYS.some((w) => w.value === d)) : [],

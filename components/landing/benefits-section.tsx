@@ -30,13 +30,14 @@ export async function BenefitsSection() {
     getCategories(),
     getPlatformPaymentSettings(),
   ])
+  const publicCategoryCount = categories.filter((category) => category.teacherCount > 0).length
   const commissionLabel = paymentSettings.commissionPercent.toLocaleString('pl-PL', { maximumFractionDigits: 2 })
   const benefits = [
     {
       icon: BadgeCheck,
       title: 'Zweryfikowani praktycy',
       description:
-        'Każdy nauczyciel przechodzi ręczną weryfikację doświadczenia, zanim jego profil trafi na giełdę.',
+        'Każde zgłoszenie nauczyciela sprawdzamy indywidualnie, zanim profil trafi na giełdę.',
     },
     {
       icon: ShieldCheck,
@@ -59,8 +60,10 @@ export async function BenefitsSection() {
 
   const stats = [
     { icon: BadgeCheck, value: String(platformStats.verifiedTeachers), label: 'zweryfikowanych nauczycieli' },
-    { icon: Star, value: platformStats.avgRating.toFixed(1), label: 'średnia ocena na giełdzie' },
-    { icon: Layers, value: String(categories.length), label: 'dziedzin nauki' },
+    ...(platformStats.ratingReviewCount >= 5
+      ? [{ icon: Star, value: platformStats.avgRating.toFixed(1), label: 'średnia ocena na giełdzie' }]
+      : []),
+    { icon: Layers, value: String(publicCategoryCount), label: 'aktywnych dziedzin nauki' },
   ]
 
   return (

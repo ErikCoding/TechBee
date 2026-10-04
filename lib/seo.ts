@@ -68,7 +68,7 @@ export function pageMetadata({
   title,
   description,
   path,
-  image = '/icon.svg',
+  image = '/og-image.png',
 }: {
   title: string
   description: string
@@ -98,7 +98,7 @@ export function pageMetadata({
       ],
     },
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title,
       description,
       images: [image],

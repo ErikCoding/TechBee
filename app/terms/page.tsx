@@ -18,7 +18,8 @@ export default function TermsPage() {
       <section>
         <h2>§1. Postanowienia ogólne</h2>
         <p>1. Regulamin określa rodzaj i zakres usług świadczonych drogą elektroniczną przez Usługodawcę, warunki ich świadczenia, warunki zawierania i rozwiązywania umów o świadczenie usług drogą elektroniczną oraz tryb postępowania reklamacyjnego, zgodnie z art. 8 ustawy z dnia 18 lipca 2002 r. o świadczeniu usług drogą elektroniczną.</p>
-        <p>2. Dane Usługodawcy nie są jeszcze danymi zarejestrowanej spółki ani działalności gospodarczej. Pełne dane identyfikacyjne, adresowe i kontaktowe zostaną uzupełnione przed produkcyjnym świadczeniem usług.</p>
+        {/* TODO: Uzupełnić dane operatora o adres, gdy będzie gotowy do publikacji. */}
+        <p>2. Operatorem Platformy jest Bartosz Prokop. Kontakt z Operatorem, w tym w sprawach reklamacyjnych, jest możliwy pod adresem <a href="mailto:contact@runbee.pl" className="text-foreground underline underline-offset-4 hover:text-primary">contact@runbee.pl</a>.</p>
         <p>3. Ilekroć w Regulaminie mowa jest o „Użytkowniku”, rozumie się przez to każdą osobę korzystającą z Serwisu, w tym „Ucznia”, „Rodzica” oraz „Nauczyciela”.</p>
       </section>
 
@@ -29,18 +30,18 @@ export default function TermsPage() {
           <li>przeglądanie ofert Nauczycieli bez konieczności rejestracji,</li>
           <li>założenie konta Ucznia lub Nauczyciela oraz zarządzanie profilem,</li>
           <li>rezerwację i realizację indywidualnych lekcji online w wybranych dziedzinach nauki (m.in. automatyka, PLC, elektryka, fizyka, matematyka, polski, angielski i pokrewne),</li>
-          <li>komunikację między Uczniem a Nauczycielem za pośrednictwem wbudomanego czatu,</li>
+          <li>komunikację między Uczniem a Nauczycielem za pośrednictwem wbudowanego czatu,</li>
           <li>obsługę płatności za pojedyncze lekcje, wypłat dla nauczycieli oraz programu lojalnościowego BeePoints, o których mowa w §5,</li>
           <li>wystawianie i przeglądanie opinii o Nauczycielach.</li>
         </ul>
-        <p>Usługodawca pełni rolę pośrednika technologicznego, umożliwiającego zawarcie umowy o przeprowadzenie lekcji bezpośrednio między Uczniem a Nauczycielem. Usługodawca nie jest stroną tej umowy i nie ponosi odpowiedzialności za jej wykonanie przez Nauczyciela, z zastrzeżeniem zasad rękojmi/gwarancji satysfakcji opisanych w §6.</p>
+        <p>Usługodawca pełni rolę pośrednika technologicznego, umożliwiającego zawarcie umowy o przeprowadzenie lekcji bezpośrednio między Uczniem a Nauczycielem. Usługodawca nie jest stroną tej umowy i nie ponosi odpowiedzialności za jej wykonanie przez Nauczyciela, z zastrzeżeniem procedury reklamacyjnej i sporów opisanej w §6.</p>
       </section>
 
       <section>
         <h2>§3. Warunki techniczne i zakładanie konta</h2>
         <p>1. Korzystanie z Serwisu wymaga urządzenia z dostępem do Internetu, aktualnej przeglądarki internetowej z obsługą JavaScript oraz aktywnego adresu e-mail.</p>
         <p>2. Rejestracja konta wymaga podania imienia i nazwiska, adresu e-mail, hasła, wskazania typu konta oraz potwierdzenia adresu e-mail. Konta administracyjne nie są zakładane samodzielnie przez Użytkowników.</p>
-        <p>3. Nauczyciele podlegają dodatkowej weryfikacji doświadczenia zawodowego przed dopuszczeniem do prowadzenia lekcji, zgodnie z opisem w sekcji FAQ Serwisu.</p>
+        <p>3. Zgłoszenia nauczycieli są sprawdzane przez administratora przed publikacją profilu w Serwisie, zgodnie z opisem w sekcji FAQ Serwisu.</p>
         <p>4. Użytkownik zobowiązany jest do podawania danych zgodnych z prawdą oraz do zachowania poufności danych logowania.</p>
       </section>
 

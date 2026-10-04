@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { formatLessonDurations } from '@/lib/lesson-durations'
 import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
+import { formatTeachingLevels, normalizeTeachingLevels } from '@/lib/teaching-levels'
 import { getCategories } from '@/services/categories.service'
 import { getPendingTeacherApplications, reviewTeacherApplication } from '@/services/teachers.service'
 import type { Category, Teacher, TeacherProfileSnapshot } from '@/lib/types'
@@ -65,6 +66,7 @@ function profileFromTeacher(app: Teacher): TeacherProfileSnapshot {
     categoryId: app.categoryId,
     categoryIds: getTeacherCategoryIds(app),
     customSubjects: normalizeTeacherCustomSubjects(app.customSubjects),
+    teachingLevels: normalizeTeachingLevels(app.teachingLevels),
     hourlyRate: app.hourlyRate,
     location: app.location,
     experience: app.experience,
@@ -253,6 +255,7 @@ export function AdminVerificationsPanel() {
                     </div>
                     <ChangeRow label="Główna dziedzina" before={previous ? categoryName(categories, previous.categoryId) : undefined} after={categoryName(categories, next.categoryId)} />
                     <ChangeRow label="Wszystkie dziedziny" before={previous ? subjectNames(categories, previous) : undefined} after={subjectNames(categories, next)} />
+                    <ChangeRow label="Poziomy nauczania" before={previous ? formatTeachingLevels(previous.teachingLevels) : undefined} after={formatTeachingLevels(next.teachingLevels)} />
                     <ChangeRow label="Specjalizacja" before={previous?.specialty} after={next.specialty} />
                     <ChangeRow label="Stawka" before={previous ? `${previous.hourlyRate} zł/godz.` : undefined} after={`${next.hourlyRate} zł/godz.`} />
                     <ChangeRow label="Lokalizacja" before={previous?.location} after={next.location} />

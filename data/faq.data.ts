@@ -5,11 +5,11 @@ import type { FaqItem } from '@/lib/types'
 export const faqData: FaqItem[] = [
   {
     question: 'Jak Runbee pomaga znaleźć odpowiedniego nauczyciela?',
-    answer: 'Przeglądasz nauczycieli według specjalizacji, lokalizacji, języka i dostępności. Każdy profil zawiera realne doświadczenie zawodowe, certyfikaty, opinie uczniów i wprowadzenie wideo. Przed rezerwacją możesz wysłać wiadomość, aby upewnić się, że to dobry wybór.',
+    answer: 'Przeglądasz nauczycieli według specjalizacji, lokalizacji, języka i dostępności. Profile pokazują informacje podane w zgłoszeniu nauczyciela, opinie uczniów i dostępne terminy. Przed rezerwacją możesz wysłać wiadomość, aby upewnić się, że to dobry wybór.',
   },
   {
     question: 'Czy nauczyciele Runbee to prawdziwi profesjonaliści w swojej dziedzinie?',
-    answer: 'Tak. Każdy nauczyciel na Runbee jest weryfikowany pod kątem realnego doświadczenia zawodowego: sprawdzamy historię zatrudnienia, certyfikaty i przeprowadzamy rozmowę weryfikacyjną na żywo przed dopuszczeniem do nauczania. Nie akceptujemy osób, które mają wyłącznie akademickie doświadczenie bez praktyki w swojej dziedzinie.',
+    answer: 'Każde zgłoszenie nauczyciela sprawdzamy indywidualnie przed publikacją profilu. Administrator ocenia informacje podane w zgłoszeniu, takie jak specjalizacja, doświadczenie, umiejętności, opis zajęć i dostępność. Dopiero zaakceptowany profil może pojawić się na giełdzie Runbee.',
   },
   {
     question: 'Jak wyglądają lekcje?',

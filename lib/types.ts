@@ -47,6 +47,7 @@ export type TeacherProfileSnapshot = {
   categoryId: string
   categoryIds?: string[]
   customSubjects?: string[]
+  teachingLevels?: string[]
   hourlyRate: number
   location: string
   experience: number
@@ -121,6 +122,7 @@ export type Teacher = {
   categoryId: string
   categoryIds?: string[]
   customSubjects?: string[]
+  teachingLevels?: string[]
   rating: number
   reviewCount: number
   hourlyRate: number
@@ -167,6 +169,7 @@ export type TeacherApplicationInput = {
   categoryId: string
   categoryIds: string[]
   customSubjects: string[]
+  teachingLevels?: string[]
   specialty: string
   hourlyRate: number
   location: string
@@ -374,6 +377,7 @@ export type PayoutRecord = {
   status: 'pending' | 'in_transit' | 'paid' | 'failed' | 'canceled'
   stripePayoutId: string
   createdAt: number
+  payoutAttemptId?: string
   failureMessage?: string
 }
 

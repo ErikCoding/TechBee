@@ -5,6 +5,7 @@ import { BadgeCheck, ChevronDown, Star } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { CategoryIcon } from '@/components/shared/category-icon'
 import { WEEKDAYS, type MarketplaceFilters } from '@/components/marketplace/marketplace-filters'
+import { teachingLevels } from '@/lib/teaching-levels'
 import { cn } from '@/lib/utils'
 import type { Category } from '@/lib/types'
 
@@ -48,10 +49,11 @@ export function MarketplaceFilterPanel({
 }: Props) {
   const [categoriesExpanded, setCategoriesExpanded] = useState(false)
   const priceValue = filters.maxPrice ?? facets.maxRate
+  const publicCategories = categories.filter((cat) => (categoryCounts[cat.id] ?? 0) > 0 || filters.category === cat.id)
   const visibleCategories = categoriesExpanded
-    ? categories
-    : categories.filter((cat, index) => index < VISIBLE_MARKETPLACE_CATEGORY_LIMIT || filters.category === cat.id)
-  const hiddenCategoryCount = categories.length - visibleCategories.length
+    ? publicCategories
+    : publicCategories.filter((cat, index) => index < VISIBLE_MARKETPLACE_CATEGORY_LIMIT || filters.category === cat.id)
+  const hiddenCategoryCount = publicCategories.length - visibleCategories.length
 
   return (
     <div className="flex flex-col">
@@ -96,7 +98,7 @@ export function MarketplaceFilterPanel({
               </li>
             )
           })}
-          {categories.length > VISIBLE_MARKETPLACE_CATEGORY_LIMIT && (
+          {publicCategories.length > VISIBLE_MARKETPLACE_CATEGORY_LIMIT && (
             <li className="pt-1">
               <button
                 type="button"
@@ -112,6 +114,28 @@ export function MarketplaceFilterPanel({
             </li>
           )}
         </ul>
+      </Group>
+
+      <Group label="Poziom nauczania">
+        <div className="flex flex-wrap gap-1.5">
+          {teachingLevels.map((level) => {
+            const active = filters.teachingLevel === level.id
+            return (
+              <button
+                key={level.id}
+                type="button"
+                onClick={() => onChange({ teachingLevel: active ? null : level.id })}
+                aria-pressed={active}
+                className={cn(
+                  'rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                  active ? 'border-primary bg-accent text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+                )}
+              >
+                {level.label}
+              </button>
+            )
+          })}
+        </div>
       </Group>
 
       <Group label="Cena za godzinę">
