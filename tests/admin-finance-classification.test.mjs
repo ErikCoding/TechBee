@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { classifyLessonFinanceEntry, classifyPackageFinanceEntry } from '../lib/admin-finance-classification.ts'
 
@@ -19,4 +20,13 @@ test('package-funded lessons are classified from paymentSource and do not depend
 test('package purchases 5 and 10 use the package purchase classification', () => {
   assert.equal(classifyPackageFinanceEntry({ packageSize: 5 }), 'package_purchase')
   assert.equal(classifyPackageFinanceEntry({ packageSize: 10 }), 'package_purchase')
+})
+
+test('admin finance UI labels per-row net as transaction net, not full Runbee net', () => {
+  const source = readFileSync(new URL('../components/admin/admin-platform-wallet.tsx', import.meta.url), 'utf8')
+
+  assert.equal(source.includes('Netto transakcji'), true)
+  assert.equal(source.includes('Wynik Runbee'), true)
+  assert.equal(source.includes('Runbee netto'), false)
+  assert.equal(source.includes('Zarobek netto Runbee'), false)
 })

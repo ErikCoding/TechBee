@@ -1,99 +1,14 @@
-import { collection, getDocs } from 'firebase/firestore'
-import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
-import { computeAdminPlatformRevenue, type AdminRevenueLessonPackageRow, type AdminRevenueLessonRow } from '@/lib/admin-revenue-metrics'
-import { getPendingTeacherApplications } from '@/services/teachers.service'
+import { auth, isFirebaseConfigured } from '@/lib/firebase'
+import { emptyAdminStats } from '@/lib/admin-stats-core'
 import type { AdminStats, AdminUserRow, FoundingTeacherAdminDashboard, FoundingTeacherProgramConfig, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Data-access layer for the admin panel.
 //
-// User counts/lists are real Firestore aggregates (`users` +
-// `teachers` collections). Revenue figures are computed from real
-// completed `lessons` docs (`price` + `completedAt`) — the same
-// event that actually moves simulated money from student to teacher
-// wallets (see completeLesson in lessons.service.ts) — instead of
-// demo data, now that this is a genuine payment event.
-//
-// These are called once, unauthenticated, from the /admin server
-// components during SSR (no Firebase Auth session exists on the
-// server) — querying Firestore there would just throw against the
-// `isSignedIn()`-gated rules. In that context the panel now renders
-// honest empty values and then re-fetches real data once the signed-in
-// admin is known in the browser.
+// Browser code calls admin-only API routes with the current Firebase ID
+// token. SSR still gets an explicit empty placeholder, then the signed-in
+// admin refreshes real aggregates through trusted backend endpoints.
 // ─────────────────────────────────────────────────────────────
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-const MONTH_LABELS_PL = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru']
-
-function emptyAdminStats(): AdminStats {
-  const now = new Date()
-  return {
-    totalUsers: 0,
-    totalTeachers: 0,
-    totalStudents: 0,
-    activeLessonsToday: 0,
-    monthlyRevenue: 0,
-    monthlyNetRevenue: null,
-    monthlyNetRevenueComplete: false,
-    revenueChange: 0,
-    newSignupsThisWeek: 0,
-    pendingVerifications: 0,
-    revenueChart: Array.from({ length: 6 }, (_, i) => {
-      const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
-      return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount: 0, platformFee: 0, teacherAmount: 0 }
-    }),
-    usersByRole: [
-      { role: 'Uczniowie', count: 0, color: '#F4B400' },
-      { role: 'Nauczyciele', count: 0, color: '#3B82F6' },
-      { role: 'Rodzice', count: 0, color: '#10B981' },
-      { role: 'Administratorzy', count: 0, color: '#8B5CF6' },
-    ],
-  }
-}
-
-type StoredUserProfile = {
-  role?: 'student' | 'teacher' | 'admin' | 'parent'
-  createdAt?: number
-}
-
-async function getAdminStatsFirebase(): Promise<AdminStats> {
-  if (!db || !auth?.currentUser) return emptyAdminStats()
-  const [usersSnap, pendingApplications, completedLessonsSnap, packagesSnap] = await Promise.all([
-    getDocs(collection(db, collections.users)),
-    getPendingTeacherApplications(),
-    getDocs(collection(db, collections.lessons)),
-    getDocs(collection(db, collections.lessonPackages)),
-  ])
-
-  const users = usersSnap.docs.map((d) => d.data() as StoredUserProfile)
-  const totalStudents = users.filter((u) => u.role === 'student').length
-  const totalTeachers = users.filter((u) => u.role === 'teacher').length
-  const totalParents = users.filter((u) => u.role === 'parent').length
-  const totalUsers = users.length
-  const weekAgo = Date.now() - WEEK_MS
-  const newSignupsThisWeek = users.filter((u) => (u.createdAt ?? 0) >= weekAgo).length
-
-  const revenue = computeAdminPlatformRevenue(
-    completedLessonsSnap.docs.map((d) => d.data() as AdminRevenueLessonRow),
-    new Date(),
-    packagesSnap.docs.map((d) => d.data() as AdminRevenueLessonPackageRow),
-  )
-
-  return {
-    ...revenue,
-    totalUsers,
-    totalTeachers,
-    totalStudents,
-    newSignupsThisWeek,
-    pendingVerifications: pendingApplications.length,
-    usersByRole: [
-      { role: 'Uczniowie', count: totalStudents, color: '#F4B400' },
-      { role: 'Nauczyciele', count: totalTeachers, color: '#3B82F6' },
-      { role: 'Rodzice', count: totalParents, color: '#10B981' },
-      { role: 'Administratorzy', count: totalUsers - totalStudents - totalTeachers - totalParents, color: '#8B5CF6' },
-    ],
-  }
-}
 
 async function getAdminUsersFirebase(): Promise<AdminUserRow[]> {
   if (typeof window === 'undefined' || !auth?.currentUser) return []
@@ -102,7 +17,9 @@ async function getAdminUsersFirebase(): Promise<AdminUserRow[]> {
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
-  return isFirebaseConfigured ? getAdminStatsFirebase() : emptyAdminStats()
+  if (!isFirebaseConfigured || typeof window === 'undefined' || !auth?.currentUser) return emptyAdminStats()
+  const data = await adminJson<{ stats: AdminStats }>('/api/admin/stats', 'POST')
+  return data.stats
 }
 
 export async function getAdminUsers(): Promise<AdminUserRow[]> {

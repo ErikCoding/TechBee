@@ -87,6 +87,15 @@ function commissionBadge(entry: PlatformWalletEntry) {
   )
 }
 
+function stripeCostLabel(entry: NonNullable<PlatformWalletSummary['stripeCostBreakdown']>[number]) {
+  if (entry.financeCategory === 'other_stripe_credit') return 'Korekta Stripe'
+  if (entry.financeCategory === 'other_stripe_cost') return 'Inne opłaty Stripe/Connect'
+  if (entry.stripeType === 'payout') return 'Payout fee'
+  if (entry.stripeType === 'transfer') return 'Transfer / Connect fee'
+  if (entry.stripeType === 'stripe_fee') return 'Stripe / Connect fee'
+  return 'Connect / payout'
+}
+
 const COLLAPSED_ENTRY_COUNT = 5
 
 export function AdminPlatformWallet() {
@@ -190,11 +199,11 @@ export function AdminPlatformWallet() {
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                   Runbee
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">{netPartial ? 'Bilans częściowy' : 'Zarobek netto Runbee'}</p>
+                <p className="mt-3 text-xs text-muted-foreground">{netPartial ? 'Wynik częściowy Runbee' : 'Wynik Runbee'}</p>
                 <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
                   {pln(summary?.netPlatformRevenueGrosze)}{netPartial ? '*' : ''}
                 </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Po odjęciu kosztów obsługi płatności</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Prowizje minus processing, zwroty oraz potwierdzone koszty Stripe/Connect.</p>
                 {feeIncomplete && (
                   <p className="mt-3 rounded-lg border border-success/30 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
                     Brakuje danych o opłacie Stripe dla {summary?.stripeFeesMissingCount ?? 0} transakcji.
@@ -232,6 +241,24 @@ export function AdminPlatformWallet() {
                     </div>
                   )}
                 </div>
+                {(summary?.stripeCostBreakdown?.length ?? 0) > 0 && (
+                  <div className="mt-4 space-y-1.5 border-t border-success/20 pt-3 text-[11px]">
+                    <p className="font-semibold text-muted-foreground">Globalne koszty Stripe/Connect</p>
+                    {summary!.stripeCostBreakdown!.slice(0, 4).map((entry) => (
+                      <div key={entry.id} className="flex items-start justify-between gap-3">
+                        <span className="min-w-0 text-muted-foreground">
+                          <span className="block truncate">{stripeCostLabel(entry)}</span>
+                          {(entry.description || entry.stripeType) && (
+                            <span className="block truncate text-[10px]">{entry.description || entry.stripeType}</span>
+                          )}
+                        </span>
+                        <span className={entry.financeCategory === 'other_stripe_credit' ? 'shrink-0 tabular-nums text-success' : 'shrink-0 tabular-nums text-muted-foreground'}>
+                          {entry.financeCategory === 'other_stripe_credit' ? pln(Math.abs(entry.netGrosze)) : signedPln(-Math.abs(entry.netGrosze))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl border border-border bg-background/50 p-4">
@@ -321,7 +348,7 @@ export function AdminPlatformWallet() {
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Koszt Stripe</span>
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Runbee netto</span>
+                <span>Netto transakcji</span>
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Nauczyciel</span>
               </div>
@@ -342,7 +369,7 @@ export function AdminPlatformWallet() {
                       <span>Typ</span>
                       <span>Zapłacono</span>
                       <span>Prowizja Runbee</span>
-                      <span>Stripe / netto</span>
+                      <span>Stripe / netto transakcji</span>
                       <span>Nauczyciel</span>
                       <span>Status</span>
                     </div>
@@ -364,7 +391,7 @@ export function AdminPlatformWallet() {
                         </div>
                         <div>
                           <p className="tabular-nums text-muted-foreground">Stripe: {signedPln(typeof entry.stripeFeeGrosze === 'number' ? -entry.stripeFeeGrosze : undefined)}</p>
-                          <p className="mt-0.5 tabular-nums text-foreground">Netto: {pln(entry.netPlatformRevenueGrosze)}</p>
+                          <p className="mt-0.5 tabular-nums text-foreground">Netto transakcji: {pln(entry.netPlatformRevenueGrosze)}</p>
                         </div>
                         <p className="font-semibold tabular-nums text-foreground">{pln(entry.teacherAmountGrosze)}</p>
                         <div className="flex flex-col items-start gap-1 text-muted-foreground">
@@ -402,7 +429,7 @@ export function AdminPlatformWallet() {
                             <span className="tabular-nums text-foreground">{signedPln(typeof entry.stripeFeeGrosze === 'number' ? -entry.stripeFeeGrosze : undefined)}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Runbee netto</span>
+                            <span className="text-muted-foreground">Netto transakcji</span>
                             <span className="tabular-nums text-foreground">{pln(entry.netPlatformRevenueGrosze)}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3">

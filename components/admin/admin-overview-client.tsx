@@ -21,15 +21,21 @@ interface Props {
 export function AdminOverviewClient({ initialStats }: Props) {
   const { user } = useAuth()
   const [stats, setStats] = useState(initialStats)
+  const [statsError, setStatsError] = useState<string | null>(null)
   const [activeSeries, setActiveSeries] = useState<string[]>(['gross', 'commission'])
   const [hoveredMonth, setHoveredMonth] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user || user.role !== 'admin') return
     let cancelled = false
-    getAdminStats().then((fresh) => {
-      if (!cancelled) setStats(fresh)
-    })
+    setStatsError(null)
+    getAdminStats()
+      .then((fresh) => {
+        if (!cancelled) setStats(fresh)
+      })
+      .catch((err) => {
+        if (!cancelled) setStatsError(err instanceof Error ? err.message : 'Nie udało się pobrać statystyk administratora.')
+      })
     return () => {
       cancelled = true
     }
@@ -90,7 +96,7 @@ export function AdminOverviewClient({ initialStats }: Props) {
       label: 'Obrót w miesiącu',
       value: `${stats.monthlyRevenue.toLocaleString('pl-PL')} zł`,
       sub: stats.monthlyNetRevenueComplete && typeof stats.monthlyNetRevenue === 'number'
-        ? `Runbee netto: ${stats.monthlyNetRevenue.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+        ? `Netto transakcji: ${stats.monthlyNetRevenue.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
         : `${stats.revenueChange > 0 ? '+' : ''}${stats.revenueChange}% vs poprzedni miesiąc`,
       trend: stats.revenueChange >= 0,
     },
@@ -100,8 +106,14 @@ export function AdminOverviewClient({ initialStats }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
+      {statsError && (
+        <div className="rounded-2xl border border-destructive/25 bg-destructive/10 px-5 py-3 text-sm text-destructive">
+          Nie udało się pobrać aktualnych statystyk administratora. Nie pokazujemy zer jako prawdziwych danych. {statsError}
+        </div>
+      )}
+
       {/* Analytics cards */}
-      <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-2xl border border-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+      <div className={`grid grid-cols-1 divide-y divide-border overflow-hidden rounded-2xl border border-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4 ${statsError ? 'opacity-50' : ''}`}>
         {cards.map((card) => {
           const Icon = card.icon
           return (

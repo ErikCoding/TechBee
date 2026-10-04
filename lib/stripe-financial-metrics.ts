@@ -32,6 +32,11 @@ export type StripeFinancialEventLike = {
   feeGrosze: number
   netGrosze: number
   financeCategory?: 'connect_payout_fee' | 'other_stripe_cost' | 'other_stripe_credit'
+  stripeBalanceTransactionId?: string
+  stripeType?: string
+  description?: string
+  source?: string
+  createdAt?: number
   stripeChargeId?: string
   stripePaymentIntentId?: string
   chargeAmountGrosze?: number

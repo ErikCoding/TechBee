@@ -431,6 +431,9 @@ export type LessonPackage = {
   commissionSource: CommissionSource
   stripeCheckoutSessionId: string
   stripePaymentIntentId?: string
+  stripeFeeGrosze?: number
+  stripeChargeId?: string
+  stripeBalanceTransactionId?: string
   livemode: boolean
   status: LessonPackageStatus
   createdAt: number
@@ -544,6 +547,7 @@ export type PlatformWalletSummary = {
   connectPayoutFeesGrosze: number
   otherStripeCostsGrosze: number
   otherStripeCreditsGrosze: number
+  stripeCostBreakdown?: PlatformStripeCostBreakdownEntry[]
   netPlatformRevenueGrosze: number
   netPlatformRevenuePartial: boolean
   teacherAmountGrosze: number
@@ -552,6 +556,19 @@ export type PlatformWalletSummary = {
   teacherTransferredGrosze: number
   stripeAvailableGrosze: number | null
   stripePendingGrosze: number | null
+}
+
+export type PlatformStripeCostBreakdownEntry = {
+  id: string
+  financeCategory: 'connect_payout_fee' | 'other_stripe_cost' | 'other_stripe_credit'
+  stripeBalanceTransactionId?: string
+  stripeType?: string
+  description?: string
+  source?: string
+  amountGrosze: number
+  feeGrosze: number
+  netGrosze: number
+  createdAt?: number
 }
 
 export type PlatformWalletEntry = {
@@ -605,6 +622,10 @@ export type StripeFinancialEvent = {
   availableOn?: number
   createdAt: number
   stripeBalanceTransactionId: string
+  financeCategory?: 'connect_payout_fee' | 'other_stripe_cost' | 'other_stripe_credit'
+  stripeType?: string
+  description?: string
+  source?: string
   stripeRefundId?: string
   stripeChargeId?: string
   stripePaymentIntentId?: string

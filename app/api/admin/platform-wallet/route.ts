@@ -8,7 +8,8 @@ import { getVerifiedUserRole, verifyCaller } from '@/lib/stripe-server-auth'
 import { computePlatformFinance } from '@/lib/stripe-financial-metrics'
 import { classifyLessonFinanceEntry, classifyPackageFinanceEntry } from '@/lib/admin-finance-classification'
 import { readPlatformStripeCostFinancialEvents } from '@/lib/stripe-financial-events'
-import type { Lesson, LessonPackage, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
+import { syncMissingStripeFeesForReporting } from '@/lib/stripe-fee-sync.server'
+import type { Lesson, LessonPackage, PlatformStripeCostBreakdownEntry, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
 
 async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextResponse> {
   if (!isAdminConfigured) return NextResponse.json({ error: 'Zaufane zapisy Firestore nie są skonfigurowane.' }, { status: 503 })
@@ -70,6 +71,13 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
   const lessons = allLessons.filter((lesson) => Boolean(lesson.livemode) === CURRENT_ENV_IS_LIVE)
   const packages = allPackages.filter((pkg) => Boolean(pkg.livemode) === CURRENT_ENV_IS_LIVE)
   const financialEvents = allFinancialEvents.filter((event) => Boolean(event.livemode) === CURRENT_ENV_IS_LIVE)
+  if (isStripeConfigured) {
+    try {
+      await syncMissingStripeFeesForReporting({ database: adminDb!, lessons, packages, limit: 20 })
+    } catch (err) {
+      console.error('[admin/platform-wallet] Failed to sync missing Stripe fee snapshots:', err)
+    }
+  }
   const liveStripeCostEvents = isStripeConfigured
     ? await readPlatformStripeCostFinancialEvents(new Set(financialEvents.map((event) => event.stripeBalanceTransactionId)))
     : []
@@ -87,8 +95,25 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     }
   }
 
-  const finance = computePlatformFinance({ lessons, packages, events: [...financialEvents, ...liveStripeCostEvents] })
+  const financeEvents = [...financialEvents, ...liveStripeCostEvents]
+  const finance = computePlatformFinance({ lessons, packages, events: financeEvents })
   const readyForTransfer = paid.filter(lessonIsReadyForTransfer)
+  const stripeCostBreakdown: PlatformStripeCostBreakdownEntry[] = financeEvents
+    .filter((event) => event.financeCategory === 'connect_payout_fee' || event.financeCategory === 'other_stripe_cost' || event.financeCategory === 'other_stripe_credit')
+    .map((event, index) => ({
+      id: event.stripeBalanceTransactionId ?? `stripe-cost:${index}`,
+      financeCategory: event.financeCategory!,
+      ...(event.stripeBalanceTransactionId ? { stripeBalanceTransactionId: event.stripeBalanceTransactionId } : {}),
+      ...(event.stripeType ? { stripeType: event.stripeType } : {}),
+      ...(event.description ? { description: event.description } : {}),
+      ...(event.source ? { source: event.source } : {}),
+      amountGrosze: event.amountGrosze,
+      feeGrosze: event.feeGrosze,
+      netGrosze: event.netGrosze,
+      ...(typeof event.createdAt === 'number' ? { createdAt: event.createdAt } : {}),
+    }))
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    .slice(0, 8)
 
   const summary: PlatformWalletSummary = {
     commissionPercent: settings.commissionPercent,
@@ -111,6 +136,7 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     connectPayoutFeesGrosze: finance.connectPayoutFeesGrosze,
     otherStripeCostsGrosze: finance.otherStripeCostsGrosze,
     otherStripeCreditsGrosze: finance.otherStripeCreditsGrosze,
+    stripeCostBreakdown,
     netPlatformRevenueGrosze: finance.netPlatformRevenueGrosze,
     netPlatformRevenuePartial: finance.netPlatformRevenuePartial,
     teacherAmountGrosze: finance.teacherAmountGrosze,
@@ -175,6 +201,10 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
         effectiveCommissionPercent: pkg.effectiveCommissionPercent,
         commissionSource: pkg.commissionSource,
         teacherAmountGrosze: recognizedTeacherAmountGrosze,
+        ...(typeof pkg.stripeFeeGrosze === 'number' ? { stripeFeeGrosze: pkg.stripeFeeGrosze } : {}),
+        ...(typeof pkg.stripeFeeGrosze === 'number'
+          ? { netPlatformRevenueGrosze: recognizedPlatformFeeGrosze - pkg.stripeFeeGrosze }
+          : {}),
         status: pkg.status,
         settlementStatus: 'waiting_lesson' as const,
         transferStatus: 'pending' as const,
