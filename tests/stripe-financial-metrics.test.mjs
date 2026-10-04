@@ -41,6 +41,7 @@ test('partial refund remains a refund cost while the original lesson stays paid'
   assert.equal(result.refundAmountGrosze, 2000)
   assert.equal(result.refundCostGrosze, 2000)
   assert.equal(result.netPlatformRevenueGrosze, -1500)
+  assert.equal(result.netPlatformRevenuePartial, false)
 })
 
 test('refund without lesson is included in platform refund totals', () => {
@@ -61,6 +62,7 @@ test('refund without lesson is included in platform refund totals', () => {
   assert.equal(result.refundAmountGrosze, 500)
   assert.equal(result.refundCostGrosze, 108)
   assert.equal(result.netPlatformRevenueGrosze, -108)
+  assert.equal(result.netPlatformRevenuePartial, false)
 })
 
 test('does not double-count charge fee for full refund groups', () => {
@@ -88,6 +90,7 @@ test('does not double-count charge fee for full refund groups', () => {
   assert.equal(result.stripeProcessingFeesGrosze, 228)
   assert.equal(result.refundCostGrosze, 108)
   assert.equal(result.netPlatformRevenueGrosze, 64)
+  assert.equal(result.netPlatformRevenuePartial, false)
 })
 
 test('normal paid lesson without refund uses platform commission minus processing fee', () => {
@@ -105,6 +108,44 @@ test('normal paid lesson without refund uses platform commission minus processin
   assert.equal(result.refundAmountGrosze, 0)
   assert.equal(result.refundCostGrosze, 0)
   assert.equal(result.netPlatformRevenueGrosze, 172)
+  assert.equal(result.netPlatformRevenuePartial, false)
+})
+
+test('missing Stripe fee still returns a known partial Runbee net amount', () => {
+  const result = computePlatformFinance({
+    lessons: [
+      {
+        paymentStatus: 'paid',
+        priceGrosze: 10000,
+        platformFeeGrosze: 800,
+        teacherAmountGrosze: 9200,
+        stripeFeeGrosze: 228,
+      },
+      {
+        paymentStatus: 'paid',
+        priceGrosze: 10000,
+        platformFeeGrosze: 800,
+        teacherAmountGrosze: 9200,
+      },
+    ],
+    events: [{
+      type: 'refund',
+      amountGrosze: -500,
+      feeGrosze: 0,
+      netGrosze: -500,
+      stripeChargeId: 'ch_refund',
+      chargeAmountGrosze: 500,
+      chargeFeeGrosze: 108,
+      chargeNetGrosze: 392,
+    }],
+  })
+
+  assert.equal(result.knownPlatformCommissionGrosze, 800)
+  assert.equal(result.stripeProcessingFeesGrosze, 228)
+  assert.equal(result.refundCostGrosze, 108)
+  assert.equal(result.netPlatformRevenueGrosze, 464)
+  assert.equal(result.netPlatformRevenuePartial, true)
+  assert.equal(result.stripeFeesMissingCount, 1)
 })
 
 test('single charge and package purchase are counted once while package-funded lesson does not double-count paid volume', () => {
@@ -121,6 +162,7 @@ test('single charge and package purchase are counted once while package-funded l
       {
         paymentStatus: 'paid',
         paymentSource: 'package',
+        packageId: 'pkg_5',
         packageCreditState: 'used',
         priceGrosze: 10000,
         platformFeeGrosze: 800,
@@ -128,6 +170,7 @@ test('single charge and package purchase are counted once while package-funded l
       },
     ],
     packages: [{
+      id: 'pkg_5',
       packageSize: 5,
       status: 'active',
       totalPriceGrosze: 50000,
@@ -137,6 +180,7 @@ test('single charge and package purchase are counted once while package-funded l
       perLessonGrossGrosze: 10000,
       platformFeePerLessonGrosze: 800,
       teacherAmountPerLessonGrosze: 9200,
+      stripeFeeGrosze: 1200,
     }],
     events: [],
   })
@@ -146,6 +190,9 @@ test('single charge and package purchase are counted once while package-funded l
   assert.equal(result.packageDeferredGrossGrosze, 40000)
   assert.equal(result.packageUsedGrossGrosze, 10000)
   assert.equal(result.grossPlatformCommissionGrosze, 1600)
+  assert.equal(result.knownPlatformCommissionGrosze, 1600)
+  assert.equal(result.netPlatformRevenueGrosze, 100)
+  assert.equal(result.netPlatformRevenuePartial, false)
 })
 
 test('package purchase 10 is classified as one real charge with deferred credits', () => {
@@ -169,6 +216,7 @@ test('package purchase 10 is classified as one real charge with deferred credits
   assert.equal(result.packagePurchaseVolumeGrosze, 120000)
   assert.equal(result.packageDeferredGrossGrosze, 120000)
   assert.equal(result.grossPlatformCommissionGrosze, 0)
+  assert.equal(result.netPlatformRevenuePartial, true)
 })
 
 test('historical commission snapshots keep 5 percent and 8 percent amounts', () => {
@@ -194,6 +242,9 @@ test('historical commission snapshots keep 5 percent and 8 percent amounts', () 
 
   assert.equal(result.grossPlatformCommissionGrosze, 1300)
   assert.equal(result.teacherAmountGrosze, 18700)
+  assert.equal(result.knownPlatformCommissionGrosze, 1300)
+  assert.equal(result.netPlatformRevenueGrosze, 700)
+  assert.equal(result.netPlatformRevenuePartial, false)
 })
 
 test('idempotent webhook storage is represented by one event per balance transaction id', () => {

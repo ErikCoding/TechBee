@@ -535,12 +535,14 @@ export type PlatformWalletSummary = {
   refundCostGrosze: number
   refundCount: number
   grossPlatformCommissionGrosze: number
+  knownPlatformCommissionGrosze: number
   stripeProcessingFeesGrosze: number
   stripeFeesGrosze: number
   stripeFeesComplete: boolean
   stripeFeesMissingCount: number
   stripeAdjustmentsGrosze: number
-  netPlatformRevenueGrosze: number | null
+  netPlatformRevenueGrosze: number
+  netPlatformRevenuePartial: boolean
   teacherAmountGrosze: number
   teacherPendingReleaseGrosze: number
   teacherReadyForTransferGrosze: number

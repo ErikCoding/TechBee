@@ -98,12 +98,14 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     refundCostGrosze: finance.refundCostGrosze,
     refundCount: finance.refundCount,
     grossPlatformCommissionGrosze: finance.grossPlatformCommissionGrosze,
+    knownPlatformCommissionGrosze: finance.knownPlatformCommissionGrosze,
     stripeProcessingFeesGrosze: finance.stripeProcessingFeesGrosze,
     stripeFeesGrosze: finance.stripeProcessingFeesGrosze,
     stripeFeesComplete: finance.stripeFeesComplete,
     stripeFeesMissingCount: finance.stripeFeesMissingCount,
     stripeAdjustmentsGrosze: finance.stripeAdjustmentsGrosze,
     netPlatformRevenueGrosze: finance.netPlatformRevenueGrosze,
+    netPlatformRevenuePartial: finance.netPlatformRevenuePartial,
     teacherAmountGrosze: finance.teacherAmountGrosze,
     teacherPendingReleaseGrosze: paid
       .filter((lesson) => !lesson.stripeTransferId && !lessonIsReadyForTransfer(lesson))

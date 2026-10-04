@@ -140,6 +140,8 @@ export function AdminPlatformWallet() {
 
   const feeIncomplete = summary ? !summary.stripeFeesComplete : false
   const visibleEntries = entriesExpanded ? entries : entries.slice(0, COLLAPSED_ENTRY_COUNT)
+  const netPartial = Boolean(summary?.netPlatformRevenuePartial)
+  const displayedCommissionGrosze = netPartial ? summary?.knownPlatformCommissionGrosze : summary?.grossPlatformCommissionGrosze
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -188,20 +190,20 @@ export function AdminPlatformWallet() {
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                   Runbee
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">Zarobek netto Runbee</p>
+                <p className="mt-3 text-xs text-muted-foreground">{netPartial ? 'Bilans częściowy' : 'Zarobek netto Runbee'}</p>
                 <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
-                  {summary?.netPlatformRevenueGrosze === null ? 'Niepełne dane' : pln(summary?.netPlatformRevenueGrosze)}
+                  {pln(summary?.netPlatformRevenueGrosze)}{netPartial ? '*' : ''}
                 </p>
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Po odjęciu kosztów obsługi płatności</p>
                 {feeIncomplete && (
                   <p className="mt-3 rounded-lg border border-success/30 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
-                    Brakuje snapshotu Stripe fee dla {summary?.stripeFeesMissingCount ?? 0} starszych transakcji.
+                    Brakuje danych o opłacie Stripe dla {summary?.stripeFeesMissingCount ?? 0} transakcji.
                   </p>
                 )}
                 <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
                   <div>
                     <p className="text-muted-foreground">Prowizja Runbee</p>
-                    <p className="font-semibold tabular-nums text-success">{pln(summary?.grossPlatformCommissionGrosze)}</p>
+                    <p className="font-semibold tabular-nums text-success">{pln(displayedCommissionGrosze)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Koszty Stripe</p>

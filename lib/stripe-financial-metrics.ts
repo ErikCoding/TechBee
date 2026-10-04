@@ -3,6 +3,7 @@ export type FinancialLesson = {
   paymentStatus?: 'paid' | 'refunded' | 'failed'
   lessonKind?: 'regular' | 'trial'
   paymentSource?: 'stripe_checkout' | 'package'
+  packageId?: string
   packageCreditState?: 'reserved' | 'used' | 'returned'
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
@@ -83,6 +84,7 @@ export function computePlatformFinance(input: {
   events: StripeFinancialEventLike[]
 }): {
   grossPlatformCommissionGrosze: number
+  knownPlatformCommissionGrosze: number
   stripeProcessingFeesGrosze: number
   stripeFeesComplete: boolean
   stripeFeesMissingCount: number
@@ -90,7 +92,8 @@ export function computePlatformFinance(input: {
   refundCostGrosze: number
   refundCount: number
   stripeAdjustmentsGrosze: number
-  netPlatformRevenueGrosze: number | null
+  netPlatformRevenueGrosze: number
+  netPlatformRevenuePartial: boolean
   teacherAmountGrosze: number
   teacherTransferredGrosze: number
   paidVolumeGrosze: number
@@ -106,9 +109,12 @@ export function computePlatformFinance(input: {
   const packages = (input.packages ?? []).filter((pkg) => pkg.status !== 'refunded')
   const knownFeeChargeLessons = paidChargeLessons.filter((lesson) => finite(lesson.stripeFeeGrosze))
   const knownFeePackages = packages.filter((pkg) => finite(pkg.stripeFeeGrosze))
+  const knownFeePackageIds = new Set(knownFeePackages.map((pkg) => pkg.id).filter((id): id is string => typeof id === 'string' && id.length > 0))
+  const knownFeePackageLessons = usedPackageLessons.filter((lesson) => typeof lesson.packageId === 'string' && knownFeePackageIds.has(lesson.packageId))
   const stripeFeesMissingCount = (paidChargeLessons.length - knownFeeChargeLessons.length) + (packages.length - knownFeePackages.length)
   const stripeFeesComplete = stripeFeesMissingCount === 0
   const grossPlatformCommissionGrosze = [...paidChargeLessons, ...usedPackageLessons].reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
+  const knownPlatformCommissionGrosze = [...knownFeeChargeLessons, ...knownFeePackageLessons].reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
   const stripeProcessingFeesGrosze = knownFeeChargeLessons.reduce((sum, lesson) => sum + (lesson.stripeFeeGrosze ?? 0), 0)
     + knownFeePackages.reduce((sum, pkg) => sum + (pkg.stripeFeeGrosze ?? 0), 0)
   const refundEvents = input.events.filter((event) => event.type === 'refund')
@@ -120,6 +126,7 @@ export function computePlatformFinance(input: {
 
   return {
     grossPlatformCommissionGrosze,
+    knownPlatformCommissionGrosze,
     stripeProcessingFeesGrosze,
     stripeFeesComplete,
     stripeFeesMissingCount,
@@ -127,9 +134,8 @@ export function computePlatformFinance(input: {
     refundCostGrosze,
     refundCount: refundEvents.length,
     stripeAdjustmentsGrosze,
-    netPlatformRevenueGrosze: stripeFeesComplete
-      ? grossPlatformCommissionGrosze - stripeProcessingFeesGrosze - refundCostGrosze + stripeAdjustmentsGrosze
-      : null,
+    netPlatformRevenueGrosze: (stripeFeesComplete ? grossPlatformCommissionGrosze : knownPlatformCommissionGrosze) - stripeProcessingFeesGrosze - refundCostGrosze + stripeAdjustmentsGrosze,
+    netPlatformRevenuePartial: !stripeFeesComplete,
     teacherAmountGrosze: paid.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
     teacherTransferredGrosze: paid.filter((lesson) => lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
     paidVolumeGrosze: paidChargeLessons.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0)
