@@ -31,10 +31,13 @@ test('admin finance UI labels per-row net as transaction net, not full Runbee ne
   assert.equal(source.includes('Zarobek netto Runbee'), false)
 })
 
-test('global Stripe/Connect details moved out of the green summary tile and into payment history', () => {
+test('global Stripe/Connect details stay out of payment history while aggregate total remains visible', () => {
   const source = readFileSync(new URL('../components/admin/admin-platform-wallet.tsx', import.meta.url), 'utf8')
 
-  assert.equal(source.includes('Ostatnie płatności i koszty'), true)
+  assert.equal(source.includes('Ostatnie płatności'), true)
+  assert.equal(source.includes('Ostatnie płatności i koszty'), false)
   assert.equal(source.includes('Globalne koszty Stripe/Connect'), false)
-  assert.equal(source.includes("entry.transactionType === 'stripe_connect_fee'"), true)
+  assert.equal(source.includes("entry.transactionType === 'stripe_connect_fee'"), false)
+  assert.equal(source.includes('Connect / payout'), true)
+  assert.equal(source.includes('Globalne opłaty Stripe Connect i payout'), true)
 })

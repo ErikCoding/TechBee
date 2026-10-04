@@ -547,7 +547,6 @@ export type PlatformWalletSummary = {
   connectPayoutFeesGrosze: number
   otherStripeCostsGrosze: number
   otherStripeCreditsGrosze: number
-  stripeCostBreakdown?: PlatformStripeCostBreakdownEntry[]
   netPlatformRevenueGrosze: number
   netPlatformRevenuePartial: boolean
   teacherAmountGrosze: number
@@ -558,35 +557,12 @@ export type PlatformWalletSummary = {
   stripePendingGrosze: number | null
 }
 
-export type PlatformStripeCostBreakdownEntry = {
-  id: string
-  financeCategory: 'connect_payout_fee' | 'other_stripe_cost' | 'other_stripe_credit'
-  stripeBalanceTransactionId?: string
-  stripeType?: string
-  description?: string
-  source?: string
-  stripeChargeId?: string
-  stripePaymentIntentId?: string
-  amountGrosze: number
-  feeGrosze: number
-  netGrosze: number
-  createdAt?: number
-}
-
 export type PlatformWalletEntry = {
   id: string
-  transactionType: 'single_lesson' | 'trial_lesson' | 'package_purchase' | 'package_lesson' | 'refund' | 'stripe_connect_fee' | 'teacher_account_fee' | 'teacher_payout_fee'
+  transactionType: 'single_lesson' | 'trial_lesson' | 'package_purchase' | 'package_lesson' | 'refund'
   lessonId?: string
   packageId?: string
   stripeRefundId?: string
-  stripeBalanceTransactionId?: string
-  stripeType?: string
-  stripeDescription?: string
-  stripeSource?: string
-  stripeChargeId?: string
-  stripePaymentIntentId?: string
-  stripeCostFinanceCategory?: PlatformStripeCostBreakdownEntry['financeCategory']
-  teacherId?: string
   packageSize?: LessonPackageSize
   usedCredits?: number
   reservedCredits?: number
@@ -603,21 +579,10 @@ export type PlatformWalletEntry = {
   commissionSource?: CommissionSource
   stripeFeeGrosze?: number
   netPlatformRevenueGrosze?: number
-  assignedStripeCostGrosze?: number
-  netAfterAssignedCostsGrosze?: number
-  attributedStripeCosts?: {
-    id: string
-    label: string
-    amountGrosze: number
-    stripeBalanceTransactionId?: string
-    stripeType?: string
-    description?: string
-    source?: string
-  }[]
   teacherAmountGrosze: number
   status: Lesson['paymentStatus'] | LessonPackageStatus | 'posted'
-  settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded' | 'stripe_cost'
-  transferStatus: 'pending' | 'ready' | 'sent' | 'refunded' | 'not_applicable'
+  settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded'
+  transferStatus: 'pending' | 'ready' | 'sent' | 'refunded'
   createdAt: number
 }
 
