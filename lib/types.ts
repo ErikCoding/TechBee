@@ -541,6 +541,9 @@ export type PlatformWalletSummary = {
   stripeFeesComplete: boolean
   stripeFeesMissingCount: number
   stripeAdjustmentsGrosze: number
+  connectPayoutFeesGrosze: number
+  otherStripeCostsGrosze: number
+  otherStripeCreditsGrosze: number
   netPlatformRevenueGrosze: number
   netPlatformRevenuePartial: boolean
   teacherAmountGrosze: number

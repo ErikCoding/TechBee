@@ -148,6 +148,60 @@ test('missing Stripe fee still returns a known partial Runbee net amount', () =>
   assert.equal(result.stripeFeesMissingCount, 1)
 })
 
+test('confirmed Connect and payout fees reduce Runbee net without counting teacher transfer principal', () => {
+  const result = computePlatformFinance({
+    lessons: [{
+      paymentStatus: 'paid',
+      priceGrosze: 10000,
+      platformFeeGrosze: 800,
+      teacherAmountGrosze: 9200,
+      stripeFeeGrosze: 228,
+    }],
+    events: [
+      {
+        type: 'other',
+        amountGrosze: -9200,
+        feeGrosze: 123,
+        netGrosze: -123,
+        financeCategory: 'connect_payout_fee',
+      },
+      {
+        type: 'other',
+        amountGrosze: -900,
+        feeGrosze: 0,
+        netGrosze: -900,
+        financeCategory: 'other_stripe_cost',
+      },
+    ],
+  })
+
+  assert.equal(result.connectPayoutFeesGrosze, 123)
+  assert.equal(result.otherStripeCostsGrosze, 900)
+  assert.equal(result.netPlatformRevenueGrosze, -451)
+})
+
+test('uncategorized Stripe balance events are not counted as Runbee costs to avoid double counting', () => {
+  const result = computePlatformFinance({
+    lessons: [{
+      paymentStatus: 'paid',
+      priceGrosze: 10000,
+      platformFeeGrosze: 800,
+      teacherAmountGrosze: 9200,
+      stripeFeeGrosze: 228,
+    }],
+    events: [{
+      type: 'other',
+      amountGrosze: -9200,
+      feeGrosze: 0,
+      netGrosze: -9200,
+    }],
+  })
+
+  assert.equal(result.connectPayoutFeesGrosze, 0)
+  assert.equal(result.otherStripeCostsGrosze, 0)
+  assert.equal(result.netPlatformRevenueGrosze, 572)
+})
+
 test('single charge and package purchase are counted once while package-funded lesson does not double-count paid volume', () => {
   const result = computePlatformFinance({
     lessons: [

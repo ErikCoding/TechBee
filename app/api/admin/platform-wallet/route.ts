@@ -7,6 +7,7 @@ import { getPlatformPaymentSettings, updatePlatformCommissionPercent } from '@/l
 import { getVerifiedUserRole, verifyCaller } from '@/lib/stripe-server-auth'
 import { computePlatformFinance } from '@/lib/stripe-financial-metrics'
 import { classifyLessonFinanceEntry, classifyPackageFinanceEntry } from '@/lib/admin-finance-classification'
+import { readPlatformStripeCostFinancialEvents } from '@/lib/stripe-financial-events'
 import type { Lesson, LessonPackage, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
 
 async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextResponse> {
@@ -69,6 +70,9 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
   const lessons = allLessons.filter((lesson) => Boolean(lesson.livemode) === CURRENT_ENV_IS_LIVE)
   const packages = allPackages.filter((pkg) => Boolean(pkg.livemode) === CURRENT_ENV_IS_LIVE)
   const financialEvents = allFinancialEvents.filter((event) => Boolean(event.livemode) === CURRENT_ENV_IS_LIVE)
+  const liveStripeCostEvents = isStripeConfigured
+    ? await readPlatformStripeCostFinancialEvents(new Set(financialEvents.map((event) => event.stripeBalanceTransactionId)))
+    : []
   const paid = lessons.filter((lesson) => lesson.paymentStatus === 'paid')
 
   let stripeAvailableGrosze: number | null = null
@@ -83,7 +87,7 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     }
   }
 
-  const finance = computePlatformFinance({ lessons, packages, events: financialEvents })
+  const finance = computePlatformFinance({ lessons, packages, events: [...financialEvents, ...liveStripeCostEvents] })
   const readyForTransfer = paid.filter(lessonIsReadyForTransfer)
 
   const summary: PlatformWalletSummary = {
@@ -104,6 +108,9 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     stripeFeesComplete: finance.stripeFeesComplete,
     stripeFeesMissingCount: finance.stripeFeesMissingCount,
     stripeAdjustmentsGrosze: finance.stripeAdjustmentsGrosze,
+    connectPayoutFeesGrosze: finance.connectPayoutFeesGrosze,
+    otherStripeCostsGrosze: finance.otherStripeCostsGrosze,
+    otherStripeCreditsGrosze: finance.otherStripeCreditsGrosze,
     netPlatformRevenueGrosze: finance.netPlatformRevenueGrosze,
     netPlatformRevenuePartial: finance.netPlatformRevenuePartial,
     teacherAmountGrosze: finance.teacherAmountGrosze,

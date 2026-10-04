@@ -213,6 +213,24 @@ export function AdminPlatformWallet() {
                     <p className="text-muted-foreground">Koszty zwrotów</p>
                     <p className="font-semibold tabular-nums text-muted-foreground">{signedPln(summary ? -summary.refundCostGrosze : undefined)}</p>
                   </div>
+                  {(summary?.connectPayoutFeesGrosze ?? 0) > 0 && (
+                    <div>
+                      <p className="text-muted-foreground">Connect / payout</p>
+                      <p className="font-semibold tabular-nums text-muted-foreground">{signedPln(summary ? -summary.connectPayoutFeesGrosze : undefined)}</p>
+                    </div>
+                  )}
+                  {(summary?.otherStripeCostsGrosze ?? 0) > 0 && (
+                    <div>
+                      <p className="text-muted-foreground">Inne koszty Stripe</p>
+                      <p className="font-semibold tabular-nums text-muted-foreground">{signedPln(summary ? -summary.otherStripeCostsGrosze : undefined)}</p>
+                    </div>
+                  )}
+                  {(summary?.otherStripeCreditsGrosze ?? 0) > 0 && (
+                    <div>
+                      <p className="text-muted-foreground">Korekty Stripe</p>
+                      <p className="font-semibold tabular-nums text-success">{pln(summary?.otherStripeCreditsGrosze)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

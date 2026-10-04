@@ -31,6 +31,7 @@ export type StripeFinancialEventLike = {
   amountGrosze: number
   feeGrosze: number
   netGrosze: number
+  financeCategory?: 'connect_payout_fee' | 'other_stripe_cost' | 'other_stripe_credit'
   stripeChargeId?: string
   stripePaymentIntentId?: string
   chargeAmountGrosze?: number
@@ -92,6 +93,9 @@ export function computePlatformFinance(input: {
   refundCostGrosze: number
   refundCount: number
   stripeAdjustmentsGrosze: number
+  connectPayoutFeesGrosze: number
+  otherStripeCostsGrosze: number
+  otherStripeCreditsGrosze: number
   netPlatformRevenueGrosze: number
   netPlatformRevenuePartial: boolean
   teacherAmountGrosze: number
@@ -120,9 +124,16 @@ export function computePlatformFinance(input: {
   const refundEvents = input.events.filter((event) => event.type === 'refund')
   const refundAmountGrosze = refundEvents.reduce((sum, event) => sum + Math.abs(event.amountGrosze), 0)
   const refundCostGrosze = computeRefundCostGrosze(refundEvents)
-  const stripeAdjustmentsGrosze = input.events
-    .filter((event) => event.type !== 'refund')
-    .reduce((sum, event) => sum + event.netGrosze, 0)
+  const connectPayoutFeesGrosze = input.events
+    .filter((event) => event.financeCategory === 'connect_payout_fee')
+    .reduce((sum, event) => sum + Math.abs(event.netGrosze || event.amountGrosze || event.feeGrosze), 0)
+  const otherStripeCostsGrosze = input.events
+    .filter((event) => event.financeCategory === 'other_stripe_cost')
+    .reduce((sum, event) => sum + Math.abs(event.netGrosze || event.amountGrosze || event.feeGrosze), 0)
+  const otherStripeCreditsGrosze = input.events
+    .filter((event) => event.financeCategory === 'other_stripe_credit')
+    .reduce((sum, event) => sum + Math.abs(event.netGrosze || event.amountGrosze), 0)
+  const stripeAdjustmentsGrosze = otherStripeCreditsGrosze - connectPayoutFeesGrosze - otherStripeCostsGrosze
 
   return {
     grossPlatformCommissionGrosze,
@@ -134,7 +145,15 @@ export function computePlatformFinance(input: {
     refundCostGrosze,
     refundCount: refundEvents.length,
     stripeAdjustmentsGrosze,
-    netPlatformRevenueGrosze: (stripeFeesComplete ? grossPlatformCommissionGrosze : knownPlatformCommissionGrosze) - stripeProcessingFeesGrosze - refundCostGrosze + stripeAdjustmentsGrosze,
+    connectPayoutFeesGrosze,
+    otherStripeCostsGrosze,
+    otherStripeCreditsGrosze,
+    netPlatformRevenueGrosze: (stripeFeesComplete ? grossPlatformCommissionGrosze : knownPlatformCommissionGrosze)
+      - stripeProcessingFeesGrosze
+      - refundCostGrosze
+      - connectPayoutFeesGrosze
+      - otherStripeCostsGrosze
+      + otherStripeCreditsGrosze,
     netPlatformRevenuePartial: !stripeFeesComplete,
     teacherAmountGrosze: paid.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
     teacherTransferredGrosze: paid.filter((lesson) => lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),

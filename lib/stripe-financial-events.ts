@@ -3,7 +3,9 @@ import type Stripe from 'stripe'
 import { adminDb } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import { stripe } from '@/lib/stripe'
+import { STRIPE_CURRENCY } from '@/lib/stripe-config'
 import type { Lesson, StripeFinancialEvent } from '@/lib/types'
+import type { StripeFinancialEventLike } from '@/lib/stripe-financial-metrics'
 
 function objectWithId<T extends { id: string }>(value: string | T | null | undefined): T | null {
   return value && typeof value !== 'string' ? value : null
@@ -93,4 +95,52 @@ export async function persistStripeRefundFinancialEvent(refund: Stripe.Refund): 
       }
     }
   })
+}
+
+function platformCostCategory(transaction: Stripe.BalanceTransaction): StripeFinancialEventLike['financeCategory'] | null {
+  const transactionType = transaction.type as string
+  if (transactionType === 'refund' || transactionType === 'payment_refund') return null
+  if (transactionType === 'charge' || transactionType === 'payment') return null
+  if (transactionType === 'transfer' || transactionType === 'payout') {
+    return transaction.fee > 0 ? 'connect_payout_fee' : null
+  }
+  if (transactionType === 'stripe_fee') return 'connect_payout_fee'
+  if (transactionType === 'network_cost') return 'other_stripe_cost'
+  if (transaction.net < 0 && (
+    transactionType === 'adjustment' ||
+    transactionType === 'application_fee_refund' ||
+    transactionType === 'transfer_reversal' ||
+    transactionType === 'other'
+  )) {
+    return 'other_stripe_cost'
+  }
+  if (transaction.net > 0 && (
+    transactionType === 'adjustment' ||
+    transactionType === 'transfer_reversal' ||
+    transactionType === 'other'
+  )) {
+    return 'other_stripe_credit'
+  }
+  return null
+}
+
+export async function readPlatformStripeCostFinancialEvents(existingBalanceTransactionIds: Set<string>): Promise<StripeFinancialEventLike[]> {
+  if (!stripe) return []
+
+  const events: StripeFinancialEventLike[] = []
+  for await (const transaction of stripe.balanceTransactions.list({ limit: 100, currency: STRIPE_CURRENCY })) {
+    if (existingBalanceTransactionIds.has(transaction.id)) continue
+    const financeCategory = platformCostCategory(transaction)
+    if (!financeCategory) continue
+    events.push({
+      type: 'other',
+      amountGrosze: transaction.amount,
+      feeGrosze: transaction.fee,
+      netGrosze: transaction.type === 'transfer' || transaction.type === 'payout'
+        ? -Math.abs(transaction.fee)
+        : transaction.net,
+      financeCategory,
+    })
+  }
+  return events
 }
