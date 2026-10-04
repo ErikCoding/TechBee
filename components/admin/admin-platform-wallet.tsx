@@ -91,6 +91,18 @@ function commissionBadge(entry: PlatformWalletEntry) {
   )
 }
 
+function isStripeCostEntry(entry: PlatformWalletEntry) {
+  return entry.transactionType === 'stripe_connect_fee' ||
+    entry.transactionType === 'teacher_account_fee' ||
+    entry.transactionType === 'teacher_payout_fee'
+}
+
+function stripeCostTitle(entry: PlatformWalletEntry) {
+  if (entry.transactionType === 'teacher_payout_fee') return 'Wypłata nauczyciela'
+  if (entry.transactionType === 'teacher_account_fee') return 'Koszt konta nauczyciela'
+  return 'Stripe / Connect'
+}
+
 const COLLAPSED_ENTRY_COUNT = 5
 
 export function AdminPlatformWallet() {
@@ -340,77 +352,20 @@ export function AdminPlatformWallet() {
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">Brak płatności i kosztów.</p>
               ) : (
                 <>
-                  <div className="hidden divide-y divide-border lg:block">
-                    <div className="grid grid-cols-[1.25fr_.65fr_.75fr_.85fr_.85fr_.75fr_.9fr] gap-3 bg-muted/20 px-4 py-2 text-[11px] font-medium text-muted-foreground">
-                      <span>Lekcja</span>
-                      <span>Typ</span>
-                      <span>Zapłacono</span>
-                      <span>Prowizja Runbee</span>
-                      <span>Stripe / netto transakcji</span>
-                      <span>Nauczyciel</span>
-                      <span>Status</span>
-                    </div>
+                  <div className="divide-y divide-border">
                     {visibleEntries.map((entry) => (
-                      entry.transactionType === 'stripe_connect_fee' ? (
-                        <div key={entry.id} className="grid grid-cols-[1.25fr_.65fr_.75fr_.85fr_.85fr_.75fr_.9fr] gap-3 bg-muted/10 px-4 py-3 text-xs">
-                          <div className="col-span-2 min-w-0">
-                            <p className="truncate font-semibold text-muted-foreground">Stripe / Connect</p>
-                            <p className="truncate text-foreground">{entry.topic}</p>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.date}</p>
-                          </div>
-                          <div className="flex items-start">{transactionBadge(entry)}</div>
-                          <p className={entry.grossGrosze < 0 ? 'font-semibold tabular-nums text-destructive' : 'font-semibold tabular-nums text-success'}>
-                            {signedPln(entry.grossGrosze)}
-                          </p>
-                          <div className="col-span-3 min-w-0 text-[11px] text-muted-foreground">
-                            <p className="truncate">Balance transaction: {entry.stripeBalanceTransactionId ?? '—'}</p>
-                            {(entry.stripeType || entry.stripeSource) && (
-                              <p className="mt-0.5 truncate">type: {entry.stripeType ?? '—'}{entry.stripeSource ? ` · source: ${entry.stripeSource}` : ''}</p>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div key={entry.id} className="grid grid-cols-[1.25fr_.65fr_.75fr_.85fr_.85fr_.75fr_.9fr] gap-3 px-4 py-3 text-xs">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-foreground">{entry.topic}</p>
-                            <p className="truncate text-muted-foreground">{entry.studentName || '—'} → {entry.teacherName || '—'}</p>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.date}</p>
-                            {typeof entry.deferredGrossGrosze === 'number' && entry.deferredGrossGrosze > 0 && (
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">Nierozliczone credits: {pln(entry.deferredGrossGrosze)}</p>
-                            )}
-                          </div>
-                          <div className="flex items-start">{transactionBadge(entry)}</div>
-                          <p className="font-semibold tabular-nums text-foreground">{pln(entry.grossGrosze)}</p>
-                          <div>
-                            <p className="font-semibold tabular-nums text-foreground">{pln(entry.platformFeeGrosze)}</p>
-                            <div className="mt-1">{commissionBadge(entry)}</div>
-                          </div>
-                          <div>
-                            <p className="tabular-nums text-muted-foreground">Stripe: {signedPln(typeof entry.stripeFeeGrosze === 'number' ? -entry.stripeFeeGrosze : undefined)}</p>
-                            <p className="mt-0.5 tabular-nums text-foreground">Netto transakcji: {pln(entry.netPlatformRevenueGrosze)}</p>
-                          </div>
-                          <p className="font-semibold tabular-nums text-foreground">{pln(entry.teacherAmountGrosze)}</p>
-                          <div className="flex flex-col items-start gap-1 text-muted-foreground">
-                            <span>{settlementLabel(entry.settlementStatus)}</span>
-                            {transferBadge(entry)}
-                          </div>
-                        </div>
-                      )
-                    ))}
-                  </div>
-
-                  <div className="divide-y divide-border lg:hidden">
-                    {visibleEntries.map((entry) => (
-                      entry.transactionType === 'stripe_connect_fee' ? (
+                      isStripeCostEntry(entry) ? (
                         <div key={entry.id} className="bg-muted/10 px-4 py-3 text-xs">
-                          <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="truncate font-semibold text-muted-foreground">Stripe / Connect</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold uppercase tracking-normal text-muted-foreground">{stripeCostTitle(entry)}</p>
                                 {transactionBadge(entry)}
                               </div>
                               <p className="truncate text-foreground">{entry.topic}</p>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.date}</p>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {entry.teacherName ? `${entry.teacherName} · ` : ''}{entry.date}
+                              </p>
                             </div>
                             <p className={entry.grossGrosze < 0 ? 'shrink-0 font-bold tabular-nums text-destructive' : 'shrink-0 font-bold tabular-nums text-success'}>
                               {signedPln(entry.grossGrosze)}
@@ -424,44 +379,64 @@ export function AdminPlatformWallet() {
                           </div>
                         </div>
                       ) : (
-                        <div key={entry.id} className="px-4 py-3 text-xs">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate font-semibold text-foreground">{entry.topic}</p>
-                              {transactionBadge(entry)}
+                        <div key={entry.id} className="px-4 py-4 text-xs">
+                          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+                            <div className="min-w-0">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-foreground">{entry.topic}</p>
+                                  <p className="truncate text-muted-foreground">{entry.studentName || '—'} → {entry.teacherName || '—'}</p>
+                                  <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.date}</p>
+                                </div>
+                                <p className="shrink-0 text-lg font-bold tabular-nums text-foreground">{pln(entry.grossGrosze)}</p>
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                {transactionBadge(entry)}
+                                {commissionBadge(entry)}
+                                <span className="text-[11px] text-muted-foreground">{settlementLabel(entry.settlementStatus)}</span>
+                                {transferBadge(entry)}
+                              </div>
+                              {typeof entry.deferredGrossGrosze === 'number' && entry.deferredGrossGrosze > 0 && (
+                                <p className="mt-2 text-[11px] text-muted-foreground">Nierozliczone credits: {pln(entry.deferredGrossGrosze)}</p>
+                              )}
                             </div>
-                            <p className="truncate text-muted-foreground">{entry.studentName || '—'} → {entry.teacherName || '—'}</p>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.date}</p>
-                            {typeof entry.deferredGrossGrosze === 'number' && entry.deferredGrossGrosze > 0 && (
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">Nierozliczone credits: {pln(entry.deferredGrossGrosze)}</p>
-                            )}
+                            <div className="rounded-lg border border-border bg-background/50 p-3">
+                              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Rozliczenie</p>
+                              <div className="mt-2 grid gap-1.5">
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-muted-foreground">Prowizja Runbee</span>
+                                  <span className="font-semibold tabular-nums text-success">+{pln(entry.platformFeeGrosze)}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-muted-foreground">Stripe processing</span>
+                                  <span className="tabular-nums text-foreground">{signedPln(typeof entry.stripeFeeGrosze === 'number' ? -entry.stripeFeeGrosze : undefined)}</span>
+                                </div>
+                                {(entry.attributedStripeCosts ?? []).map((cost) => (
+                                  <div key={cost.id} className="flex items-center justify-between gap-3">
+                                    <span className="text-muted-foreground">{cost.description || cost.label}</span>
+                                    <span className="tabular-nums text-foreground">{signedPln(cost.amountGrosze)}</span>
+                                  </div>
+                                ))}
+                                <div className="mt-1 border-t border-border pt-2">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="font-medium text-muted-foreground">Netto po processing</span>
+                                    <span className="font-semibold tabular-nums text-foreground">{pln(entry.netPlatformRevenueGrosze)}</span>
+                                  </div>
+                                  {typeof entry.netAfterAssignedCostsGrosze === 'number' && (
+                                    <div className="mt-1 flex items-center justify-between gap-3">
+                                      <span className="font-medium text-muted-foreground">Wynik po przypisanych kosztach</span>
+                                      <span className="font-semibold tabular-nums text-foreground">{pln(entry.netAfterAssignedCostsGrosze)}</span>
+                                    </div>
+                                  )}
+                                  <div className="mt-1 flex items-center justify-between gap-3">
+                                    <span className="font-medium text-muted-foreground">Dla nauczyciela</span>
+                                    <span className="font-semibold tabular-nums text-foreground">{pln(entry.teacherAmountGrosze)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <p className="shrink-0 font-bold tabular-nums text-foreground">{pln(entry.grossGrosze)}</p>
                         </div>
-                        <div className="mt-3 grid gap-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Prowizja Runbee</span>
-                            <span className="flex items-center gap-2 font-semibold tabular-nums text-foreground">{pln(entry.platformFeeGrosze)} {commissionBadge(entry)}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Stripe</span>
-                            <span className="tabular-nums text-foreground">{signedPln(typeof entry.stripeFeeGrosze === 'number' ? -entry.stripeFeeGrosze : undefined)}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Netto transakcji</span>
-                            <span className="tabular-nums text-foreground">{pln(entry.netPlatformRevenueGrosze)}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Nauczyciel</span>
-                            <span className="tabular-nums text-foreground">{pln(entry.teacherAmountGrosze)}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Status</span>
-                            <span className="flex items-center gap-2 text-foreground">{settlementLabel(entry.settlementStatus)} {transferBadge(entry)}</span>
-                          </div>
-                        </div>
-                      </div>
                       )
                     ))}
                   </div>

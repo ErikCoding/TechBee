@@ -10,7 +10,7 @@ import { classifyLessonFinanceEntry, classifyPackageFinanceEntry } from '@/lib/a
 import { readPlatformStripeCostFinancialEvents } from '@/lib/stripe-financial-events'
 import { syncMissingStripeFeesForReporting } from '@/lib/stripe-fee-sync.server'
 import { mergeAndSortPlatformWalletEntries } from '@/lib/admin-platform-wallet-history'
-import type { Lesson, LessonPackage, PlatformStripeCostBreakdownEntry, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
+import type { Lesson, LessonPackage, LessonPaymentSnapshot, PayoutRecord, PlatformStripeCostBreakdownEntry, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent, Teacher } from '@/lib/types'
 
 async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextResponse> {
   if (!isAdminConfigured) return NextResponse.json({ error: 'Zaufane zapisy Firestore nie są skonfigurowane.' }, { status: 503 })
@@ -58,14 +58,20 @@ function transferStatus(lesson: Lesson): PlatformWalletEntry['transferStatus'] {
 
 async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
   const settings = await getPlatformPaymentSettings()
-  const [lessonsSnap, packagesSnap, financialEventsSnap] = await Promise.all([
+  const [lessonsSnap, packagesSnap, financialEventsSnap, paymentSnapshotsSnap, payoutsSnap, teachersSnap] = await Promise.all([
     adminDb!.collection(collections.lessons).get(),
     adminDb!.collection(collections.lessonPackages).get(),
     adminDb!.collection(collections.stripeFinancialEvents).get(),
+    adminDb!.collection(collections.lessonPaymentSnapshots).get(),
+    adminDb!.collection(collections.payouts).get(),
+    adminDb!.collection(collections.teachers).get(),
   ])
   const allLessons = lessonsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lesson, 'id'>) }))
   const allPackages = packagesSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LessonPackage, 'id'>) }))
   const allFinancialEvents = financialEventsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<StripeFinancialEvent, 'id'>) }))
+  const paymentSnapshots = new Map(paymentSnapshotsSnap.docs.map((d) => [d.id, d.data() as LessonPaymentSnapshot]))
+  const payouts = payoutsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PayoutRecord, 'id'>) }))
+  const teachers = teachersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Teacher, 'id'>) }))
   // Lessons created before this field existed have no `livemode` at all —
   // treated as test-mode, since anything from before the real Stripe
   // switch can only have been a sandbox booking.
@@ -108,6 +114,8 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
       ...(event.stripeType ? { stripeType: event.stripeType } : {}),
       ...(event.description ? { description: event.description } : {}),
       ...(event.source ? { source: event.source } : {}),
+      ...(event.stripeChargeId ? { stripeChargeId: event.stripeChargeId } : {}),
+      ...(event.stripePaymentIntentId ? { stripePaymentIntentId: event.stripePaymentIntentId } : {}),
       amountGrosze: event.amountGrosze,
       feeGrosze: event.feeGrosze,
       netGrosze: event.netGrosze,
@@ -152,31 +160,37 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
 
   const lessonEntries: PlatformWalletEntry[] = lessons
     .filter((lesson) => lesson.paymentStatus === 'paid' || lesson.paymentStatus === 'refunded')
-    .map((lesson) => ({
-      id: `lesson:${lesson.id}`,
-      transactionType: classifyLessonFinanceEntry(lesson),
-      lessonId: lesson.id,
-      countsAsPaidVolume: lesson.paymentSource !== 'package',
-      teacherName: lesson.teacherName,
-      studentName: lesson.studentName,
-      topic: lesson.topic,
-      date: lesson.date && lesson.time ? `${lesson.date}, ${lesson.time}` : lesson.date || lesson.time || '—',
-      grossGrosze: lesson.priceGrosze ?? 0,
-      platformFeeGrosze: lesson.platformFeeGrosze ?? 0,
-      ...(typeof (lesson.effectiveCommissionPercent ?? lesson.commissionPercent) === 'number'
-        ? { effectiveCommissionPercent: lesson.effectiveCommissionPercent ?? lesson.commissionPercent }
-        : {}),
-      ...(lesson.commissionSource ? { commissionSource: lesson.commissionSource } : {}),
-      ...(typeof lesson.stripeFeeGrosze === 'number' ? { stripeFeeGrosze: lesson.stripeFeeGrosze } : {}),
-      ...(lesson.paymentStatus === 'paid' && typeof lesson.stripeFeeGrosze === 'number'
-        ? { netPlatformRevenueGrosze: (lesson.platformFeeGrosze ?? 0) - lesson.stripeFeeGrosze }
-        : {}),
-      teacherAmountGrosze: lesson.teacherAmountGrosze ?? 0,
-      status: lesson.paymentStatus ?? 'paid',
-      settlementStatus: settlementStatus(lesson),
-      transferStatus: transferStatus(lesson),
-      createdAt: lesson.createdAt ?? 0,
-    }))
+    .map((lesson) => {
+      const paymentSnapshot = paymentSnapshots.get(lesson.id)
+      return {
+        id: `lesson:${lesson.id}`,
+        transactionType: classifyLessonFinanceEntry(lesson),
+        lessonId: lesson.id,
+        countsAsPaidVolume: lesson.paymentSource !== 'package',
+        teacherName: lesson.teacherName,
+        studentName: lesson.studentName,
+        topic: lesson.topic,
+        date: lesson.date && lesson.time ? `${lesson.date}, ${lesson.time}` : lesson.date || lesson.time || '—',
+        grossGrosze: lesson.priceGrosze ?? 0,
+        platformFeeGrosze: lesson.platformFeeGrosze ?? 0,
+        ...(typeof (lesson.effectiveCommissionPercent ?? lesson.commissionPercent) === 'number'
+          ? { effectiveCommissionPercent: lesson.effectiveCommissionPercent ?? lesson.commissionPercent }
+          : {}),
+        ...(lesson.commissionSource ? { commissionSource: lesson.commissionSource } : {}),
+        ...(typeof lesson.stripeFeeGrosze === 'number' ? { stripeFeeGrosze: lesson.stripeFeeGrosze } : {}),
+        ...(lesson.stripePaymentIntentId ? { stripePaymentIntentId: lesson.stripePaymentIntentId } : {}),
+        ...(paymentSnapshot?.stripeChargeId ? { stripeChargeId: paymentSnapshot.stripeChargeId } : {}),
+        ...(paymentSnapshot?.stripeBalanceTransactionId ? { stripeBalanceTransactionId: paymentSnapshot.stripeBalanceTransactionId } : {}),
+        ...(lesson.paymentStatus === 'paid' && typeof lesson.stripeFeeGrosze === 'number'
+          ? { netPlatformRevenueGrosze: (lesson.platformFeeGrosze ?? 0) - lesson.stripeFeeGrosze }
+          : {}),
+        teacherAmountGrosze: lesson.teacherAmountGrosze ?? 0,
+        status: lesson.paymentStatus ?? 'paid',
+        settlementStatus: settlementStatus(lesson),
+        transferStatus: transferStatus(lesson),
+        createdAt: lesson.createdAt ?? 0,
+      }
+    })
 
   const packageEntries: PlatformWalletEntry[] = packages
     .filter((pkg) => pkg.status !== 'refunded')
@@ -203,6 +217,9 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
         commissionSource: pkg.commissionSource,
         teacherAmountGrosze: recognizedTeacherAmountGrosze,
         ...(typeof pkg.stripeFeeGrosze === 'number' ? { stripeFeeGrosze: pkg.stripeFeeGrosze } : {}),
+        ...(pkg.stripePaymentIntentId ? { stripePaymentIntentId: pkg.stripePaymentIntentId } : {}),
+        ...(pkg.stripeChargeId ? { stripeChargeId: pkg.stripeChargeId } : {}),
+        ...(pkg.stripeBalanceTransactionId ? { stripeBalanceTransactionId: pkg.stripeBalanceTransactionId } : {}),
         ...(typeof pkg.stripeFeeGrosze === 'number'
           ? { netPlatformRevenueGrosze: recognizedPlatformFeeGrosze - pkg.stripeFeeGrosze }
           : {}),
@@ -237,6 +254,7 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
   const entries = mergeAndSortPlatformWalletEntries(
     [...lessonEntries, ...packageEntries, ...refundEntries],
     stripeCostBreakdown,
+    { payouts, teachers },
   )
 
   return { summary, entries: entries.slice(0, 12) }

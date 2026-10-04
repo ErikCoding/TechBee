@@ -565,6 +565,8 @@ export type PlatformStripeCostBreakdownEntry = {
   stripeType?: string
   description?: string
   source?: string
+  stripeChargeId?: string
+  stripePaymentIntentId?: string
   amountGrosze: number
   feeGrosze: number
   netGrosze: number
@@ -573,7 +575,7 @@ export type PlatformStripeCostBreakdownEntry = {
 
 export type PlatformWalletEntry = {
   id: string
-  transactionType: 'single_lesson' | 'trial_lesson' | 'package_purchase' | 'package_lesson' | 'refund' | 'stripe_connect_fee'
+  transactionType: 'single_lesson' | 'trial_lesson' | 'package_purchase' | 'package_lesson' | 'refund' | 'stripe_connect_fee' | 'teacher_account_fee' | 'teacher_payout_fee'
   lessonId?: string
   packageId?: string
   stripeRefundId?: string
@@ -581,7 +583,10 @@ export type PlatformWalletEntry = {
   stripeType?: string
   stripeDescription?: string
   stripeSource?: string
+  stripeChargeId?: string
+  stripePaymentIntentId?: string
   stripeCostFinanceCategory?: PlatformStripeCostBreakdownEntry['financeCategory']
+  teacherId?: string
   packageSize?: LessonPackageSize
   usedCredits?: number
   reservedCredits?: number
@@ -598,6 +603,17 @@ export type PlatformWalletEntry = {
   commissionSource?: CommissionSource
   stripeFeeGrosze?: number
   netPlatformRevenueGrosze?: number
+  assignedStripeCostGrosze?: number
+  netAfterAssignedCostsGrosze?: number
+  attributedStripeCosts?: {
+    id: string
+    label: string
+    amountGrosze: number
+    stripeBalanceTransactionId?: string
+    stripeType?: string
+    description?: string
+    source?: string
+  }[]
   teacherAmountGrosze: number
   status: Lesson['paymentStatus'] | LessonPackageStatus | 'posted'
   settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded' | 'stripe_cost'

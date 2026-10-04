@@ -80,6 +80,101 @@ test('global Stripe fee rows do not look attributable to a lesson', () => {
   assert.equal(entry.countsAsPaidVolume, false)
 })
 
+test('attributable Connect fee is attached only to the matching payment card', () => {
+  const entries = mergeAndSortPlatformWalletEntries([
+    {
+      id: 'lesson:matching',
+      transactionType: 'single_lesson',
+      stripeChargeId: 'ch_match',
+      countsAsPaidVolume: true,
+      topic: 'Lekcja',
+      date: '30 wrz',
+      grossGrosze: 8000,
+      platformFeeGrosze: 400,
+      stripeFeeGrosze: 228,
+      netPlatformRevenueGrosze: 172,
+      teacherAmountGrosze: 7600,
+      status: 'paid',
+      settlementStatus: 'transferred',
+      transferStatus: 'sent',
+      createdAt: Date.parse('2026-09-30T10:00:00.000Z'),
+    },
+    {
+      id: 'lesson:other',
+      transactionType: 'single_lesson',
+      stripeChargeId: 'ch_other',
+      countsAsPaidVolume: true,
+      topic: 'Inna lekcja',
+      date: '30 wrz',
+      grossGrosze: 8000,
+      platformFeeGrosze: 400,
+      stripeFeeGrosze: 228,
+      netPlatformRevenueGrosze: 172,
+      teacherAmountGrosze: 7600,
+      status: 'paid',
+      settlementStatus: 'transferred',
+      transferStatus: 'sent',
+      createdAt: Date.parse('2026-09-30T09:00:00.000Z'),
+    },
+  ], [{
+    id: 'txn_volume',
+    stripeBalanceTransactionId: 'txn_volume',
+    financeCategory: 'connect_payout_fee',
+    stripeType: 'stripe_fee',
+    description: 'Account Volume Billing',
+    source: 'ch_match',
+    amountGrosze: -19,
+    feeGrosze: 0,
+    netGrosze: -19,
+    createdAt: Date.parse('2026-09-30T12:00:00.000Z'),
+  }])
+
+  const matching = entries.find((entry) => entry.id === 'lesson:matching')
+  const other = entries.find((entry) => entry.id === 'lesson:other')
+
+  assert.equal(entries.some((entry) => entry.transactionType === 'stripe_connect_fee'), false)
+  assert.equal(matching?.attributedStripeCosts?.length, 1)
+  assert.equal(matching?.attributedStripeCosts?.[0].description, 'Account Volume Billing')
+  assert.equal(matching?.netAfterAssignedCostsGrosze, 153)
+  assert.equal(other?.attributedStripeCosts?.length, 0)
+})
+
+test('payout fee tied to a payout is a payout record, not a random lesson cost', () => {
+  const entries = mergeAndSortPlatformWalletEntries([
+    {
+      id: 'lesson:older',
+      transactionType: 'single_lesson',
+      countsAsPaidVolume: true,
+      topic: 'Lekcja',
+      date: '29 wrz',
+      grossGrosze: 8000,
+      platformFeeGrosze: 400,
+      teacherAmountGrosze: 7600,
+      status: 'paid',
+      settlementStatus: 'transferred',
+      transferStatus: 'sent',
+      createdAt: Date.parse('2026-09-29T10:00:00.000Z'),
+    },
+  ], [{
+    id: 'txn_payout',
+    financeCategory: 'connect_payout_fee',
+    stripeType: 'payout',
+    description: 'Payout Fee',
+    source: 'po_123',
+    amountGrosze: -135,
+    feeGrosze: 135,
+    netGrosze: -135,
+    createdAt: Date.parse('2026-09-30T10:00:00.000Z'),
+  }], {
+    payouts: [{ stripePayoutId: 'po_123', teacherId: 'teacher_1' }],
+    teachers: [{ id: 'teacher_1', name: 'Antoni Obrzud' }],
+  })
+
+  assert.equal(entries[0].transactionType, 'teacher_payout_fee')
+  assert.equal(entries[0].teacherName, 'Antoni Obrzud')
+  assert.equal(entries.find((entry) => entry.id === 'lesson:older')?.attributedStripeCosts?.length, 0)
+})
+
 test('payments, refunds and Stripe/Connect costs are sorted together by timestamp', () => {
   const entries = mergeAndSortPlatformWalletEntries([
     {
