@@ -107,6 +107,95 @@ test('normal paid lesson without refund uses platform commission minus processin
   assert.equal(result.netPlatformRevenueGrosze, 172)
 })
 
+test('single charge and package purchase are counted once while package-funded lesson does not double-count paid volume', () => {
+  const result = computePlatformFinance({
+    lessons: [
+      {
+        paymentStatus: 'paid',
+        paymentSource: 'stripe_checkout',
+        priceGrosze: 10000,
+        platformFeeGrosze: 800,
+        teacherAmountGrosze: 9200,
+        stripeFeeGrosze: 300,
+      },
+      {
+        paymentStatus: 'paid',
+        paymentSource: 'package',
+        packageCreditState: 'used',
+        priceGrosze: 10000,
+        platformFeeGrosze: 800,
+        teacherAmountGrosze: 9200,
+      },
+    ],
+    packages: [{
+      packageSize: 5,
+      status: 'active',
+      totalPriceGrosze: 50000,
+      remainingCredits: 4,
+      reservedCredits: 0,
+      usedCredits: 1,
+      perLessonGrossGrosze: 10000,
+      platformFeePerLessonGrosze: 800,
+      teacherAmountPerLessonGrosze: 9200,
+    }],
+    events: [],
+  })
+
+  assert.equal(result.paidVolumeGrosze, 60000)
+  assert.equal(result.packagePurchaseVolumeGrosze, 50000)
+  assert.equal(result.packageDeferredGrossGrosze, 40000)
+  assert.equal(result.packageUsedGrossGrosze, 10000)
+  assert.equal(result.grossPlatformCommissionGrosze, 1600)
+})
+
+test('package purchase 10 is classified as one real charge with deferred credits', () => {
+  const result = computePlatformFinance({
+    lessons: [],
+    packages: [{
+      packageSize: 10,
+      status: 'active',
+      totalPriceGrosze: 120000,
+      remainingCredits: 10,
+      reservedCredits: 0,
+      usedCredits: 0,
+      perLessonGrossGrosze: 12000,
+      platformFeePerLessonGrosze: 960,
+      teacherAmountPerLessonGrosze: 11040,
+    }],
+    events: [],
+  })
+
+  assert.equal(result.paidVolumeGrosze, 120000)
+  assert.equal(result.packagePurchaseVolumeGrosze, 120000)
+  assert.equal(result.packageDeferredGrossGrosze, 120000)
+  assert.equal(result.grossPlatformCommissionGrosze, 0)
+})
+
+test('historical commission snapshots keep 5 percent and 8 percent amounts', () => {
+  const result = computePlatformFinance({
+    lessons: [
+      {
+        paymentStatus: 'paid',
+        priceGrosze: 10000,
+        platformFeeGrosze: 500,
+        teacherAmountGrosze: 9500,
+        stripeFeeGrosze: 300,
+      },
+      {
+        paymentStatus: 'paid',
+        priceGrosze: 10000,
+        platformFeeGrosze: 800,
+        teacherAmountGrosze: 9200,
+        stripeFeeGrosze: 300,
+      },
+    ],
+    events: [],
+  })
+
+  assert.equal(result.grossPlatformCommissionGrosze, 1300)
+  assert.equal(result.teacherAmountGrosze, 18700)
+})
+
 test('idempotent webhook storage is represented by one event per balance transaction id', () => {
   const uniqueByBalanceTransaction = new Map()
   for (const event of [

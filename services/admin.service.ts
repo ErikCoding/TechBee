@@ -1,6 +1,6 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
-import { computeAdminPlatformRevenue, type AdminRevenueLessonRow } from '@/lib/admin-revenue-metrics'
+import { computeAdminPlatformRevenue, type AdminRevenueLessonPackageRow, type AdminRevenueLessonRow } from '@/lib/admin-revenue-metrics'
 import { getPendingTeacherApplications } from '@/services/teachers.service'
 import type { AdminStats, AdminUserRow, FoundingTeacherAdminDashboard, FoundingTeacherProgramConfig, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
 
@@ -58,10 +58,11 @@ type StoredUserProfile = {
 
 async function getAdminStatsFirebase(): Promise<AdminStats> {
   if (!db || !auth?.currentUser) return emptyAdminStats()
-  const [usersSnap, pendingApplications, completedLessonsSnap] = await Promise.all([
+  const [usersSnap, pendingApplications, completedLessonsSnap, packagesSnap] = await Promise.all([
     getDocs(collection(db, collections.users)),
     getPendingTeacherApplications(),
     getDocs(collection(db, collections.lessons)),
+    getDocs(collection(db, collections.lessonPackages)),
   ])
 
   const users = usersSnap.docs.map((d) => d.data() as StoredUserProfile)
@@ -72,7 +73,11 @@ async function getAdminStatsFirebase(): Promise<AdminStats> {
   const weekAgo = Date.now() - WEEK_MS
   const newSignupsThisWeek = users.filter((u) => (u.createdAt ?? 0) >= weekAgo).length
 
-  const revenue = computeAdminPlatformRevenue(completedLessonsSnap.docs.map((d) => d.data() as AdminRevenueLessonRow))
+  const revenue = computeAdminPlatformRevenue(
+    completedLessonsSnap.docs.map((d) => d.data() as AdminRevenueLessonRow),
+    new Date(),
+    packagesSnap.docs.map((d) => d.data() as AdminRevenueLessonPackageRow),
+  )
 
   return {
     ...revenue,

@@ -5,6 +5,7 @@ import { collections } from '@/lib/firebase'
 import { stripe } from '@/lib/stripe'
 import { LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
 import { getStripePaymentFeeSnapshot } from '@/lib/stripe-payment-fees'
+import { resolveCheckoutSessionRaceDecision } from '@/lib/stripe-checkout-lessons-core'
 import { checkoutAutoRefundIdempotencyKey, normalizeLessonKind, trialLessonConsumesEligibility } from '@/lib/trial-lessons'
 import type { Lesson } from '@/lib/types'
 
@@ -115,7 +116,10 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
 
   const lockIds = m.dateIso && m.time ? slotLockIds(m.teacherId, m.dateIso, m.time, duration) : []
   const ref = database.collection(collections.lessons).doc()
-  const result = await database.runTransaction(async (tx): Promise<{ lessonId: string | null; reason?: 'slot_unavailable' | 'trial_already_used' }> => {
+  const result = await database.runTransaction(async (tx): Promise<{ lessonId: string | null; created: boolean; reason?: 'slot_unavailable' | 'trial_already_used' | 'same_session_in_progress' }> => {
+    const existingInTx = await tx.get(database.collection(collections.lessons).where('stripeCheckoutSessionId', '==', session.id).limit(1))
+    if (!existingInTx.empty) return { lessonId: existingInTx.docs[0].id, created: false }
+
     const trialGuardRef = lessonKind === 'trial'
       ? database.collection(collections.trialLessonGuards).doc(trialGuardId(m.studentId, m.teacherId))
       : null
@@ -123,11 +127,11 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
       const guardSnap = await tx.get(trialGuardRef)
       if (guardSnap.exists) {
         const guardedLessonId = guardSnap.data()?.lessonId
-        if (typeof guardedLessonId !== 'string') return { lessonId: null, reason: 'trial_already_used' }
+        if (typeof guardedLessonId !== 'string') return { lessonId: null, created: false, reason: 'trial_already_used' }
         const guardedLessonSnap = await tx.get(database.collection(collections.lessons).doc(guardedLessonId))
-        if (!guardedLessonSnap.exists) return { lessonId: null, reason: 'trial_already_used' }
+        if (!guardedLessonSnap.exists) return { lessonId: null, created: false, reason: 'trial_already_used' }
         const guardedLesson = { id: guardedLessonSnap.id, ...guardedLessonSnap.data() } as Lesson
-        if (trialLessonConsumesEligibility(guardedLesson)) return { lessonId: null, reason: 'trial_already_used' }
+        if (trialLessonConsumesEligibility(guardedLesson)) return { lessonId: null, created: false, reason: 'trial_already_used' }
       }
     }
 
@@ -136,13 +140,29 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
       const lockSnaps = await Promise.all(lockRefs.map((lockRef) => tx.get(lockRef)))
       for (const lockSnap of lockSnaps) {
         if (!lockSnap.exists) continue
+        const lockDecision = resolveCheckoutSessionRaceDecision({
+          currentCheckoutSessionId: session.id,
+          slotLocks: [{
+            exists: true,
+            checkoutSessionId: lockSnap.data()?.checkoutSessionId,
+            lessonId: lockSnap.data()?.lessonId,
+          }],
+        })
+        if (lockDecision.action === 'return_existing_lesson') {
+          const sameSessionLessonSnap = await tx.get(database.collection(collections.lessons).doc(lockDecision.lessonId))
+          if (sameSessionLessonSnap.exists) return { lessonId: lockDecision.lessonId, created: false }
+          return { lessonId: null, created: false, reason: 'same_session_in_progress' }
+        }
+        if (lockDecision.action === 'same_session_in_progress') {
+          return { lessonId: null, created: false, reason: 'same_session_in_progress' }
+        }
         const lockedLessonId = lockSnap.data()?.lessonId
-        if (typeof lockedLessonId !== 'string') return { lessonId: null, reason: 'slot_unavailable' }
+        if (typeof lockedLessonId !== 'string') return { lessonId: null, created: false, reason: 'slot_unavailable' }
         const lockedLessonSnap = await tx.get(database.collection(collections.lessons).doc(lockedLessonId))
         if (!lockedLessonSnap.exists) continue
         const lockedLesson = { id: lockedLessonSnap.id, ...lockedLessonSnap.data() } as Lesson
         if (slotOverlapsBookedLesson({ dateIso: m.dateIso, time: m.time, duration, booked: [lockedLesson] })) {
-          return { lessonId: null, reason: 'slot_unavailable' }
+          return { lessonId: null, created: false, reason: 'slot_unavailable' }
         }
       }
       for (const lockRef of lockRefs) {
@@ -177,10 +197,11 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
         createdAt: now,
       })
     }
-    return { lessonId: ref.id }
+    return { lessonId: ref.id, created: true }
   })
 
   if (!result.lessonId) {
+    if (result.reason === 'same_session_in_progress') return null
     await refundPaidSession(session)
     await database.collection(collections.notifications).add({
       userId: m.payerId || m.studentId,
@@ -195,6 +216,8 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     })
     return null
   }
+
+  if (!result.created) return result.lessonId
 
   await database.collection(collections.notifications).add({
     userId: m.teacherId,

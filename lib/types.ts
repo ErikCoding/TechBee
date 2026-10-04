@@ -526,6 +526,10 @@ export type FoundingTeacherAdminDashboard = {
 export type PlatformWalletSummary = {
   commissionPercent: number
   paidVolumeGrosze: number
+  packagePurchaseVolumeGrosze?: number
+  packageDeferredGrossGrosze?: number
+  packageReservedGrossGrosze?: number
+  packageUsedGrossGrosze?: number
   refundsGrosze: number
   refundAmountGrosze: number
   refundCostGrosze: number
@@ -546,9 +550,19 @@ export type PlatformWalletSummary = {
 }
 
 export type PlatformWalletEntry = {
-  lessonId: string
-  teacherName: string
-  studentName: string
+  id: string
+  transactionType: 'single_lesson' | 'trial_lesson' | 'package_purchase' | 'package_lesson' | 'refund'
+  lessonId?: string
+  packageId?: string
+  stripeRefundId?: string
+  packageSize?: LessonPackageSize
+  usedCredits?: number
+  reservedCredits?: number
+  remainingCredits?: number
+  deferredGrossGrosze?: number
+  countsAsPaidVolume: boolean
+  teacherName?: string
+  studentName?: string
   topic: string
   date: string
   grossGrosze: number
@@ -558,7 +572,7 @@ export type PlatformWalletEntry = {
   stripeFeeGrosze?: number
   netPlatformRevenueGrosze?: number
   teacherAmountGrosze: number
-  status: Lesson['paymentStatus']
+  status: Lesson['paymentStatus'] | LessonPackageStatus
   settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded'
   transferStatus: 'pending' | 'ready' | 'sent' | 'refunded'
   createdAt: number

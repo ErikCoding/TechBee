@@ -1,11 +1,28 @@
 export type FinancialLesson = {
   id?: string
   paymentStatus?: 'paid' | 'refunded' | 'failed'
+  lessonKind?: 'regular' | 'trial'
+  paymentSource?: 'stripe_checkout' | 'package'
+  packageCreditState?: 'reserved' | 'used' | 'returned'
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
   priceGrosze?: number
   stripeFeeGrosze?: number
   stripeTransferId?: string
+}
+
+export type FinancialLessonPackage = {
+  id?: string
+  packageSize: 5 | 10
+  status?: 'active' | 'exhausted' | 'cancelled' | 'refunded'
+  totalPriceGrosze?: number
+  remainingCredits?: number
+  reservedCredits?: number
+  usedCredits?: number
+  perLessonGrossGrosze?: number
+  platformFeePerLessonGrosze?: number
+  teacherAmountPerLessonGrosze?: number
+  stripeFeeGrosze?: number
 }
 
 export type StripeFinancialEventLike = {
@@ -62,6 +79,7 @@ export function computeRefundCostGrosze(events: StripeFinancialEventLike[]): num
 
 export function computePlatformFinance(input: {
   lessons: FinancialLesson[]
+  packages?: FinancialLessonPackage[]
   events: StripeFinancialEventLike[]
 }): {
   grossPlatformCommissionGrosze: number
@@ -76,13 +94,23 @@ export function computePlatformFinance(input: {
   teacherAmountGrosze: number
   teacherTransferredGrosze: number
   paidVolumeGrosze: number
+  packagePurchaseVolumeGrosze: number
+  packageDeferredGrossGrosze: number
+  packageReservedGrossGrosze: number
+  packageUsedGrossGrosze: number
 } {
   const paid = input.lessons.filter((lesson) => lesson.paymentStatus === 'paid')
-  const knownFeePaid = paid.filter((lesson) => finite(lesson.stripeFeeGrosze))
-  const stripeFeesMissingCount = paid.length - knownFeePaid.length
+  const paidChargeLessons = paid.filter((lesson) => lesson.paymentSource !== 'package')
+  const paidPackageLessons = paid.filter((lesson) => lesson.paymentSource === 'package')
+  const usedPackageLessons = paidPackageLessons.filter((lesson) => lesson.packageCreditState === 'used')
+  const packages = (input.packages ?? []).filter((pkg) => pkg.status !== 'refunded')
+  const knownFeeChargeLessons = paidChargeLessons.filter((lesson) => finite(lesson.stripeFeeGrosze))
+  const knownFeePackages = packages.filter((pkg) => finite(pkg.stripeFeeGrosze))
+  const stripeFeesMissingCount = (paidChargeLessons.length - knownFeeChargeLessons.length) + (packages.length - knownFeePackages.length)
   const stripeFeesComplete = stripeFeesMissingCount === 0
-  const grossPlatformCommissionGrosze = paid.reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
-  const stripeProcessingFeesGrosze = knownFeePaid.reduce((sum, lesson) => sum + (lesson.stripeFeeGrosze ?? 0), 0)
+  const grossPlatformCommissionGrosze = [...paidChargeLessons, ...usedPackageLessons].reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
+  const stripeProcessingFeesGrosze = knownFeeChargeLessons.reduce((sum, lesson) => sum + (lesson.stripeFeeGrosze ?? 0), 0)
+    + knownFeePackages.reduce((sum, pkg) => sum + (pkg.stripeFeeGrosze ?? 0), 0)
   const refundEvents = input.events.filter((event) => event.type === 'refund')
   const refundAmountGrosze = refundEvents.reduce((sum, event) => sum + Math.abs(event.amountGrosze), 0)
   const refundCostGrosze = computeRefundCostGrosze(refundEvents)
@@ -104,6 +132,11 @@ export function computePlatformFinance(input: {
       : null,
     teacherAmountGrosze: paid.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
     teacherTransferredGrosze: paid.filter((lesson) => lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
-    paidVolumeGrosze: paid.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0),
+    paidVolumeGrosze: paidChargeLessons.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0)
+      + packages.reduce((sum, pkg) => sum + (pkg.totalPriceGrosze ?? 0), 0),
+    packagePurchaseVolumeGrosze: packages.reduce((sum, pkg) => sum + (pkg.totalPriceGrosze ?? 0), 0),
+    packageDeferredGrossGrosze: packages.reduce((sum, pkg) => sum + ((pkg.remainingCredits ?? 0) * (pkg.perLessonGrossGrosze ?? 0)), 0),
+    packageReservedGrossGrosze: packages.reduce((sum, pkg) => sum + ((pkg.reservedCredits ?? 0) * (pkg.perLessonGrossGrosze ?? 0)), 0),
+    packageUsedGrossGrosze: packages.reduce((sum, pkg) => sum + ((pkg.usedCredits ?? 0) * (pkg.perLessonGrossGrosze ?? 0)), 0),
   }
 }

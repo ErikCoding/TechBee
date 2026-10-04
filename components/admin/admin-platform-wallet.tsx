@@ -43,6 +43,38 @@ function settlementLabel(status: PlatformWalletEntry['settlementStatus']) {
   }
 }
 
+function transactionLabel(entry: PlatformWalletEntry) {
+  switch (entry.transactionType) {
+    case 'trial_lesson':
+      return 'Trial'
+    case 'package_purchase':
+      return `Pakiet ${entry.packageSize ?? ''}`.trim()
+    case 'package_lesson':
+      return 'Z pakietu'
+    case 'refund':
+      return 'Refund'
+    case 'single_lesson':
+    default:
+      return 'Single'
+  }
+}
+
+function transactionBadge(entry: PlatformWalletEntry) {
+  const tone = entry.transactionType === 'refund'
+    ? 'border-destructive/30 bg-destructive/10 text-destructive'
+    : entry.transactionType === 'package_purchase' || entry.transactionType === 'package_lesson'
+      ? 'border-primary/30 bg-primary/10 text-primary'
+      : entry.transactionType === 'trial_lesson'
+        ? 'border-success/30 bg-success/10 text-success'
+        : 'bg-background text-muted-foreground'
+  return <Badge variant="outline" className={tone}>{transactionLabel(entry)}</Badge>
+}
+
+function transferBadge(entry: PlatformWalletEntry) {
+  if (entry.transferStatus !== 'sent') return null
+  return <Badge variant="outline" className="border-success/30 bg-success/10 text-success">Transfer</Badge>
+}
+
 function commissionBadge(entry: PlatformWalletEntry) {
   const promo = entry.commissionSource === 'founding_teacher'
   return (
@@ -230,6 +262,19 @@ export function AdminPlatformWallet() {
               <div className="rounded-xl border border-border bg-background/50 p-4">
                 <p className="text-xs text-muted-foreground">Obrót opłacony</p>
                 <p className="mt-1 text-base font-bold tabular-nums text-foreground">{pln(summary?.paidVolumeGrosze)}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Realne charge'e uczniów, bez drugiego liczenia lekcji z pakietu.</p>
+                {summary && (summary.packagePurchaseVolumeGrosze ?? 0) > 0 && (
+                  <div className="mt-3 grid gap-1 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">Zakupy pakietów</span>
+                      <span className="font-semibold tabular-nums text-foreground">{pln(summary.packagePurchaseVolumeGrosze)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">Credits niewykorzystane</span>
+                      <span className="font-semibold tabular-nums text-foreground">{pln(summary.packageDeferredGrossGrosze)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="rounded-xl border border-border bg-background/50 p-4">
                 <p className="text-xs text-muted-foreground">Zwroty</p>
@@ -272,8 +317,9 @@ export function AdminPlatformWallet() {
               ) : (
                 <>
                   <div className="hidden divide-y divide-border lg:block">
-                    <div className="grid grid-cols-[1.45fr_.8fr_.9fr_.9fr_.85fr_.95fr] gap-3 bg-muted/20 px-4 py-2 text-[11px] font-medium text-muted-foreground">
+                    <div className="grid grid-cols-[1.25fr_.65fr_.75fr_.85fr_.85fr_.75fr_.9fr] gap-3 bg-muted/20 px-4 py-2 text-[11px] font-medium text-muted-foreground">
                       <span>Lekcja</span>
+                      <span>Typ</span>
                       <span>Zapłacono</span>
                       <span>Prowizja Runbee</span>
                       <span>Stripe / netto</span>
@@ -281,12 +327,16 @@ export function AdminPlatformWallet() {
                       <span>Status</span>
                     </div>
                     {visibleEntries.map((entry) => (
-                      <div key={entry.lessonId} className="grid grid-cols-[1.45fr_.8fr_.9fr_.9fr_.85fr_.95fr] gap-3 px-4 py-3 text-xs">
+                      <div key={entry.id} className="grid grid-cols-[1.25fr_.65fr_.75fr_.85fr_.85fr_.75fr_.9fr] gap-3 px-4 py-3 text-xs">
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-foreground">{entry.topic}</p>
-                          <p className="truncate text-muted-foreground">{entry.studentName} → {entry.teacherName}</p>
+                          <p className="truncate text-muted-foreground">{entry.studentName || '—'} → {entry.teacherName || '—'}</p>
                           <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.date}</p>
+                          {typeof entry.deferredGrossGrosze === 'number' && entry.deferredGrossGrosze > 0 && (
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">Nierozliczone credits: {pln(entry.deferredGrossGrosze)}</p>
+                          )}
                         </div>
+                        <div className="flex items-start">{transactionBadge(entry)}</div>
                         <p className="font-semibold tabular-nums text-foreground">{pln(entry.grossGrosze)}</p>
                         <div>
                           <p className="font-semibold tabular-nums text-foreground">{pln(entry.platformFeeGrosze)}</p>
@@ -297,19 +347,28 @@ export function AdminPlatformWallet() {
                           <p className="mt-0.5 tabular-nums text-foreground">Netto: {pln(entry.netPlatformRevenueGrosze)}</p>
                         </div>
                         <p className="font-semibold tabular-nums text-foreground">{pln(entry.teacherAmountGrosze)}</p>
-                        <p className="text-muted-foreground">{settlementLabel(entry.settlementStatus)}</p>
+                        <div className="flex flex-col items-start gap-1 text-muted-foreground">
+                          <span>{settlementLabel(entry.settlementStatus)}</span>
+                          {transferBadge(entry)}
+                        </div>
                       </div>
                     ))}
                   </div>
 
                   <div className="divide-y divide-border lg:hidden">
                     {visibleEntries.map((entry) => (
-                      <div key={entry.lessonId} className="px-4 py-3 text-xs">
+                      <div key={entry.id} className="px-4 py-3 text-xs">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate font-semibold text-foreground">{entry.topic}</p>
-                            <p className="truncate text-muted-foreground">{entry.studentName} → {entry.teacherName}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="truncate font-semibold text-foreground">{entry.topic}</p>
+                              {transactionBadge(entry)}
+                            </div>
+                            <p className="truncate text-muted-foreground">{entry.studentName || '—'} → {entry.teacherName || '—'}</p>
                             <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.date}</p>
+                            {typeof entry.deferredGrossGrosze === 'number' && entry.deferredGrossGrosze > 0 && (
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">Nierozliczone credits: {pln(entry.deferredGrossGrosze)}</p>
+                            )}
                           </div>
                           <p className="shrink-0 font-bold tabular-nums text-foreground">{pln(entry.grossGrosze)}</p>
                         </div>
@@ -332,7 +391,7 @@ export function AdminPlatformWallet() {
                           </div>
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-muted-foreground">Status</span>
-                            <span className="text-foreground">{settlementLabel(entry.settlementStatus)}</span>
+                            <span className="flex items-center gap-2 text-foreground">{settlementLabel(entry.settlementStatus)} {transferBadge(entry)}</span>
                           </div>
                         </div>
                       </div>

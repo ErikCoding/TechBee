@@ -6,7 +6,8 @@ import { STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings, updatePlatformCommissionPercent } from '@/lib/platform-payment-settings'
 import { getVerifiedUserRole, verifyCaller } from '@/lib/stripe-server-auth'
 import { computePlatformFinance } from '@/lib/stripe-financial-metrics'
-import type { Lesson, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
+import { classifyLessonFinanceEntry, classifyPackageFinanceEntry } from '@/lib/admin-finance-classification'
+import type { Lesson, LessonPackage, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
 
 async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextResponse> {
   if (!isAdminConfigured) return NextResponse.json({ error: 'Zaufane zapisy Firestore nie są skonfigurowane.' }, { status: 503 })
@@ -54,16 +55,19 @@ function transferStatus(lesson: Lesson): PlatformWalletEntry['transferStatus'] {
 
 async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; entries: PlatformWalletEntry[] }> {
   const settings = await getPlatformPaymentSettings()
-  const [lessonsSnap, financialEventsSnap] = await Promise.all([
+  const [lessonsSnap, packagesSnap, financialEventsSnap] = await Promise.all([
     adminDb!.collection(collections.lessons).get(),
+    adminDb!.collection(collections.lessonPackages).get(),
     adminDb!.collection(collections.stripeFinancialEvents).get(),
   ])
   const allLessons = lessonsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lesson, 'id'>) }))
+  const allPackages = packagesSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LessonPackage, 'id'>) }))
   const allFinancialEvents = financialEventsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<StripeFinancialEvent, 'id'>) }))
   // Lessons created before this field existed have no `livemode` at all —
   // treated as test-mode, since anything from before the real Stripe
   // switch can only have been a sandbox booking.
   const lessons = allLessons.filter((lesson) => Boolean(lesson.livemode) === CURRENT_ENV_IS_LIVE)
+  const packages = allPackages.filter((pkg) => Boolean(pkg.livemode) === CURRENT_ENV_IS_LIVE)
   const financialEvents = allFinancialEvents.filter((event) => Boolean(event.livemode) === CURRENT_ENV_IS_LIVE)
   const paid = lessons.filter((lesson) => lesson.paymentStatus === 'paid')
 
@@ -79,12 +83,16 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     }
   }
 
-  const finance = computePlatformFinance({ lessons, events: financialEvents })
+  const finance = computePlatformFinance({ lessons, packages, events: financialEvents })
   const readyForTransfer = paid.filter(lessonIsReadyForTransfer)
 
   const summary: PlatformWalletSummary = {
     commissionPercent: settings.commissionPercent,
     paidVolumeGrosze: finance.paidVolumeGrosze,
+    packagePurchaseVolumeGrosze: finance.packagePurchaseVolumeGrosze,
+    packageDeferredGrossGrosze: finance.packageDeferredGrossGrosze,
+    packageReservedGrossGrosze: finance.packageReservedGrossGrosze,
+    packageUsedGrossGrosze: finance.packageUsedGrossGrosze,
     refundsGrosze: finance.refundAmountGrosze,
     refundAmountGrosze: finance.refundAmountGrosze,
     refundCostGrosze: finance.refundCostGrosze,
@@ -106,10 +114,13 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     stripePendingGrosze,
   }
 
-  const entries: PlatformWalletEntry[] = lessons
+  const lessonEntries: PlatformWalletEntry[] = lessons
     .filter((lesson) => lesson.paymentStatus === 'paid' || lesson.paymentStatus === 'refunded')
     .map((lesson) => ({
+      id: `lesson:${lesson.id}`,
+      transactionType: classifyLessonFinanceEntry(lesson),
       lessonId: lesson.id,
+      countsAsPaidVolume: lesson.paymentSource !== 'package',
       teacherName: lesson.teacherName,
       studentName: lesson.studentName,
       topic: lesson.topic,
@@ -130,6 +141,60 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
       transferStatus: transferStatus(lesson),
       createdAt: lesson.createdAt ?? 0,
     }))
+
+  const packageEntries: PlatformWalletEntry[] = packages
+    .filter((pkg) => pkg.status !== 'refunded')
+    .map((pkg) => {
+      const recognizedPlatformFeeGrosze = pkg.usedCredits * pkg.platformFeePerLessonGrosze
+      const recognizedTeacherAmountGrosze = pkg.usedCredits * pkg.teacherAmountPerLessonGrosze
+      return {
+        id: `package:${pkg.id}`,
+        transactionType: classifyPackageFinanceEntry(pkg),
+        packageId: pkg.id,
+        packageSize: pkg.packageSize,
+        usedCredits: pkg.usedCredits,
+        reservedCredits: pkg.reservedCredits,
+        remainingCredits: pkg.remainingCredits,
+        deferredGrossGrosze: (pkg.remainingCredits + pkg.reservedCredits) * pkg.perLessonGrossGrosze,
+        countsAsPaidVolume: true,
+        teacherName: pkg.teacherName,
+        studentName: pkg.studentName,
+        topic: `Pakiet ${pkg.packageSize} lekcji`,
+        date: 'Zakup pakietu',
+        grossGrosze: pkg.totalPriceGrosze,
+        platformFeeGrosze: recognizedPlatformFeeGrosze,
+        effectiveCommissionPercent: pkg.effectiveCommissionPercent,
+        commissionSource: pkg.commissionSource,
+        teacherAmountGrosze: recognizedTeacherAmountGrosze,
+        status: pkg.status,
+        settlementStatus: 'waiting_lesson' as const,
+        transferStatus: 'pending' as const,
+        createdAt: pkg.createdAt ?? 0,
+      }
+    })
+
+  const refundEntries: PlatformWalletEntry[] = financialEvents
+    .filter((event) => event.type === 'refund')
+    .map((event) => ({
+      id: `refund:${event.id}`,
+      transactionType: 'refund',
+      lessonId: event.lessonId,
+      stripeRefundId: event.stripeRefundId,
+      countsAsPaidVolume: false,
+      topic: 'Zwrot Stripe',
+      date: event.status ?? 'refund',
+      grossGrosze: Math.abs(event.refundAmountGrosze ?? event.amountGrosze),
+      platformFeeGrosze: 0,
+      stripeFeeGrosze: event.feeGrosze,
+      netPlatformRevenueGrosze: event.netGrosze,
+      teacherAmountGrosze: 0,
+      status: 'refunded' as const,
+      settlementStatus: 'refunded' as const,
+      transferStatus: 'refunded' as const,
+      createdAt: event.createdAt ?? 0,
+    }))
+
+  const entries = [...lessonEntries, ...packageEntries, ...refundEntries]
     .sort((a, b) => b.createdAt - a.createdAt)
 
   return { summary, entries: entries.slice(0, 12) }

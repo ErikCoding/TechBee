@@ -121,3 +121,34 @@ test('admin revenue comparison ignores previous-month sandbox and missing livemo
   assert.equal(august?.amount, 100)
   assert.equal(september?.amount, 80)
 })
+
+test('admin revenue counts package purchase once and ignores package-funded lesson as a second charge', () => {
+  const result = computeAdminPlatformRevenue([
+    {
+      paymentStatus: 'paid',
+      paymentSource: 'package',
+      livemode: true,
+      priceGrosze: 10000,
+      platformFeeGrosze: 800,
+      teacherAmountGrosze: 9200,
+      createdAt: currentMonth,
+    },
+  ], now, [
+    {
+      status: 'active',
+      livemode: true,
+      totalPriceGrosze: 50000,
+      platformFeePerLessonGrosze: 800,
+      teacherAmountPerLessonGrosze: 9200,
+      usedCredits: 1,
+      createdAt: currentMonth,
+    },
+  ])
+
+  assert.equal(result.monthlyRevenue, 500)
+  assert.equal(result.monthlyNetRevenueComplete, false)
+  const september = result.revenueChart.find((entry) => entry.month === 'Wrz')
+  assert.equal(september?.amount, 500)
+  assert.equal(september?.platformFee, 8)
+  assert.equal(september?.teacherAmount, 92)
+})
