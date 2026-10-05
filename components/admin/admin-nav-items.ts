@@ -1,4 +1,4 @@
-import { Inbox, LayoutDashboard, Users, ShieldCheck, Settings, GraduationCap, Scale, Trophy } from 'lucide-react'
+import { Inbox, LayoutDashboard, Users, ShieldCheck, Settings, GraduationCap, Scale, Trophy, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 export type AdminNavBadgeKey = 'verifications' | 'disputes' | 'support'
@@ -18,5 +18,6 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Spory', href: '/admin/disputes', icon: Scale, badgeKey: 'disputes' },
   { label: 'Support', href: '/admin/support', icon: Inbox, badgeKey: 'support' },
   { label: 'Użytkownicy', href: '/admin/users', icon: Users },
+  { label: 'Test LiveKit', href: '/admin/livekit-test', icon: Video },
   { label: 'Ustawienia', href: '/admin/settings', icon: Settings },
 ]

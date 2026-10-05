@@ -86,4 +86,6 @@ export const collections = {
   lessonPackages: 'lessonPackages',
   /** Internal idempotency ledger for package-credit bookings, including recurring weekly series. */
   lessonPackageBookingRequests: 'lessonPackageBookingRequests',
+  /** Short-lived, server-owned LiveKit diagnostic test sessions. Clients never read or write these directly. */
+  liveKitTestSessions: 'liveKitTestSessions',
 } as const

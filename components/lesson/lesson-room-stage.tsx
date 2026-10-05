@@ -22,6 +22,9 @@ import { cn, formatChatTime } from '@/lib/utils'
 interface Props {
   lessonId: string
   topic?: string
+  roomLabel?: string
+  endButtonLabel?: string
+  endConfirmationMessage?: string
   /** Display name for the other party, used only in the "waiting for them to join" state before they've connected. */
   waitingForLabel?: string
   scheduledEndAtMs?: number
@@ -58,6 +61,9 @@ function mediaErrorMessage(deviceKind: 'microphone' | 'camera'): string {
 export function LessonRoomStage({
   lessonId,
   topic,
+  roomLabel,
+  endButtonLabel = 'Zakończ lekcję',
+  endConfirmationMessage = 'Zakończyć lekcję na stałe? Po tym kroku wróci ona do panelu jako zakończona i nauczyciel będzie mógł wysłać raport.',
   waitingForLabel,
   scheduledEndAtMs,
   autoEndAtMs,
@@ -203,7 +209,7 @@ export function LessonRoomStage({
   }
 
   function handleEndLesson() {
-    if (!window.confirm('Zakończyć lekcję na stałe? Po tym kroku wróci ona do panelu jako zakończona i nauczyciel będzie mógł wysłać raport.')) return
+    if (!window.confirm(endConfirmationMessage)) return
     onDisconnectIntent?.('end')
     room.disconnect()
     onEndLesson()
@@ -234,7 +240,7 @@ export function LessonRoomStage({
               Sala zamknie się za {formatDurationClock(autoEndAtMs - now)}
             </span>
           )}
-          <span>Sala lekcji #{lessonId.slice(-6)}</span>
+          <span>{roomLabel ?? `Sala lekcji #${lessonId.slice(-6)}`}</span>
         </div>
       </div>
 
@@ -437,7 +443,7 @@ export function LessonRoomStage({
           aria-label="Zakończ lekcję na stałe"
         >
           <CheckCircle2 className="h-4 w-4" />
-          Zakończ lekcję
+          {endButtonLabel}
         </button>
       </div>
     </div>
