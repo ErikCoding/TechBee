@@ -350,6 +350,12 @@ export type Lesson = {
   paymentStatus?: 'paid' | 'refunded' | 'failed'
   /** Smallest-unit (grosze) amounts — the authoritative money values; `price` (PLN) stays for display, unchanged. */
   priceGrosze?: number
+  /** New payments snapshot the lesson subtotal separately from the mandatory student service fee. Legacy docs may only have `priceGrosze`. */
+  subtotalGrosze?: number
+  /** Mandatory Runbee service fee charged to the student/payer for this Stripe Checkout purchase. Package-credit lessons do not charge it again. */
+  studentServiceFeeGrosze?: number
+  /** Total amount charged to the student/payer for this purchase: subtotal + studentServiceFeeGrosze. */
+  studentTotalGrosze?: number
   /** Snapshot of the platform commission rate used when this specific payment was created. */
   commissionPercent?: number
   /** Commission rate that actually powered this payment. Kept separate from the legacy `commissionPercent` name for clearer future reporting. */
@@ -402,7 +408,9 @@ export type PayoutRecord = {
   failureMessage?: string
 }
 
-export type LessonPackageStatus = 'active' | 'exhausted' | 'cancelled' | 'refunded'
+export type LessonPackageStatus = 'active' | 'exhausted' | 'cancelled' | 'refunded' | 'refund_review'
+export type LessonPackagePurchaseMode = 'package_only' | 'package_and_book'
+export type LessonPackageFirstBookingStatus = 'not_requested' | 'pending' | 'booked' | 'slot_conflict' | 'failed'
 
 export type LessonPackage = {
   id: string
@@ -424,6 +432,9 @@ export type LessonPackage = {
   specialty: string
   duration: number
   totalPriceGrosze: number
+  subtotalGrosze?: number
+  studentServiceFeeGrosze?: number
+  studentTotalGrosze?: number
   perLessonGrossGrosze: number
   platformFeePerLessonGrosze: number
   teacherAmountPerLessonGrosze: number
@@ -431,11 +442,72 @@ export type LessonPackage = {
   commissionSource: CommissionSource
   stripeCheckoutSessionId: string
   stripePaymentIntentId?: string
+  purchaseMode?: LessonPackagePurchaseMode
+  purchaseIntentId?: string
+  firstLessonBookingStatus?: LessonPackageFirstBookingStatus
+  firstLessonId?: string
+  firstLessonIds?: string[]
+  firstLessonBookingError?: string
   stripeFeeGrosze?: number
   stripeChargeId?: string
   stripeBalanceTransactionId?: string
+  stripeRefundId?: string
+  stripeRefundStatus?: string
+  refundAmountGrosze?: number
+  refundFull?: boolean
+  refundRequiresAdminReview?: boolean
+  refundedAt?: number
   livemode: boolean
   status: LessonPackageStatus
+  createdAt: number
+  updatedAt?: number
+}
+
+export type LessonPackagePurchaseIntentStatus = 'pending_payment' | 'package_created' | 'booked' | 'booking_failed'
+
+export type LessonPackagePurchaseIntent = {
+  id: string
+  purchaseMode: LessonPackagePurchaseMode
+  status: LessonPackagePurchaseIntentStatus
+  stripeCheckoutSessionId?: string
+  stripePaymentIntentId?: string
+  packageId?: string
+  firstLessonId?: string
+  firstLessonIds?: string[]
+  firstLessonBookingStatus?: LessonPackageFirstBookingStatus
+  firstLessonBookingError?: string
+  teacherId: string
+  teacherName: string
+  teacherInitials: string
+  teacherColor: string
+  teacherPhotoUrl?: string
+  studentId: string
+  studentName: string
+  payerId: string
+  payerRole: 'student' | 'parent'
+  packageSize: 5 | 10
+  subjectKey: string
+  subjectCategoryId?: string
+  specialty: string
+  duration: number
+  totalPriceGrosze: number
+  subtotalGrosze: number
+  studentServiceFeeGrosze: number
+  studentTotalGrosze: number
+  perLessonGrossGrosze: number
+  platformFeePerLessonGrosze: number
+  teacherAmountPerLessonGrosze: number
+  effectiveCommissionPercent: number
+  commissionSource: CommissionSource
+  booking?: {
+    date: string
+    dateIso: string
+    time: string
+    scheduledStartAt?: number
+    topic: string
+    bookingRequestId: string
+  }
+  livemode: boolean
   createdAt: number
   updatedAt?: number
 }
@@ -529,6 +601,7 @@ export type FoundingTeacherAdminDashboard = {
 export type PlatformWalletSummary = {
   commissionPercent: number
   paidVolumeGrosze: number
+  studentServiceFeeGrosze?: number
   packagePurchaseVolumeGrosze?: number
   packageDeferredGrossGrosze?: number
   packageReservedGrossGrosze?: number
@@ -538,7 +611,9 @@ export type PlatformWalletSummary = {
   refundCostGrosze: number
   refundCount: number
   grossPlatformCommissionGrosze: number
+  grossPlatformServiceFeeGrosze?: number
   knownPlatformCommissionGrosze: number
+  knownPlatformServiceFeeGrosze?: number
   stripeProcessingFeesGrosze: number
   stripeFeesGrosze: number
   stripeFeesComplete: boolean
@@ -574,6 +649,9 @@ export type PlatformWalletEntry = {
   topic: string
   date: string
   grossGrosze: number
+  subtotalGrosze?: number
+  studentServiceFeeGrosze?: number
+  studentTotalGrosze?: number
   platformFeeGrosze: number
   effectiveCommissionPercent?: number
   commissionSource?: CommissionSource
@@ -581,7 +659,7 @@ export type PlatformWalletEntry = {
   netPlatformRevenueGrosze?: number
   teacherAmountGrosze: number
   status: Lesson['paymentStatus'] | LessonPackageStatus | 'posted'
-  settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'transferred' | 'refunded'
+  settlementStatus: 'waiting_teacher_acceptance' | 'waiting_lesson' | 'waiting_report' | 'waiting_confirmation' | 'ready_for_transfer' | 'release_inconsistent' | 'transferred' | 'refunded'
   transferStatus: 'pending' | 'ready' | 'sent' | 'refunded'
   createdAt: number
 }
@@ -621,6 +699,7 @@ export type StripeFinancialEvent = {
   refundAmountGrosze?: number
   fullRefund?: boolean
   lessonId?: string
+  packageId?: string
   livemode: boolean
   recordedAt: number
 }

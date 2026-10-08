@@ -13,6 +13,7 @@ import { DashboardHeader } from '@/components/dashboard/dashboard-primitives'
 import { StudentNextLesson } from '@/components/dashboard/student-next-lesson'
 import { StudentActionCenter } from '@/components/dashboard/student-action-center'
 import { StudentLessonsPanel } from '@/components/dashboard/student-lessons-panel'
+import { StudentPackagesPanel } from '@/components/dashboard/student-packages-panel'
 import { DashboardMessagesPreview } from '@/components/dashboard/dashboard-messages-preview'
 import { StudentStatsCards } from '@/components/dashboard/student-stats-client'
 import { StudentLinkCodeWidget } from '@/components/dashboard/student-link-code-widget'
@@ -194,6 +195,9 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
               onReview={setReviewModalFor}
             />
           </div>
+          <div className="order-3">
+            <StudentPackagesPanel />
+          </div>
           <div className="order-5">
             <StudentLessonsPanel
               upcoming={buckets.laterUpcoming}
@@ -207,20 +211,20 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
         </div>
 
         <div className="contents lg:flex lg:flex-col lg:gap-5">
-          <div className="order-3">
+          <div className="order-4">
             <NotificationsPanel initialNotifications={initialNotifications} />
           </div>
-          <div className="order-4">
+          <div className="order-6">
             <DashboardMessagesPreview
               conversations={conversations}
               unread={unread}
               emptyDescription="Napisz do nauczyciela z jego profilu, aby zacząć."
             />
           </div>
-          <div className="order-6">
+          <div className="order-7">
             <StudentStatsCards stats={stats} />
           </div>
-          <div className="order-7">
+          <div className="order-8">
             <StudentLinkCodeWidget />
           </div>
         </div>

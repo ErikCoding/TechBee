@@ -84,6 +84,8 @@ export const collections = {
   trialLessonGuards: 'trialLessonGuards',
   /** Paid 5/10 lesson packages. Written/consumed by trusted server endpoints only; clients may only read their own packages. */
   lessonPackages: 'lessonPackages',
+  /** Server-owned package purchase intents used to safely finish package-only and package-and-book Stripe checkouts. */
+  lessonPackagePurchaseIntents: 'lessonPackagePurchaseIntents',
   /** Internal idempotency ledger for package-credit bookings, including recurring weekly series. */
   lessonPackageBookingRequests: 'lessonPackageBookingRequests',
   /** Short-lived, server-owned LiveKit diagnostic test sessions. Clients never read or write these directly. */

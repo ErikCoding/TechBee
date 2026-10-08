@@ -6,12 +6,15 @@ import { getOrigin } from '@/lib/request-origin'
 import { splitPayment, toGrosze, STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { resolveEffectiveCommission } from '@/lib/founding-teacher-core'
+import { buildStudentPaymentBreakdown } from '@/lib/service-fees'
 import { collections } from '@/lib/firebase'
 import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
 import { calculateLessonPackageTerms, normalizeLessonPackageSize, packageSubjectKey, teacherOffersLessonPackageSize } from '@/lib/lesson-packages-core'
-import type { AvailabilityHours, FoundingTeacherPromotion } from '@/lib/types'
+import { normalizeLessonPackagePurchaseMode } from '@/lib/lesson-package-purchases-core'
+import { buildWeeklyLessonOccurrences, zonedDateTimeToMs } from '@/lib/lesson-time'
+import type { AvailabilityHours, FoundingTeacherPromotion, LessonPackagePurchaseIntent } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
@@ -37,6 +40,15 @@ interface PackageCheckoutRequestBody {
   studentId?: string
   studentName?: string
   payer?: { id: string; role: 'student' | 'parent' }
+  purchaseMode?: string
+  booking?: {
+    date?: string
+    dateIso?: string
+    time?: string
+    scheduledStartAt?: number
+    topic?: string
+    bookingRequestId?: string
+  }
 }
 
 export async function POST(request: Request) {
@@ -51,6 +63,7 @@ export async function POST(request: Request) {
   }
 
   const { teacherId, duration, subjectCategoryId, specialty, studentId, studentName, payer } = body
+  const purchaseMode = normalizeLessonPackagePurchaseMode(body.purchaseMode)
   const packageSize = normalizeLessonPackageSize(body.packageSize)
   if (!teacherId || !duration || !studentId || !studentName || !packageSize) {
     return NextResponse.json({ error: 'Brak wymaganych danych pakietu.' }, { status: 400 })
@@ -127,6 +140,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Wybierz przedmiot pakietu.' }, { status: 400 })
   }
 
+  const bookingIntent = purchaseMode === 'package_and_book' ? body.booking : undefined
+  if (purchaseMode === 'package_and_book') {
+    if (!bookingIntent?.dateIso || !bookingIntent.time || !bookingIntent.topic?.trim()) {
+      return NextResponse.json({ error: 'Wybierz termin i temat pierwszej lekcji.' }, { status: 400 })
+    }
+    const occurrences = buildWeeklyLessonOccurrences({ firstDateIso: bookingIntent.dateIso, time: bookingIntent.time, count: 1 })
+    if (!occurrences) {
+      return NextResponse.json({ error: 'Nieprawidłowy termin pierwszej lekcji.' }, { status: 400 })
+    }
+  }
+
   const perLessonGrossGrosze = toGrosze(Math.round((teacher.hourlyRate / 60) * duration))
   const paymentSettings = await getPlatformPaymentSettings()
   const { effectiveCommissionPercent, commissionSource } = resolveEffectiveCommission({
@@ -142,9 +166,58 @@ export async function POST(request: Request) {
     effectiveCommissionPercent,
     commissionSource,
   })
+  const paymentBreakdown = buildStudentPaymentBreakdown(terms.totalPriceGrosze)
 
   try {
     const origin = getOrigin(request)
+    const now = Date.now()
+    const intentRef = adminDb!.collection(collections.lessonPackagePurchaseIntents).doc()
+    const bookingRequestId = bookingIntent?.bookingRequestId || `first-${intentRef.id}`
+    const bookingScheduledStartAt = bookingIntent
+      ? bookingIntent.scheduledStartAt ?? zonedDateTimeToMs(bookingIntent.dateIso!, bookingIntent.time!)
+      : undefined
+    const intent: Omit<LessonPackagePurchaseIntent, 'id'> = {
+      purchaseMode,
+      status: 'pending_payment',
+      teacherId,
+      teacherName: teacher.name ?? '',
+      teacherInitials: teacher.initials ?? '',
+      teacherColor: teacher.avatarColor ?? '#F4B400',
+      ...(teacher.photoUrl ? { teacherPhotoUrl: safeMetaPhotoUrl(teacher.photoUrl) } : {}),
+      studentId,
+      studentName: safeMetaText(studentName),
+      payerId,
+      payerRole,
+      packageSize,
+      subjectKey: selectedSubjectKey,
+      ...(selectedSubjectCategoryId ? { subjectCategoryId: selectedSubjectCategoryId } : {}),
+      specialty: selectedSpecialty,
+      duration,
+      totalPriceGrosze: paymentBreakdown.subtotalGrosze,
+      subtotalGrosze: paymentBreakdown.subtotalGrosze,
+      studentServiceFeeGrosze: paymentBreakdown.studentServiceFeeGrosze,
+      studentTotalGrosze: paymentBreakdown.studentTotalGrosze,
+      perLessonGrossGrosze: terms.perLessonGrossGrosze,
+      platformFeePerLessonGrosze: terms.platformFeePerLessonGrosze,
+      teacherAmountPerLessonGrosze: terms.teacherAmountPerLessonGrosze,
+      effectiveCommissionPercent: terms.effectiveCommissionPercent,
+      commissionSource,
+      ...(bookingIntent ? {
+        booking: {
+          date: safeMetaText(bookingIntent.date || bookingIntent.dateIso || ''),
+          dateIso: bookingIntent.dateIso!,
+          time: bookingIntent.time!,
+          ...(bookingScheduledStartAt ? { scheduledStartAt: bookingScheduledStartAt } : {}),
+          topic: safeMetaText(bookingIntent.topic!.trim()),
+          bookingRequestId,
+        },
+      } : {}),
+      livemode: process.env.NODE_ENV === 'production',
+      createdAt: now,
+      updatedAt: now,
+    }
+    await intentRef.set(intent)
+
     const session = await stripe!.checkout.sessions.create({
       mode: 'payment',
       currency: STRIPE_CURRENCY,
@@ -156,38 +229,29 @@ export async function POST(request: Request) {
               name: `Pakiet ${packageSize} lekcji: ${selectedSpecialty}`,
               description: `${teacher.name} · ${selectedSpecialty} · ${duration} min · ${packageSize} lekcji`,
             },
-            unit_amount: terms.totalPriceGrosze,
+            unit_amount: paymentBreakdown.subtotalGrosze,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: STRIPE_CURRENCY,
+            product_data: { name: 'Opłata serwisowa Runbee', description: 'Obsługa zakupu pakietu, płatności i platformy.' },
+            unit_amount: paymentBreakdown.studentServiceFeeGrosze,
           },
           quantity: 1,
         },
       ],
       metadata: {
         paymentType: 'lesson_package',
-        teacherId,
-        teacherName: safeMetaText(teacher.name ?? ''),
-        teacherInitials: teacher.initials ?? '',
-        teacherColor: teacher.avatarColor ?? '#F4B400',
-        teacherPhotoUrl: safeMetaPhotoUrl(teacher.photoUrl),
-        studentId,
-        studentName: safeMetaText(studentName),
-        payerId,
-        payerRole,
-        packageSize: String(packageSize),
-        subjectKey: selectedSubjectKey,
-        subjectCategoryId: selectedSubjectCategoryId ?? '',
-        specialty: selectedSpecialty,
-        duration: String(duration),
-        totalPriceGrosze: String(terms.totalPriceGrosze),
-        perLessonGrossGrosze: String(terms.perLessonGrossGrosze),
-        platformFeePerLessonGrosze: String(terms.platformFeePerLessonGrosze),
-        teacherAmountPerLessonGrosze: String(terms.teacherAmountPerLessonGrosze),
-        commissionPercent: String(terms.effectiveCommissionPercent),
-        effectiveCommissionPercent: String(terms.effectiveCommissionPercent),
-        commissionSource,
+        purchaseMode,
+        purchaseIntentId: intentRef.id,
       },
       success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/teacher/${teacherId}/book`,
     })
+
+    await intentRef.update({ stripeCheckoutSessionId: session.id, updatedAt: Date.now() })
 
     return NextResponse.json({ url: session.url })
   } catch (err) {

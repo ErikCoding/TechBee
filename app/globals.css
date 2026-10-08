@@ -389,3 +389,16 @@ html {
     }
   }
 }
+
+/* Booking flow: step content fades/slides in on every route change
+   (app/teacher/[id]/book/template.tsx re-mounts per step). */
+@keyframes booking-step-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.booking-step-enter {
+  animation: booking-step-in 200ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .booking-step-enter { animation: none; }
+}

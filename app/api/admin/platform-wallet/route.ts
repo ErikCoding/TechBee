@@ -9,6 +9,7 @@ import { computePlatformFinance } from '@/lib/stripe-financial-metrics'
 import { classifyLessonFinanceEntry, classifyPackageFinanceEntry } from '@/lib/admin-finance-classification'
 import { readPlatformStripeCostFinancialEvents } from '@/lib/stripe-financial-events'
 import { syncMissingStripeFeesForReporting } from '@/lib/stripe-fee-sync.server'
+import { syncPackageRefundLocksForReporting } from '@/lib/stripe-package-refund-sync.server'
 import type { Lesson, LessonPackage, PlatformWalletEntry, PlatformWalletSummary, StripeFinancialEvent } from '@/lib/types'
 
 async function requireAdmin(idToken?: string): Promise<{ uid: string } | NextResponse> {
@@ -33,14 +34,18 @@ function lessonIsReadyForTransfer(lesson: Lesson): boolean {
   if (lesson.paymentStatus !== 'paid' || lesson.stripeTransferId) return false
   if (lesson.dispute?.status === 'open') return false
   if (lesson.dispute?.status === 'resolved_teacher') return true
-  if (lesson.reportConfirmedAt || lesson.paymentReleased) return true
   if (!lesson.reportSubmittedAt || !lesson.report) return false
   return Date.now() - lesson.reportSubmittedAt >= 24 * 60 * 60 * 1000
+}
+
+function lessonHasReleaseStateMismatch(lesson: Lesson): boolean {
+  return lesson.paymentStatus === 'paid' && !lesson.stripeTransferId && Boolean(lesson.reportConfirmedAt || lesson.paymentReleased)
 }
 
 function settlementStatus(lesson: Lesson): PlatformWalletEntry['settlementStatus'] {
   if (lesson.paymentStatus === 'refunded') return 'refunded'
   if (lesson.stripeTransferId) return 'transferred'
+  if (lessonHasReleaseStateMismatch(lesson)) return 'release_inconsistent'
   if (lessonIsReadyForTransfer(lesson)) return 'ready_for_transfer'
   if (lesson.dispute?.status === 'open') return 'waiting_confirmation'
   if (lesson.report) return 'waiting_confirmation'
@@ -77,6 +82,11 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     } catch (err) {
       console.error('[admin/platform-wallet] Failed to sync missing Stripe fee snapshots:', err)
     }
+    try {
+      await syncPackageRefundLocksForReporting({ database: adminDb!, packages, limit: 20 })
+    } catch (err) {
+      console.error('[admin/platform-wallet] Failed to sync package refund locks:', err)
+    }
   }
   const liveStripeCostEvents = isStripeConfigured
     ? await readPlatformStripeCostFinancialEvents(new Set(financialEvents.map((event) => event.stripeBalanceTransactionId)))
@@ -102,6 +112,7 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
   const summary: PlatformWalletSummary = {
     commissionPercent: settings.commissionPercent,
     paidVolumeGrosze: finance.paidVolumeGrosze,
+    studentServiceFeeGrosze: finance.grossPlatformServiceFeeGrosze,
     packagePurchaseVolumeGrosze: finance.packagePurchaseVolumeGrosze,
     packageDeferredGrossGrosze: finance.packageDeferredGrossGrosze,
     packageReservedGrossGrosze: finance.packageReservedGrossGrosze,
@@ -111,7 +122,9 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
     refundCostGrosze: finance.refundCostGrosze,
     refundCount: finance.refundCount,
     grossPlatformCommissionGrosze: finance.grossPlatformCommissionGrosze,
+    grossPlatformServiceFeeGrosze: finance.grossPlatformServiceFeeGrosze,
     knownPlatformCommissionGrosze: finance.knownPlatformCommissionGrosze,
+    knownPlatformServiceFeeGrosze: finance.knownPlatformServiceFeeGrosze,
     stripeProcessingFeesGrosze: finance.stripeProcessingFeesGrosze,
     stripeFeesGrosze: finance.stripeProcessingFeesGrosze,
     stripeFeesComplete: finance.stripeFeesComplete,
@@ -135,6 +148,10 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
   const lessonEntries: PlatformWalletEntry[] = lessons
     .filter((lesson) => lesson.paymentStatus === 'paid' || lesson.paymentStatus === 'refunded')
     .map((lesson) => {
+      const subtotalGrosze = lesson.subtotalGrosze ?? lesson.priceGrosze ?? 0
+      const studentServiceFeeGrosze = lesson.studentServiceFeeGrosze ?? 0
+      const studentTotalGrosze = lesson.studentTotalGrosze ?? subtotalGrosze + studentServiceFeeGrosze
+      const entryNetRevenue = (lesson.platformFeeGrosze ?? 0) + studentServiceFeeGrosze - (lesson.stripeFeeGrosze ?? 0)
       return {
         id: `lesson:${lesson.id}`,
         transactionType: classifyLessonFinanceEntry(lesson),
@@ -144,15 +161,18 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
         studentName: lesson.studentName,
         topic: lesson.topic,
         date: lesson.date && lesson.time ? `${lesson.date}, ${lesson.time}` : lesson.date || lesson.time || '—',
-        grossGrosze: lesson.priceGrosze ?? 0,
+        grossGrosze: lesson.paymentSource === 'package' ? subtotalGrosze : studentTotalGrosze,
+        subtotalGrosze,
+        studentServiceFeeGrosze,
+        studentTotalGrosze,
         platformFeeGrosze: lesson.platformFeeGrosze ?? 0,
         ...(typeof (lesson.effectiveCommissionPercent ?? lesson.commissionPercent) === 'number'
           ? { effectiveCommissionPercent: lesson.effectiveCommissionPercent ?? lesson.commissionPercent }
           : {}),
         ...(lesson.commissionSource ? { commissionSource: lesson.commissionSource } : {}),
         ...(typeof lesson.stripeFeeGrosze === 'number' ? { stripeFeeGrosze: lesson.stripeFeeGrosze } : {}),
-        ...(lesson.paymentStatus === 'paid' && typeof lesson.stripeFeeGrosze === 'number'
-          ? { netPlatformRevenueGrosze: (lesson.platformFeeGrosze ?? 0) - lesson.stripeFeeGrosze }
+        ...(lesson.paymentStatus === 'paid' && lesson.paymentSource !== 'package' && typeof lesson.stripeFeeGrosze === 'number'
+          ? { netPlatformRevenueGrosze: entryNetRevenue }
           : {}),
         teacherAmountGrosze: lesson.teacherAmountGrosze ?? 0,
         status: lesson.paymentStatus ?? 'paid',
@@ -165,30 +185,46 @@ async function buildPlatformWallet(): Promise<{ summary: PlatformWalletSummary; 
   const packageEntries: PlatformWalletEntry[] = packages
     .filter((pkg) => pkg.status !== 'refunded')
     .map((pkg) => {
-      const recognizedPlatformFeeGrosze = pkg.usedCredits * pkg.platformFeePerLessonGrosze
-      const recognizedTeacherAmountGrosze = pkg.usedCredits * pkg.teacherAmountPerLessonGrosze
+      const usedCredits = pkg.usedCredits ?? 0
+      const reservedCredits = pkg.reservedCredits ?? 0
+      const remainingCredits = pkg.remainingCredits ?? 0
+      const perLessonGrossGrosze = pkg.perLessonGrossGrosze ?? 0
+      const subtotalGrosze = pkg.subtotalGrosze ?? pkg.totalPriceGrosze ?? 0
+      const studentServiceFeeGrosze = pkg.studentServiceFeeGrosze ?? 0
+      const studentTotalGrosze = pkg.studentTotalGrosze ?? subtotalGrosze + studentServiceFeeGrosze
+      const recognizedPlatformFeeGrosze = usedCredits * (pkg.platformFeePerLessonGrosze ?? 0)
+      const recognizedTeacherAmountGrosze = usedCredits * (pkg.teacherAmountPerLessonGrosze ?? 0)
+      const packageSizeLabel = pkg.packageSize ? `Pakiet ${pkg.packageSize} lekcji` : 'Pakiet lekcji'
+      const packageTopic = [
+        packageSizeLabel,
+        pkg.specialty,
+        typeof pkg.duration === 'number' ? `${pkg.duration} min` : undefined,
+      ].filter(Boolean).join(' · ')
       return {
         id: `package:${pkg.id}`,
         transactionType: classifyPackageFinanceEntry(pkg),
         packageId: pkg.id,
         packageSize: pkg.packageSize,
-        usedCredits: pkg.usedCredits,
-        reservedCredits: pkg.reservedCredits,
-        remainingCredits: pkg.remainingCredits,
-        deferredGrossGrosze: (pkg.remainingCredits + pkg.reservedCredits) * pkg.perLessonGrossGrosze,
+        usedCredits,
+        reservedCredits,
+        remainingCredits,
+        deferredGrossGrosze: (remainingCredits + reservedCredits) * perLessonGrossGrosze,
         countsAsPaidVolume: true,
         teacherName: pkg.teacherName,
         studentName: pkg.studentName,
-        topic: `Pakiet ${pkg.packageSize} lekcji`,
+        topic: packageTopic,
         date: 'Zakup pakietu',
-        grossGrosze: pkg.totalPriceGrosze,
+        grossGrosze: studentTotalGrosze,
+        subtotalGrosze,
+        studentServiceFeeGrosze,
+        studentTotalGrosze,
         platformFeeGrosze: recognizedPlatformFeeGrosze,
         effectiveCommissionPercent: pkg.effectiveCommissionPercent,
         commissionSource: pkg.commissionSource,
         teacherAmountGrosze: recognizedTeacherAmountGrosze,
         ...(typeof pkg.stripeFeeGrosze === 'number' ? { stripeFeeGrosze: pkg.stripeFeeGrosze } : {}),
         ...(typeof pkg.stripeFeeGrosze === 'number'
-          ? { netPlatformRevenueGrosze: recognizedPlatformFeeGrosze - pkg.stripeFeeGrosze }
+          ? { netPlatformRevenueGrosze: recognizedPlatformFeeGrosze + studentServiceFeeGrosze - pkg.stripeFeeGrosze }
           : {}),
         status: pkg.status,
         settlementStatus: 'waiting_lesson' as const,

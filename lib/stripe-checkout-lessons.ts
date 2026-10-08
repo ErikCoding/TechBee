@@ -13,6 +13,11 @@ function paidCheckoutSession(session: Stripe.Checkout.Session): boolean {
   return session.status === 'complete' && session.payment_status === 'paid'
 }
 
+function moneyMeta(value: string | undefined, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : fallback
+}
+
 function slotLockIds(teacherId: string, dateIso: string, time: string, duration: number): string[] {
   const start = timeToMinutes(time)
   if (start === null) return []
@@ -74,6 +79,9 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
   const duration = Number(m.duration ?? 60)
   const scheduledStartAt = Number(m.scheduledStartAt)
   const lessonKind = normalizeLessonKind(m.lessonKind)
+  const subtotalGrosze = moneyMeta(m.subtotalGrosze, moneyMeta(m.priceGrosze, 0))
+  const studentServiceFeeGrosze = moneyMeta(m.studentServiceFeeGrosze, 0)
+  const studentTotalGrosze = moneyMeta(m.studentTotalGrosze, subtotalGrosze + studentServiceFeeGrosze)
   const lesson: Omit<Lesson, 'id'> = {
     teacherId: m.teacherId,
     studentId: m.studentId,
@@ -91,13 +99,16 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     duration,
     lessonKind,
     status: 'pending',
-    price: Math.round(Number(m.priceGrosze)) / 100,
+    price: subtotalGrosze / 100,
     topic: m.topic ?? '',
     createdAt: now,
     payerId: m.payerId || m.studentId,
     payerRole: (m.payerRole as Lesson['payerRole']) || 'student',
     paymentStatus: 'paid',
-    priceGrosze: Number(m.priceGrosze),
+    priceGrosze: subtotalGrosze,
+    subtotalGrosze,
+    studentServiceFeeGrosze,
+    studentTotalGrosze,
     commissionPercent: Number(m.commissionPercent ?? 0),
     effectiveCommissionPercent: Number(m.effectiveCommissionPercent ?? m.commissionPercent ?? 0),
     commissionSource: m.commissionSource === 'founding_teacher' ? 'founding_teacher' : 'standard',

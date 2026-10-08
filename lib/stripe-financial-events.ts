@@ -4,9 +4,15 @@ import { adminDb } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import { stripe } from '@/lib/stripe'
 import { STRIPE_CURRENCY } from '@/lib/stripe-config'
-import type { Lesson, StripeFinancialEvent } from '@/lib/types'
+import type { Lesson, LessonPackage, StripeFinancialEvent } from '@/lib/types'
 import type { StripeFinancialEventLike } from '@/lib/stripe-financial-metrics'
 import { toPlatformStripeCostFinancialEvent } from '@/lib/stripe-financial-events-core'
+import {
+  buildPackageRefundReviewPatch,
+  paymentIntentIdFromRefundLike,
+  writePackageRefundReview,
+  type RefundReviewPatch,
+} from '@/lib/lesson-package-refunds-core'
 
 function objectWithId<T extends { id: string }>(value: string | T | null | undefined): T | null {
   return value && typeof value !== 'string' ? value : null
@@ -20,29 +26,66 @@ async function findLessonByPaymentIntent(paymentIntentId?: string | null): Promi
   return { id: doc.id, ref: doc.ref, lesson: { id: doc.id, ...(doc.data() as Omit<Lesson, 'id'>) } }
 }
 
+async function findLessonPackageByPaymentIntent(paymentIntentId?: string | null): Promise<{ id: string; ref: FirebaseFirestore.DocumentReference; lessonPackage: LessonPackage } | null> {
+  if (!adminDb || !paymentIntentId) return null
+  const snap = await adminDb.collection(collections.lessonPackages).where('stripePaymentIntentId', '==', paymentIntentId).limit(1).get()
+  if (snap.empty) return null
+  const doc = snap.docs[0]
+  return { id: doc.id, ref: doc.ref, lessonPackage: { id: doc.id, ...(doc.data() as Omit<LessonPackage, 'id'>) } }
+}
+
+async function resolveRefund(refundInput: Stripe.Refund): Promise<Stripe.Refund | null> {
+  if (!stripe) return null
+  return refundInput.charge || refundInput.payment_intent
+    ? refundInput
+    : await stripe.refunds.retrieve(refundInput.id, { expand: ['balance_transaction', 'charge.balance_transaction', 'payment_intent'] })
+}
+
+async function resolveCharge(refund: Stripe.Refund): Promise<Stripe.Charge | null> {
+  return objectWithId<Stripe.Charge>(refund.charge)
+    ?? (typeof refund.charge === 'string'
+      ? await stripe!.charges.retrieve(refund.charge, { expand: ['balance_transaction', 'payment_intent'] })
+      : null)
+}
+
+async function readStripeRefundPackageReview(refundInput: Stripe.Refund): Promise<{
+  packageRef: FirebaseFirestore.DocumentReference
+  patch: RefundReviewPatch
+} | null> {
+  const refund = await resolveRefund(refundInput)
+  if (!refund) return null
+  const charge = await resolveCharge(refund)
+  const paymentIntentId = paymentIntentIdFromRefundLike(refund, charge)
+  const packageHit = await findLessonPackageByPaymentIntent(paymentIntentId)
+  if (!packageHit) return null
+  const fullRefundForCharge = Boolean(charge && (charge.amount_refunded ?? 0) >= charge.amount)
+  const patch = buildPackageRefundReviewPatch({
+    stripeRefundId: refund.id,
+    refundStatus: refund.status,
+    refundAmountGrosze: refund.amount,
+    refundFull: fullRefundForCharge,
+    now: Date.now(),
+  })
+  if (!patch) return null
+  return { packageRef: packageHit.ref, patch }
+}
+
 export async function readStripeRefundFinancialEvent(refundInput: Stripe.Refund): Promise<{
   event: Omit<StripeFinancialEvent, 'id'>
   balanceTransactionId: string
   lessonRef?: FirebaseFirestore.DocumentReference
   fullRefundForLesson: boolean
 } | null> {
-  if (!stripe) return null
-  const refund = refundInput.balance_transaction && refundInput.charge
-    ? refundInput
-    : await stripe.refunds.retrieve(refundInput.id, { expand: ['balance_transaction', 'charge.balance_transaction', 'payment_intent'] })
+  const refund = await resolveRefund(refundInput)
+  if (!refund) return null
   const refundBalanceTransaction = objectWithId<Stripe.BalanceTransaction>(refund.balance_transaction)
   if (!refundBalanceTransaction) return null
 
-  const charge = objectWithId<Stripe.Charge>(refund.charge)
-    ?? (typeof refund.charge === 'string'
-      ? await stripe.charges.retrieve(refund.charge, { expand: ['balance_transaction', 'payment_intent'] })
-      : null)
+  const charge = await resolveCharge(refund)
   const chargeBalanceTransaction = objectWithId<Stripe.BalanceTransaction>(charge?.balance_transaction)
-  const paymentIntentId = typeof refund.payment_intent === 'string'
-    ? refund.payment_intent
-    : objectWithId<Stripe.PaymentIntent>(refund.payment_intent)?.id
-      ?? (typeof charge?.payment_intent === 'string' ? charge.payment_intent : objectWithId<Stripe.PaymentIntent>(charge?.payment_intent)?.id)
+  const paymentIntentId = paymentIntentIdFromRefundLike(refund, charge)
   const lessonHit = await findLessonByPaymentIntent(paymentIntentId)
+  const packageHit = await findLessonPackageByPaymentIntent(paymentIntentId)
   const fullRefundForCharge = Boolean(charge && (charge.amount_refunded ?? 0) >= charge.amount)
 
   return {
@@ -68,6 +111,7 @@ export async function readStripeRefundFinancialEvent(refundInput: Stripe.Refund)
       refundAmountGrosze: refund.amount,
       fullRefund: fullRefundForCharge,
       ...(lessonHit ? { lessonId: lessonHit.id } : {}),
+      ...(packageHit ? { packageId: packageHit.id } : {}),
       livemode: Boolean(charge?.livemode),
       recordedAt: Date.now(),
     },
@@ -76,8 +120,14 @@ export async function readStripeRefundFinancialEvent(refundInput: Stripe.Refund)
 
 export async function persistStripeRefundFinancialEvent(refund: Stripe.Refund): Promise<void> {
   if (!adminDb) return
+  const packageReview = await readStripeRefundPackageReview(refund)
   const prepared = await readStripeRefundFinancialEvent(refund)
-  if (!prepared) return
+  if (!prepared) {
+    if (packageReview) {
+      await writePackageRefundReview({ database: adminDb, packageRef: packageReview.packageRef, patch: packageReview.patch })
+    }
+    return
+  }
 
   const eventRef = adminDb.collection(collections.stripeFinancialEvents).doc(prepared.balanceTransactionId)
   await adminDb.runTransaction(async (tx) => {
@@ -93,6 +143,12 @@ export async function persistStripeRefundFinancialEvent(refund: Stripe.Refund): 
           paymentStatus: 'refunded',
           status: 'cancelled',
         })
+      }
+    }
+    if (packageReview) {
+      const packageSnap = await tx.get(packageReview.packageRef)
+      if (packageSnap.exists) {
+        tx.update(packageReview.packageRef, packageReview.patch)
       }
     }
   })

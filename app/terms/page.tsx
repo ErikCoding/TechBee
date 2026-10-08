@@ -19,7 +19,7 @@ export default function TermsPage() {
         <h2>§1. Postanowienia ogólne</h2>
         <p>1. Regulamin określa rodzaj i zakres usług świadczonych drogą elektroniczną przez Usługodawcę, warunki ich świadczenia, warunki zawierania i rozwiązywania umów o świadczenie usług drogą elektroniczną oraz tryb postępowania reklamacyjnego, zgodnie z art. 8 ustawy z dnia 18 lipca 2002 r. o świadczeniu usług drogą elektroniczną.</p>
         {/* TODO: Uzupełnić dane operatora o adres, gdy będzie gotowy do publikacji. */}
-        <p>2. Operatorem Platformy jest Bartosz Prokop. Kontakt z Operatorem, w tym w sprawach reklamacyjnych, jest możliwy pod adresem <a href="mailto:contact@runbee.pl" className="text-foreground underline underline-offset-4 hover:text-primary">contact@runbee.pl</a>.</p>
+        <p>2. Operatorem Platformy jest Bartosz Prokop. Kontakt z Operatorem, w tym w sprawach reklamacyjnych, jest możliwy pod adresem <a href="mailto:kontakt@runbee.pl" className="text-foreground underline underline-offset-4 hover:text-primary">kontakt@runbee.pl</a>.</p>
         <p>3. Ilekroć w Regulaminie mowa jest o „Użytkowniku”, rozumie się przez to każdą osobę korzystającą z Serwisu, w tym „Ucznia”, „Rodzica” oraz „Nauczyciela”.</p>
       </section>
 
@@ -31,7 +31,7 @@ export default function TermsPage() {
           <li>założenie konta Ucznia lub Nauczyciela oraz zarządzanie profilem,</li>
           <li>rezerwację i realizację indywidualnych lekcji online w wybranych dziedzinach nauki (m.in. automatyka, PLC, elektryka, fizyka, matematyka, polski, angielski i pokrewne),</li>
           <li>komunikację między Uczniem a Nauczycielem za pośrednictwem wbudowanego czatu,</li>
-          <li>obsługę płatności za pojedyncze lekcje, wypłat dla nauczycieli oraz programu lojalnościowego BeePoints, o których mowa w §5,</li>
+          <li>obsługę płatności za pojedyncze lekcje, pakiety lekcji, wypłaty dla nauczycieli oraz program lojalnościowy BeePoints, o których mowa w §5,</li>
           <li>wystawianie i przeglądanie opinii o Nauczycielach.</li>
         </ul>
         <p>Usługodawca pełni rolę pośrednika technologicznego, umożliwiającego zawarcie umowy o przeprowadzenie lekcji bezpośrednio między Uczniem a Nauczycielem. Usługodawca nie jest stroną tej umowy i nie ponosi odpowiedzialności za jej wykonanie przez Nauczyciela, z zastrzeżeniem procedury reklamacyjnej i sporów opisanej w §6.</p>
@@ -50,22 +50,25 @@ export default function TermsPage() {
         <p>1. Umowa o świadczenie usług drogą elektroniczną (prowadzenie konta) zostaje zawarta z chwilą skutecznej rejestracji konta i obowiązuje przez czas nieokreślony.</p>
         <p>2. Użytkownik może rozwiązać umowę w każdej chwili poprzez usunięcie konta lub zgłoszenie takiej prośby na docelowy adres kontaktowy wskazany w Serwisie.</p>
         <p>3. Usługodawca może rozwiązać umowę z Użytkownikiem ze skutkiem natychmiastowym w przypadku rażącego naruszenia Regulaminu, w szczególności prób obejścia płatności realizowanych przez Serwis lub podawania nieprawdziwych danych.</p>
-        <p>4. Rezerwacja lekcji stanowi odrębną umowę zawieraną pomiędzy Uczniem a Nauczycielem za pośrednictwem Serwisu. Warunki anulowania: bezpłatne odwołanie lekcji jest możliwe do 24 godzin przed jej rozpoczęciem; odwołanie w późniejszym terminie może wiązać się z częściowym potrąceniem opłaty na rzecz Nauczyciela.</p>
+        <p>4. Rezerwacja lekcji stanowi odrębną umowę zawieraną pomiędzy Uczniem a Nauczycielem za pośrednictwem Serwisu. Odwołanie lub przełożenie potwierdzonej lekcji wymaga złożenia prośby w Serwisie i akceptacji drugiej strony. Zwrot płatności za pojedynczą lekcję albo zwrot kredytu do pakietu następuje w przypadkach obsługiwanych przez aktualny mechanizm Serwisu, w szczególności po odrzuceniu oczekującej rezerwacji albo po zaakceptowaniu prośby o odwołanie.</p>
       </section>
 
       <section>
         <h2>§5. Płatności i BeePoints</h2>
-        <p>1. Rozliczenia pieniężne w Serwisie realizowane są za pośrednictwem Stripe. Płatność za lekcję jest pobierana przy rezerwacji, a wypłata części należnej Nauczycielowi następuje po potwierdzeniu raportu lub po rozstrzygnięciu sporu.</p>
+        <p>1. Rozliczenia pieniężne w Serwisie realizowane są za pośrednictwem Stripe. Płatność za lekcję lub pakiet lekcji jest pobierana przy zakupie, a wypłata części należnej Nauczycielowi następuje po potwierdzeniu raportu lub po rozstrzygnięciu sporu.</p>
         <p>2. Serwis nie prowadzi obecnie salda użytkownika typu BeeCoins. Uczeń lub Rodzic opłaca konkretną rezerwację, a Nauczyciel widzi środki i wypłaty przez połączenie ze Stripe.</p>
-        <p>3. „BeePoints” to niezbywalny program lojalnościowy — punkty przyznawane za aktywność w Serwisie, wymienialne wyłącznie na zniżki i korzyści opisane w zakładce BeePoints. Punkty nie stanowią środka płatniczego, nie podlegają wypłacie w gotówce i wygasają w przypadku usunięcia konta.</p>
-        <p>4. Prowizja Serwisu oraz szczegółowy cennik dla Nauczycieli są prezentowane w panelu Nauczyciela przed aktywacją profilu.</p>
+        <p>3. Do każdego nowego zakupu doliczana jest obowiązkowa opłata serwisowa Runbee, prezentowana Uczniowi lub Rodzicowi przed przejściem do płatności jako osobna pozycja. Opłata wynosi 3% wartości zamówienia, nie mniej niż 2,99 zł, i nie zależy od wybranej metody płatności.</p>
+        <p>4. W przypadku pakietu lekcji opłata serwisowa jest naliczana jednorazowo od wartości całego pakietu. Pakiet jest przypisany do wybranego Nauczyciela, przedmiotu i długości lekcji. Rezerwacja lekcji z wcześniej zakupionego pakietu nie powoduje naliczenia kolejnej opłaty serwisowej.</p>
+        <p>5. W przypadku pełnego zwrotu płatności za pojedynczą lekcję zwracana jest cała rzeczywiście zapłacona kwota, w tym opłata serwisowa. Zwroty zakupionych pakietów lekcji wymagają indywidualnego kontaktu z obsługą Serwisu do czasu wdrożenia odrębnego procesu obsługi zwrotów pakietów.</p>
+        <p>6. „BeePoints” to niezbywalny program lojalnościowy — punkty przyznawane za aktywność w Serwisie, wymienialne wyłącznie na zniżki i korzyści opisane w zakładce BeePoints. Punkty nie stanowią środka płatniczego, nie podlegają wypłacie w gotówce i wygasają w przypadku usunięcia konta.</p>
+        <p>7. Prowizja Serwisu oraz szczegółowy cennik dla Nauczycieli są prezentowane w panelu Nauczyciela przed aktywacją profilu.</p>
       </section>
 
       <section>
         <h2>§6. Reklamacje</h2>
         <p>1. Reklamacje dotyczące funkcjonowania Serwisu lub przeprowadzonych lekcji można zgłaszać przez docelowy adres kontaktowy wskazany w Serwisie, podając opis problemu oraz dane umożliwiające identyfikację rezerwacji.</p>
         <p>2. Usługodawca rozpatruje reklamacje w terminie 14 dni kalendarzowych od dnia ich otrzymania i informuje Użytkownika o wyniku postępowania na podany adres e-mail.</p>
-        <p>3. Jeżeli lekcja nie odbyła się z winy Nauczyciela lub nie spełniła uzgodnionych wcześniej warunków, Użytkownik może zgłosić spór do raportu. Rozstrzygnięcie sporu może skutkować zwrotem płatności przez Stripe albo zwolnieniem płatności na rzecz Nauczyciela.</p>
+        <p>3. Jeżeli lekcja nie odbyła się z winy Nauczyciela lub nie spełniła uzgodnionych wcześniej warunków, Użytkownik może zgłosić spór do raportu. Rozstrzygnięcie sporu może skutkować pełnym zwrotem płatności przez Stripe albo zwolnieniem płatności na rzecz Nauczyciela.</p>
       </section>
 
       <section>

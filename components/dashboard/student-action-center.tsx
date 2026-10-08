@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { AlertCircle, ClipboardCheck, MessageSquare, ShieldAlert, Star, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Panel, AttentionRow, AllClearBanner } from '@/components/dashboard/dashboard-primitives'
+import { formatLessonStudentTotal } from '@/lib/lesson-money'
 import type { Lesson } from '@/lib/types'
 
 interface Props {
@@ -60,7 +61,7 @@ export function StudentActionCenter({
             icon={ClipboardCheck}
             tone="attention"
             title="Potwierdź raport z lekcji"
-            detail={`${lesson.teacherName} · ${lesson.topic} · ${lesson.price} zł`}
+            detail={`${lesson.teacherName} · ${lesson.topic} · ${formatLessonStudentTotal(lesson)}`}
             action={
               <Link href="/reports">
                 <Button size="sm" className="h-8 text-xs font-semibold">Sprawdź raport</Button>
@@ -127,4 +128,3 @@ export function StudentActionCenter({
     </Panel>
   )
 }
-

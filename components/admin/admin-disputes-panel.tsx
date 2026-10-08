@@ -5,6 +5,7 @@ import { Scale, Check, X, Loader2, Mail, Phone, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
+import { formatLessonStudentTotal } from '@/lib/lesson-money'
 import { getOpenDisputes, resolveDispute } from '@/services/lessons.service'
 import { getUserProfileById } from '@/services/auth.service'
 import type { AuthUser, Lesson, LessonDisputeReason } from '@/lib/types'
@@ -55,7 +56,7 @@ function DisputeRow({ lesson, adminId, onResolved }: { lesson: Lesson; adminId: 
           <p className="text-sm font-semibold text-foreground">{lesson.topic}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {lesson.teacherName} ↔ {lesson.studentName}
-            {lesson.payerRole === 'parent' ? ' (płaci rodzic)' : ''} · {lesson.date} · {lesson.price} zł
+            {lesson.payerRole === 'parent' ? ' (płaci rodzic)' : ''} · {lesson.date} · {formatLessonStudentTotal(lesson)}
           </p>
         </div>
         <Badge variant="secondary" className="mr-4 mt-4 text-[10px]">{reasonLabels[dispute.reason]}</Badge>

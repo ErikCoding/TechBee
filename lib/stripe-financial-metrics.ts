@@ -8,6 +8,9 @@ export type FinancialLesson = {
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
   priceGrosze?: number
+  subtotalGrosze?: number
+  studentServiceFeeGrosze?: number
+  studentTotalGrosze?: number
   stripeFeeGrosze?: number
   stripeTransferId?: string
 }
@@ -15,8 +18,11 @@ export type FinancialLesson = {
 export type FinancialLessonPackage = {
   id?: string
   packageSize: 5 | 10
-  status?: 'active' | 'exhausted' | 'cancelled' | 'refunded'
+  status?: 'active' | 'exhausted' | 'cancelled' | 'refunded' | 'refund_review'
   totalPriceGrosze?: number
+  subtotalGrosze?: number
+  studentServiceFeeGrosze?: number
+  studentTotalGrosze?: number
   remainingCredits?: number
   reservedCredits?: number
   usedCredits?: number
@@ -46,6 +52,22 @@ export type StripeFinancialEventLike = {
 
 function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
+}
+
+function lessonSubtotalGrosze(lesson: FinancialLesson): number {
+  return lesson.subtotalGrosze ?? lesson.priceGrosze ?? 0
+}
+
+function lessonStudentTotalGrosze(lesson: FinancialLesson): number {
+  return lesson.studentTotalGrosze ?? lessonSubtotalGrosze(lesson) + (lesson.studentServiceFeeGrosze ?? 0)
+}
+
+function packageSubtotalGrosze(pkg: FinancialLessonPackage): number {
+  return pkg.subtotalGrosze ?? pkg.totalPriceGrosze ?? 0
+}
+
+function packageStudentTotalGrosze(pkg: FinancialLessonPackage): number {
+  return pkg.studentTotalGrosze ?? packageSubtotalGrosze(pkg) + (pkg.studentServiceFeeGrosze ?? 0)
 }
 
 function refundGroupKey(event: StripeFinancialEventLike, index: number): string {
@@ -90,7 +112,9 @@ export function computePlatformFinance(input: {
   events: StripeFinancialEventLike[]
 }): {
   grossPlatformCommissionGrosze: number
+  grossPlatformServiceFeeGrosze: number
   knownPlatformCommissionGrosze: number
+  knownPlatformServiceFeeGrosze: number
   stripeProcessingFeesGrosze: number
   stripeFeesComplete: boolean
   stripeFeesMissingCount: number
@@ -124,6 +148,10 @@ export function computePlatformFinance(input: {
   const stripeFeesComplete = stripeFeesMissingCount === 0
   const grossPlatformCommissionGrosze = [...paidChargeLessons, ...usedPackageLessons].reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
   const knownPlatformCommissionGrosze = [...knownFeeChargeLessons, ...knownFeePackageLessons].reduce((sum, lesson) => sum + (lesson.platformFeeGrosze ?? 0), 0)
+  const grossPlatformServiceFeeGrosze = paidChargeLessons.reduce((sum, lesson) => sum + (lesson.studentServiceFeeGrosze ?? 0), 0)
+    + packages.reduce((sum, pkg) => sum + (pkg.studentServiceFeeGrosze ?? 0), 0)
+  const knownPlatformServiceFeeGrosze = knownFeeChargeLessons.reduce((sum, lesson) => sum + (lesson.studentServiceFeeGrosze ?? 0), 0)
+    + knownFeePackages.reduce((sum, pkg) => sum + (pkg.studentServiceFeeGrosze ?? 0), 0)
   const stripeProcessingFeesGrosze = knownFeeChargeLessons.reduce((sum, lesson) => sum + (lesson.stripeFeeGrosze ?? 0), 0)
     + knownFeePackages.reduce((sum, pkg) => sum + (pkg.stripeFeeGrosze ?? 0), 0)
   const refundEvents = input.events.filter((event) => event.type === 'refund')
@@ -142,7 +170,9 @@ export function computePlatformFinance(input: {
 
   return {
     grossPlatformCommissionGrosze,
+    grossPlatformServiceFeeGrosze,
     knownPlatformCommissionGrosze,
+    knownPlatformServiceFeeGrosze,
     stripeProcessingFeesGrosze,
     stripeFeesComplete,
     stripeFeesMissingCount,
@@ -153,7 +183,9 @@ export function computePlatformFinance(input: {
     connectPayoutFeesGrosze,
     otherStripeCostsGrosze,
     otherStripeCreditsGrosze,
-    netPlatformRevenueGrosze: (stripeFeesComplete ? grossPlatformCommissionGrosze : knownPlatformCommissionGrosze)
+    netPlatformRevenueGrosze: (stripeFeesComplete
+      ? grossPlatformCommissionGrosze + grossPlatformServiceFeeGrosze
+      : knownPlatformCommissionGrosze + knownPlatformServiceFeeGrosze)
       - stripeProcessingFeesGrosze
       - refundCostGrosze
       - connectPayoutFeesGrosze
@@ -162,9 +194,9 @@ export function computePlatformFinance(input: {
     netPlatformRevenuePartial: !stripeFeesComplete,
     teacherAmountGrosze: paid.reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
     teacherTransferredGrosze: paid.filter((lesson) => lesson.stripeTransferId).reduce((sum, lesson) => sum + (lesson.teacherAmountGrosze ?? 0), 0),
-    paidVolumeGrosze: paidChargeLessons.reduce((sum, lesson) => sum + (lesson.priceGrosze ?? 0), 0)
-      + packages.reduce((sum, pkg) => sum + (pkg.totalPriceGrosze ?? 0), 0),
-    packagePurchaseVolumeGrosze: packages.reduce((sum, pkg) => sum + (pkg.totalPriceGrosze ?? 0), 0),
+    paidVolumeGrosze: paidChargeLessons.reduce((sum, lesson) => sum + lessonStudentTotalGrosze(lesson), 0)
+      + packages.reduce((sum, pkg) => sum + packageStudentTotalGrosze(pkg), 0),
+    packagePurchaseVolumeGrosze: packages.reduce((sum, pkg) => sum + packageStudentTotalGrosze(pkg), 0),
     packageDeferredGrossGrosze: packages.reduce((sum, pkg) => sum + ((pkg.remainingCredits ?? 0) * (pkg.perLessonGrossGrosze ?? 0)), 0),
     packageReservedGrossGrosze: packages.reduce((sum, pkg) => sum + ((pkg.reservedCredits ?? 0) * (pkg.perLessonGrossGrosze ?? 0)), 0),
     packageUsedGrossGrosze: packages.reduce((sum, pkg) => sum + ((pkg.usedCredits ?? 0) * (pkg.perLessonGrossGrosze ?? 0)), 0),

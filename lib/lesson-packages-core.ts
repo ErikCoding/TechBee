@@ -90,7 +90,7 @@ export function calculateLessonPackageTerms({
 }
 
 export function lessonPackageStatusForCredits(input: Pick<LessonPackageCore, 'remainingCredits' | 'reservedCredits' | 'status'>): LessonPackageStatus {
-  if (input.status === 'cancelled' || input.status === 'refunded') return input.status
+  if (input.status === 'cancelled' || input.status === 'refunded' || input.status === 'refund_review') return input.status
   return input.remainingCredits <= 0 && input.reservedCredits <= 0 ? 'exhausted' : 'active'
 }
 
@@ -173,6 +173,10 @@ export function returnReservedPackageCredit<T extends Pick<LessonPackageCore, 'r
     ...pkg,
     remainingCredits: pkg.remainingCredits + 1,
     reservedCredits: pkg.reservedCredits - 1,
-    status: 'active',
+    status: lessonPackageStatusForCredits({
+      ...pkg,
+      remainingCredits: pkg.remainingCredits + 1,
+      reservedCredits: pkg.reservedCredits - 1,
+    }),
   }
 }

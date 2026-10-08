@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { Star, MapPin, BadgeCheck, CalendarDays } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { foundingPromotionIsActive } from '@/lib/founding-teacher-core'
+import { buildStudentPaymentBreakdown } from '@/lib/service-fees'
+import { fromGrosze, toGrosze } from '@/lib/stripe-config'
 import type { Teacher } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -42,6 +44,9 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
 
   const availableDays = teacher.availability.map((d) => DAY_LABELS[d] ?? d)
   const showFoundingBadge = foundingPromotionIsActive(teacher.foundingTeacherPromotion) && teacher.foundingTeacherPromotion.marketplaceHighlight !== false
+  const hourlyRateLabel = teacher.hourlyRate.toLocaleString('pl-PL')
+  const hourlyPayment = buildStudentPaymentBreakdown(toGrosze(teacher.hourlyRate))
+  const hourlyTotalLabel = fromGrosze(hourlyPayment.studentTotalGrosze).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
     <Link
@@ -82,15 +87,17 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
         </div>
 
         <div className="hidden shrink-0 text-right min-[380px]:block">
-          <p className="whitespace-nowrap text-base font-bold leading-none text-foreground">{teacher.hourlyRate} zł</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">za godzinę</p>
+          <p className="whitespace-nowrap text-base font-bold leading-none text-foreground">{hourlyRateLabel} zł</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">/ 60 min</p>
+          <p className="mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground">Łącznie {hourlyTotalLabel} zł</p>
         </div>
       </div>
 
       <div className="flex items-end justify-between gap-3 min-[380px]:hidden">
         <div>
-          <p className="text-[11px] font-medium text-muted-foreground">Stawka</p>
-          <p className="text-base font-bold leading-none text-foreground">{teacher.hourlyRate} zł/godz.</p>
+          <p className="text-[11px] font-medium text-muted-foreground">Stawka nauczyciela</p>
+          <p className="text-base font-bold leading-none text-foreground">{hourlyRateLabel} zł / 60 min</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Łącznie {hourlyTotalLabel} zł z opłatą</p>
         </div>
         {teacher.verified && (
           <span className="rounded-full bg-accent px-2 py-1 text-[10px] font-semibold text-accent-foreground">

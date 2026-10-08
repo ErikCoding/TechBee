@@ -7,6 +7,9 @@ export type AdminRevenueLessonRow = {
   paymentSource?: 'stripe_checkout' | 'package'
   price?: number
   priceGrosze?: number
+  subtotalGrosze?: number
+  studentServiceFeeGrosze?: number
+  studentTotalGrosze?: number
   platformFeeGrosze?: number
   teacherAmountGrosze?: number
   stripeFeeGrosze?: number
@@ -18,9 +21,12 @@ export type AdminRevenueLessonRow = {
 }
 
 export type AdminRevenueLessonPackageRow = {
-  status?: 'active' | 'exhausted' | 'cancelled' | 'refunded'
+  status?: 'active' | 'exhausted' | 'cancelled' | 'refunded' | 'refund_review'
   livemode?: boolean
   totalPriceGrosze?: number
+  subtotalGrosze?: number
+  studentServiceFeeGrosze?: number
+  studentTotalGrosze?: number
   platformFeePerLessonGrosze?: number
   teacherAmountPerLessonGrosze?: number
   usedCredits?: number
@@ -34,7 +40,23 @@ function isSameMonth(ts: number, ref: Date): boolean {
 }
 
 function lessonGrossPln(lesson: AdminRevenueLessonRow): number {
-  return typeof lesson.priceGrosze === 'number' ? lesson.priceGrosze / 100 : (lesson.price ?? 0)
+  if (typeof lesson.studentTotalGrosze === 'number') return lesson.studentTotalGrosze / 100
+  if (typeof lesson.priceGrosze === 'number') return (lesson.priceGrosze + (lesson.studentServiceFeeGrosze ?? 0)) / 100
+  return lesson.price ?? 0
+}
+
+function lessonServiceFeeGrosze(lesson: AdminRevenueLessonRow): number {
+  return lesson.studentServiceFeeGrosze ?? 0
+}
+
+function packageGrossPln(pkg: AdminRevenueLessonPackageRow): number {
+  if (typeof pkg.studentTotalGrosze === 'number') return pkg.studentTotalGrosze / 100
+  const subtotal = pkg.subtotalGrosze ?? pkg.totalPriceGrosze ?? 0
+  return (subtotal + (pkg.studentServiceFeeGrosze ?? 0)) / 100
+}
+
+function packageServiceFeeGrosze(pkg: AdminRevenueLessonPackageRow): number {
+  return pkg.studentServiceFeeGrosze ?? 0
 }
 
 function isLivePaidLesson(lesson: AdminRevenueLessonRow): boolean {
@@ -56,10 +78,10 @@ export function computeAdminPlatformRevenue(lessons: AdminRevenueLessonRow[], no
     && currentMonthPackages.every((pkg) => Number.isFinite(pkg.stripeFeeGrosze))
 
   const monthlyRevenue = currentMonthPaid.reduce((sum, l) => sum + lessonGrossPln(l), 0)
-    + currentMonthPackages.reduce((sum, pkg) => sum + ((pkg.totalPriceGrosze ?? 0) / 100), 0)
+    + currentMonthPackages.reduce((sum, pkg) => sum + packageGrossPln(pkg), 0)
   const monthlyNetRevenue = currentMonthFeesComplete
-    ? currentMonthPaid.reduce((sum, l) => sum + ((l.platformFeeGrosze ?? 0) - (l.stripeFeeGrosze ?? 0)) / 100, 0)
-      + currentMonthPackages.reduce((sum, pkg) => sum + (((pkg.usedCredits ?? 0) * (pkg.platformFeePerLessonGrosze ?? 0)) - (pkg.stripeFeeGrosze ?? 0)) / 100, 0)
+    ? currentMonthPaid.reduce((sum, l) => sum + ((l.platformFeeGrosze ?? 0) + lessonServiceFeeGrosze(l) - (l.stripeFeeGrosze ?? 0)) / 100, 0)
+      + currentMonthPackages.reduce((sum, pkg) => sum + (((pkg.usedCredits ?? 0) * (pkg.platformFeePerLessonGrosze ?? 0)) + packageServiceFeeGrosze(pkg) - (pkg.stripeFeeGrosze ?? 0)) / 100, 0)
     : null
 
   const lastMonthRevenue = livePaidLessons
@@ -67,7 +89,7 @@ export function computeAdminPlatformRevenue(lessons: AdminRevenueLessonRow[], no
     .reduce((sum, l) => sum + lessonGrossPln(l), 0)
     + livePaidPackages
       .filter((pkg) => pkg.createdAt && isSameMonth(pkg.createdAt, lastMonth))
-      .reduce((sum, pkg) => sum + ((pkg.totalPriceGrosze ?? 0) / 100), 0)
+      .reduce((sum, pkg) => sum + packageGrossPln(pkg), 0)
 
   const revenueChange = lastMonthRevenue > 0
     ? Math.round(((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 1000) / 10
@@ -78,16 +100,16 @@ export function computeAdminPlatformRevenue(lessons: AdminRevenueLessonRow[], no
     const scoped = livePaidLessons.filter((l) => l.createdAt && isSameMonth(l.createdAt, monthDate))
     const scopedPackages = livePaidPackages.filter((pkg) => pkg.createdAt && isSameMonth(pkg.createdAt, monthDate))
     const amount = scoped.reduce((sum, l) => sum + lessonGrossPln(l), 0)
-      + scopedPackages.reduce((sum, pkg) => sum + ((pkg.totalPriceGrosze ?? 0) / 100), 0)
-    const platformFee = scoped.reduce((sum, l) => sum + ((l.platformFeeGrosze ?? 0) / 100), 0)
-      + scopedPackages.reduce((sum, pkg) => sum + (((pkg.usedCredits ?? 0) * (pkg.platformFeePerLessonGrosze ?? 0)) / 100), 0)
+      + scopedPackages.reduce((sum, pkg) => sum + packageGrossPln(pkg), 0)
+    const platformFee = scoped.reduce((sum, l) => sum + (((l.platformFeeGrosze ?? 0) + lessonServiceFeeGrosze(l)) / 100), 0)
+      + scopedPackages.reduce((sum, pkg) => sum + ((((pkg.usedCredits ?? 0) * (pkg.platformFeePerLessonGrosze ?? 0)) + packageServiceFeeGrosze(pkg)) / 100), 0)
     const teacherAmount = scoped.reduce((sum, l) => sum + ((l.teacherAmountGrosze ?? 0) / 100), 0)
       + scopedPackages.reduce((sum, pkg) => sum + (((pkg.usedCredits ?? 0) * (pkg.teacherAmountPerLessonGrosze ?? 0)) / 100), 0)
     const netPlatformRevenueComplete = scoped.every((l) => Number.isFinite(l.stripeFeeGrosze))
       && scopedPackages.every((pkg) => Number.isFinite(pkg.stripeFeeGrosze))
     const netPlatformRevenue = netPlatformRevenueComplete
-      ? scoped.reduce((sum, l) => sum + ((l.platformFeeGrosze ?? 0) - (l.stripeFeeGrosze ?? 0)) / 100, 0)
-        + scopedPackages.reduce((sum, pkg) => sum + (((pkg.usedCredits ?? 0) * (pkg.platformFeePerLessonGrosze ?? 0)) - (pkg.stripeFeeGrosze ?? 0)) / 100, 0)
+      ? scoped.reduce((sum, l) => sum + ((l.platformFeeGrosze ?? 0) + lessonServiceFeeGrosze(l) - (l.stripeFeeGrosze ?? 0)) / 100, 0)
+        + scopedPackages.reduce((sum, pkg) => sum + (((pkg.usedCredits ?? 0) * (pkg.platformFeePerLessonGrosze ?? 0)) + packageServiceFeeGrosze(pkg) - (pkg.stripeFeeGrosze ?? 0)) / 100, 0)
       : null
     return { month: MONTH_LABELS_PL[monthDate.getMonth()], amount, platformFee, teacherAmount, netPlatformRevenue, netPlatformRevenueComplete }
   })

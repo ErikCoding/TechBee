@@ -7,6 +7,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ShowMoreButton, COLLAPSED_ROWS } from '@/components/dashboard/collapsible-list-controls'
@@ -23,6 +24,24 @@ const historyStatusConfig = {
   upcoming: { label: 'Nadchodząca', icon: Circle, className: 'text-info-on-surface bg-info-surface' },
   completed: { label: 'Ukończona', icon: CheckCircle2, className: 'text-success-on-surface bg-success-surface' },
   cancelled: { label: 'Anulowana', icon: XCircle, className: 'text-muted-foreground bg-muted' },
+}
+
+function LessonPaymentLabel({ lesson }: { lesson: Lesson }) {
+  if (lesson.paymentSource === 'package') {
+    return <Badge variant="secondary" className="shrink-0 text-[10px]">Z pakietu</Badge>
+  }
+  const subtotal = lesson.subtotalGrosze ?? lesson.priceGrosze
+  const serviceFee = lesson.studentServiceFeeGrosze ?? 0
+  const total = lesson.studentTotalGrosze ?? (typeof subtotal === 'number' ? subtotal + serviceFee : undefined)
+  if (typeof total === 'number') {
+    return (
+      <span className="shrink-0 text-right">
+        <span className="block text-xs font-semibold text-foreground">{(total / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł</span>
+        {serviceFee > 0 && <span className="block text-[10px] text-muted-foreground">w tym opłata {(serviceFee / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł</span>}
+      </span>
+    )
+  }
+  return <span className="shrink-0 text-xs font-semibold text-foreground">{lesson.price} zł</span>
 }
 
 interface Props {
@@ -113,7 +132,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
-                    <span className="text-xs font-semibold text-foreground">{lesson.price} zł</span>
+                    <LessonPaymentLabel lesson={lesson} />
                     {!lesson.pendingChange && (
                       <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => onManage(lesson)}>
                         <RefreshCw className="h-3 w-3" aria-hidden="true" />
@@ -164,6 +183,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                     <Clock3 className="h-3 w-3" aria-hidden="true" />
                     Czeka na potwierdzenie
                   </span>
+                  {lesson.paymentSource === 'package' && <LessonPaymentLabel lesson={lesson} />}
                 </li>
               ))}
             </ul>
@@ -208,7 +228,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                           <StatusIcon className="h-3 w-3" aria-hidden="true" />
                           {status.label}
                         </span>
-                        <span className="text-xs text-muted-foreground">{lesson.price} zł</span>
+                        <LessonPaymentLabel lesson={lesson} />
                         {/*
                           One review per teacher, so a lesson with an
                           already-reviewed teacher offers an edit rather

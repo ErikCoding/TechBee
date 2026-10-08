@@ -29,6 +29,8 @@ function settlementLabel(status: PlatformWalletEntry['settlementStatus']) {
       return 'Transfer wysłany'
     case 'ready_for_transfer':
       return 'Gotowe do transferu'
+    case 'release_inconsistent':
+      return 'Sprawdź transfer'
     case 'waiting_teacher_acceptance':
       return 'Czeka na nauczyciela'
     case 'waiting_lesson':
@@ -48,7 +50,7 @@ function transactionLabel(entry: PlatformWalletEntry) {
     case 'trial_lesson':
       return 'Trial'
     case 'package_purchase':
-      return `Pakiet ${entry.packageSize ?? ''}`.trim()
+      return entry.packageSize ? `Pakiet ${entry.packageSize} lekcji` : 'Pakiet lekcji'
     case 'package_lesson':
       return 'Z pakietu'
     case 'refund':
@@ -142,6 +144,7 @@ export function AdminPlatformWallet() {
   const visibleEntries = entriesExpanded ? entries : entries.slice(0, COLLAPSED_ENTRY_COUNT)
   const netPartial = Boolean(summary?.netPlatformRevenuePartial)
   const displayedCommissionGrosze = netPartial ? summary?.knownPlatformCommissionGrosze : summary?.grossPlatformCommissionGrosze
+  const displayedServiceFeeGrosze = netPartial ? summary?.knownPlatformServiceFeeGrosze : summary?.grossPlatformServiceFeeGrosze
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -194,7 +197,7 @@ export function AdminPlatformWallet() {
                 <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
                   {pln(summary?.netPlatformRevenueGrosze)}{netPartial ? '*' : ''}
                 </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Prowizje minus processing, zwroty oraz potwierdzone koszty Stripe/Connect.</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Prowizje i opłaty serwisowe minus processing, zwroty oraz potwierdzone koszty Stripe/Connect.</p>
                 {feeIncomplete && (
                   <p className="mt-3 rounded-lg border border-success/30 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
                     Brakuje danych o opłacie Stripe dla {summary?.stripeFeesMissingCount ?? 0} transakcji.
@@ -204,6 +207,10 @@ export function AdminPlatformWallet() {
                   <div>
                     <p className="text-muted-foreground">Prowizja Runbee</p>
                     <p className="font-semibold tabular-nums text-success">{pln(displayedCommissionGrosze)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Opłaty serwisowe</p>
+                    <p className="font-semibold tabular-nums text-success">{pln(displayedServiceFeeGrosze)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Koszty Stripe</p>
@@ -324,17 +331,17 @@ export function AdminPlatformWallet() {
               ) : (
                 <>
                   <div className="hidden divide-y divide-border lg:block">
-                    <div className="grid grid-cols-[1.25fr_0.55fr_0.7fr_0.85fr_0.95fr_0.75fr_0.9fr] gap-3 bg-muted/20 px-4 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
+                    <div className="grid grid-cols-[1.25fr_0.55fr_0.8fr_0.9fr_0.95fr_0.75fr_0.9fr] gap-3 bg-muted/20 px-4 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
                       <span>Lekcja</span>
                       <span>Typ</span>
                       <span>Zapłacono</span>
-                      <span>Prowizja Runbee</span>
+                      <span>Runbee</span>
                       <span>Stripe / netto transakcji</span>
                       <span>Nauczyciel</span>
                       <span>Status</span>
                     </div>
                     {visibleEntries.map((entry) => (
-                      <div key={entry.id} className="grid grid-cols-[1.25fr_0.55fr_0.7fr_0.85fr_0.95fr_0.75fr_0.9fr] gap-3 px-4 py-3 text-xs">
+                      <div key={entry.id} className="grid grid-cols-[1.25fr_0.55fr_0.8fr_0.9fr_0.95fr_0.75fr_0.9fr] gap-3 px-4 py-3 text-xs">
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-foreground">{entry.topic}</p>
                           <p className="truncate text-muted-foreground">{entry.studentName || '—'} → {entry.teacherName || '—'}</p>
@@ -344,9 +351,18 @@ export function AdminPlatformWallet() {
                           )}
                         </div>
                         <div>{transactionBadge(entry)}</div>
-                        <p className="font-semibold tabular-nums text-foreground">{pln(entry.grossGrosze)}</p>
                         <div>
-                          <p className="font-semibold tabular-nums text-success">{pln(entry.platformFeeGrosze)}</p>
+                          <p className="font-semibold tabular-nums text-foreground">{pln(entry.grossGrosze)}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Cena {pln(entry.subtotalGrosze ?? entry.grossGrosze)}
+                            {(entry.studentServiceFeeGrosze ?? 0) > 0 ? ` + opłata ${pln(entry.studentServiceFeeGrosze)}` : ''}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-semibold tabular-nums text-success">Prowizja {pln(entry.platformFeeGrosze)}</p>
+                          {(entry.studentServiceFeeGrosze ?? 0) > 0 && (
+                            <p className="mt-1 font-semibold tabular-nums text-success">Opłata {pln(entry.studentServiceFeeGrosze)}</p>
+                          )}
                           <div className="mt-1">{commissionBadge(entry)}</div>
                         </div>
                         <div className="space-y-1">
@@ -379,6 +395,16 @@ export function AdminPlatformWallet() {
                           {transferBadge(entry)}
                         </div>
                         <div className="mt-3 grid gap-1.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-muted-foreground">Cena lekcji/pakietu</span>
+                            <span className="font-semibold tabular-nums text-foreground">{pln(entry.subtotalGrosze ?? entry.grossGrosze)}</span>
+                          </div>
+                          {(entry.studentServiceFeeGrosze ?? 0) > 0 && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-muted-foreground">Opłata serwisowa</span>
+                              <span className="font-semibold tabular-nums text-success">{pln(entry.studentServiceFeeGrosze)}</span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-muted-foreground">Prowizja Runbee</span>
                             <span className="font-semibold tabular-nums text-success">{pln(entry.platformFeeGrosze)}</span>

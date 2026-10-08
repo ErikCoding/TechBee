@@ -111,6 +111,30 @@ test('normal paid lesson without refund uses platform commission minus processin
   assert.equal(result.netPlatformRevenuePartial, false)
 })
 
+test('new paid lesson includes student service fee in paid volume and Runbee net', () => {
+  const result = computePlatformFinance({
+    lessons: [{
+      paymentStatus: 'paid',
+      priceGrosze: 10000,
+      subtotalGrosze: 10000,
+      studentServiceFeeGrosze: 300,
+      studentTotalGrosze: 10300,
+      platformFeeGrosze: 800,
+      teacherAmountGrosze: 9200,
+      stripeFeeGrosze: 330,
+    }],
+    events: [],
+  })
+
+  assert.equal(result.paidVolumeGrosze, 10300)
+  assert.equal(result.grossPlatformCommissionGrosze, 800)
+  assert.equal(result.grossPlatformServiceFeeGrosze, 300)
+  assert.equal(result.knownPlatformServiceFeeGrosze, 300)
+  assert.equal(result.teacherAmountGrosze, 9200)
+  assert.equal(result.netPlatformRevenueGrosze, 770)
+  assert.equal(result.netPlatformRevenuePartial, false)
+})
+
 test('missing Stripe fee still returns a known partial Runbee net amount', () => {
   const result = computePlatformFinance({
     lessons: [
@@ -246,6 +270,50 @@ test('single charge and package purchase are counted once while package-funded l
   assert.equal(result.grossPlatformCommissionGrosze, 1600)
   assert.equal(result.knownPlatformCommissionGrosze, 1600)
   assert.equal(result.netPlatformRevenueGrosze, 100)
+  assert.equal(result.netPlatformRevenuePartial, false)
+})
+
+test('package service fee is counted once at package purchase and not again for package-funded lessons', () => {
+  const result = computePlatformFinance({
+    lessons: [
+      {
+        paymentStatus: 'paid',
+        paymentSource: 'package',
+        packageId: 'pkg_5',
+        packageCreditState: 'used',
+        priceGrosze: 10000,
+        subtotalGrosze: 10000,
+        studentServiceFeeGrosze: 0,
+        studentTotalGrosze: 10000,
+        platformFeeGrosze: 800,
+        teacherAmountGrosze: 9200,
+      },
+    ],
+    packages: [{
+      id: 'pkg_5',
+      packageSize: 5,
+      status: 'active',
+      totalPriceGrosze: 50000,
+      subtotalGrosze: 50000,
+      studentServiceFeeGrosze: 1500,
+      studentTotalGrosze: 51500,
+      remainingCredits: 4,
+      reservedCredits: 0,
+      usedCredits: 1,
+      perLessonGrossGrosze: 10000,
+      platformFeePerLessonGrosze: 800,
+      teacherAmountPerLessonGrosze: 9200,
+      stripeFeeGrosze: 1400,
+    }],
+    events: [],
+  })
+
+  assert.equal(result.paidVolumeGrosze, 51500)
+  assert.equal(result.packagePurchaseVolumeGrosze, 51500)
+  assert.equal(result.packageUsedGrossGrosze, 10000)
+  assert.equal(result.grossPlatformCommissionGrosze, 800)
+  assert.equal(result.grossPlatformServiceFeeGrosze, 1500)
+  assert.equal(result.netPlatformRevenueGrosze, 900)
   assert.equal(result.netPlatformRevenuePartial, false)
 })
 

@@ -69,6 +69,14 @@ function parentBookingsKey(parentId: string) {
   return `techbee.lessons.parent.${parentId}`
 }
 
+function lessonStudentPaidAmountPln(lesson: Lesson): string {
+  const grosze = lesson.studentTotalGrosze ?? lesson.priceGrosze
+  if (typeof grosze === 'number' && Number.isFinite(grosze)) {
+    return `${(grosze / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+  }
+  return `${lesson.price} zł`
+}
+
 function readLocal<T>(key: string): T[] {
   if (!isBrowser()) return []
   try {
@@ -229,6 +237,9 @@ function mapLessonDoc(id: string, data: Record<string, unknown>): Lesson {
     reportChatDeliveries: data.reportChatDeliveries as Lesson['reportChatDeliveries'],
     paymentStatus: data.paymentStatus as Lesson['paymentStatus'],
     priceGrosze: data.priceGrosze as number | undefined,
+    subtotalGrosze: data.subtotalGrosze as number | undefined,
+    studentServiceFeeGrosze: data.studentServiceFeeGrosze as number | undefined,
+    studentTotalGrosze: data.studentTotalGrosze as number | undefined,
     commissionPercent: data.commissionPercent as number | undefined,
     effectiveCommissionPercent: data.effectiveCommissionPercent as number | undefined,
     commissionSource: data.commissionSource as Lesson['commissionSource'],
@@ -939,7 +950,7 @@ export async function resolveDispute(lesson: Lesson, resolution: 'teacher' | 'pa
       userId: payerId,
       type: 'payment',
       title: 'Spór rozstrzygnięty na Twoją korzyść',
-      description: `Zwrócono ${lesson.price} zł za lekcję „${lesson.topic}".`,
+      description: `Zwrócono ${lessonStudentPaidAmountPln(lesson)} za lekcję „${lesson.topic}".`,
     })
   }
   createNotification({

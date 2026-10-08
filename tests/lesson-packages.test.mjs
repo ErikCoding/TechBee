@@ -14,6 +14,7 @@ import {
   teacherOffersLessonPackageSize,
   validatePackageForBooking,
 } from '../lib/lesson-packages-core.ts'
+import { canCancelPackageLessonCredit, canCompletePackageLessonCredit } from '../lib/lesson-package-actions-core.ts'
 
 function pkg(patch = {}) {
   return {
@@ -124,6 +125,7 @@ test('package ownership and matching fields are validated server-side', () => {
   const expected = { teacherId: 'teacher-1', studentId: 'student-1', subjectKey: 'category:mathematics', duration: 60 }
 
   assert.equal(validatePackageForBooking(pkg(), expected), null)
+  assert.equal(validatePackageForBooking(pkg({ status: 'refund_review' }), expected), 'package_not_active')
   assert.equal(validatePackageForBooking(pkg({ studentId: 'student-2' }), expected), 'ownership_mismatch')
   assert.equal(validatePackageForBooking(pkg({ teacherId: 'teacher-2' }), expected), 'teacher_mismatch')
   assert.equal(validatePackageForBooking(pkg({ subjectKey: 'category:english' }), expected), 'subject_mismatch')
@@ -153,6 +155,18 @@ test('recurring package reservation rejects insufficient credits without mutatio
   const original = pkg({ remainingCredits: 2, reservedCredits: 1 })
   const reserved = reservePackageCredits(original, 3)
   assert.deepEqual(reserved, original)
+})
+
+test('refund review package status blocks new package credit reservations', () => {
+  const original = pkg({ status: 'refund_review', remainingCredits: 5, reservedCredits: 0 })
+  assert.deepEqual(reservePackageCredits(original, 1), original)
+})
+
+test('returning a reserved credit does not reactivate refund review package', () => {
+  const returned = returnReservedPackageCredit(pkg({ status: 'refund_review', remainingCredits: 2, reservedCredits: 1 }), 'reserved')
+  assert.equal(returned.remainingCredits, 3)
+  assert.equal(returned.reservedCredits, 0)
+  assert.equal(returned.status, 'refund_review')
 })
 
 test('package lesson financial snapshot is release-compatible per one lesson', () => {
@@ -224,4 +238,63 @@ test('cancellation of one recurring package lesson returns only one reserved cre
   assert.equal(returned.remainingCredits, 3)
   assert.equal(returned.reservedCredits, 2)
   assert.equal(returned.usedCredits, 0)
+})
+
+function packageLesson(patch = {}) {
+  return {
+    teacherId: 'teacher-1',
+    studentId: 'student-1',
+    payerId: 'parent-1',
+    paymentSource: 'package',
+    packageId: 'pkg-1',
+    packageCreditState: 'reserved',
+    status: 'upcoming',
+    ...patch,
+  }
+}
+
+test('package lesson cancel API allows teacher to reject only pending package requests without a pending change', () => {
+  assert.deepEqual(canCancelPackageLessonCredit(packageLesson({ status: 'pending' }), 'teacher-1'), { ok: true })
+  assert.deepEqual(canCancelPackageLessonCredit(packageLesson({ status: 'pending' }), 'student-1'), {
+    ok: false,
+    status: 403,
+    error: 'Tylko nauczyciel może odrzucić oczekującą rezerwację z pakietu.',
+  })
+})
+
+test('package lesson cancel API requires the opposite party to accept a cancel request', () => {
+  const studentRequest = packageLesson({ pendingChange: { type: 'cancel', requestedBy: 'student' } })
+  const teacherRequest = packageLesson({ pendingChange: { type: 'cancel', requestedBy: 'teacher' } })
+
+  assert.deepEqual(canCancelPackageLessonCredit(studentRequest, 'teacher-1'), { ok: true })
+  assert.deepEqual(canCancelPackageLessonCredit(studentRequest, 'student-1'), {
+    ok: false,
+    status: 403,
+    error: 'Tę prośbę o odwołanie musi zaakceptować druga strona lekcji.',
+  })
+  assert.deepEqual(canCancelPackageLessonCredit(teacherRequest, 'parent-1'), { ok: true })
+})
+
+test('package lesson cancel API rejects direct upcoming cancellation without lifecycle approval', () => {
+  assert.equal(canCancelPackageLessonCredit(packageLesson(), 'student-1').ok, false)
+  assert.equal(canCancelPackageLessonCredit(packageLesson({ status: 'completed' }), 'teacher-1').ok, false)
+  assert.equal(canCancelPackageLessonCredit(packageLesson({ paymentReleased: true }), 'teacher-1').ok, false)
+})
+
+test('package lesson complete API only completes confirmed package lessons by lesson parties', () => {
+  assert.deepEqual(canCompletePackageLessonCredit(packageLesson({ status: 'upcoming' }), 'teacher-1'), { ok: true })
+  assert.deepEqual(canCompletePackageLessonCredit(packageLesson({ status: 'pending' }), 'teacher-1'), {
+    ok: false,
+    status: 409,
+    error: 'Tylko potwierdzoną nadchodzącą lekcję można oznaczyć jako odbytą.',
+  })
+  assert.deepEqual(canCompletePackageLessonCredit(packageLesson({ status: 'upcoming' }), 'parent-1'), {
+    ok: false,
+    status: 403,
+    error: 'Brak dostępu do tej lekcji.',
+  })
+})
+
+test('package lesson complete API remains idempotent after the credit is already used', () => {
+  assert.deepEqual(canCompletePackageLessonCredit(packageLesson({ status: 'completed', packageCreditState: 'used' }), 'student-1'), { ok: true })
 })

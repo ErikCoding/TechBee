@@ -4,11 +4,16 @@ import { Wallet, Receipt, CheckCircle2, Clock3 } from 'lucide-react'
 import { Panel } from '@/components/dashboard/dashboard-primitives'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatLessonStudentTotal, lessonStudentTotalGrosze } from '@/lib/lesson-money'
 import type { Lesson } from '@/lib/types'
 
 interface Props {
   /** Lessons this parent personally paid for — `getParentLessons`, i.e. `payerId == parentId`. */
   paidLessons: Lesson[] | null
+}
+
+function formatGrosze(grosze: number): string {
+  return `${(grosze / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
 }
 
 /**
@@ -39,9 +44,9 @@ export function ParentSpendingPanel({ paidLessons }: Props) {
   }
 
   const active = paidLessons.filter((l) => l.status !== 'cancelled')
-  const total = active.reduce((sum, l) => sum + l.price, 0)
+  const totalGrosze = active.reduce((sum, l) => sum + (lessonStudentTotalGrosze(l) ?? 0), 0)
   const held = active.filter((l) => !l.paymentReleased && l.status !== 'cancelled')
-  const heldAmount = held.reduce((sum, l) => sum + l.price, 0)
+  const heldAmountGrosze = held.reduce((sum, l) => sum + (lessonStudentTotalGrosze(l) ?? 0), 0)
   const recent = [...active]
     .sort((a, b) => (b.completedAt ?? b.createdAt ?? 0) - (a.completedAt ?? a.createdAt ?? 0))
     .slice(0, 3)
@@ -60,11 +65,11 @@ export function ParentSpendingPanel({ paidLessons }: Props) {
           <div className="grid grid-cols-2 divide-x divide-border border-b border-border">
             <div className="px-5 py-4">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Opłacone łącznie</p>
-              <p className="mt-0.5 truncate text-xl font-bold text-foreground">{total.toLocaleString('pl-PL')} zł</p>
+              <p className="mt-0.5 truncate text-xl font-bold text-foreground">{formatGrosze(totalGrosze)}</p>
             </div>
             <div className="px-5 py-4">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">W trakcie</p>
-              <p className="mt-0.5 truncate text-xl font-bold text-foreground">{heldAmount.toLocaleString('pl-PL')} zł</p>
+              <p className="mt-0.5 truncate text-xl font-bold text-foreground">{formatGrosze(heldAmountGrosze)}</p>
             </div>
           </div>
 
@@ -88,12 +93,12 @@ export function ParentSpendingPanel({ paidLessons }: Props) {
                     {lesson.studentName} · {lesson.teacherName}
                   </p>
                 </div>
-                <span className="shrink-0 text-xs font-semibold text-foreground">{lesson.price} zł</span>
+                <span className="shrink-0 text-xs font-semibold text-foreground">{formatLessonStudentTotal(lesson)}</span>
               </li>
             ))}
           </ul>
 
-          {heldAmount > 0 && (
+          {heldAmountGrosze > 0 && (
             <p className="border-t border-border px-5 py-2.5 text-[11px] text-muted-foreground">
               Środki „w trakcie" trafiają do nauczyciela po potwierdzeniu raportu z lekcji.
             </p>

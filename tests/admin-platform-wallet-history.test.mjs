@@ -36,6 +36,13 @@ test('refunds remain visible as payment history entries', () => {
   assert.equal(uiSource.includes('Refund'), true)
 })
 
+test('admin wallet flags confirmed/released lessons without a Stripe transfer as inconsistent', () => {
+  assert.equal(routeSource.includes('lessonHasReleaseStateMismatch'), true)
+  assert.equal(routeSource.includes("return 'release_inconsistent'"), true)
+  assert.equal(uiSource.includes("case 'release_inconsistent'"), true)
+  assert.equal(uiSource.includes('Sprawdź transfer'), true)
+})
+
 test('global Connect and payout costs still reduce Runbee net outside payment history', () => {
   const result = computePlatformFinance({
     lessons: [{

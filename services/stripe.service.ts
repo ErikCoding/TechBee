@@ -1,5 +1,5 @@
 import { auth } from '@/lib/firebase'
-import type { LessonKind, TeacherStripeAccount, TeacherWalletSummary, WalletHistoryEntry, PayoutRecord } from '@/lib/types'
+import type { LessonKind, LessonPackageFirstBookingStatus, LessonPackagePurchaseMode, TeacherStripeAccount, TeacherWalletSummary, WalletHistoryEntry, PayoutRecord } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Client-side helpers for every app/api/stripe/* route. Same posture
@@ -35,6 +35,12 @@ async function postJson<T>(path: string, body: Record<string, unknown>): Promise
     throw new Error(typeof data.error === 'string' ? data.error : 'Coś poszło nie tak. Spróbuj ponownie.')
   }
   return data as T
+}
+
+export type CheckoutPaymentBreakdown = {
+  subtotalGrosze: number
+  studentServiceFeeGrosze: number
+  studentTotalGrosze: number
 }
 
 /** Starts (or resumes) Stripe Connect Express onboarding for the signed-in teacher — returns a Stripe-hosted URL to redirect the browser to. */
@@ -91,19 +97,53 @@ export async function startLessonPackageCheckout(input: {
   studentId: string
   studentName: string
   payer?: { id: string; role: 'student' | 'parent' }
+  purchaseMode?: LessonPackagePurchaseMode
+  booking?: {
+    date?: string
+    dateIso: string
+    time: string
+    scheduledStartAt?: number
+    topic: string
+    bookingRequestId?: string
+  }
 }): Promise<string> {
   const { url } = await postJson<{ url: string }>('/api/stripe/packages/create-session', input)
   return url
 }
 
 /** Polls whether a Checkout Session's lesson has been created yet — used by /payment/success to bridge the brief gap before the webhook lands. */
-export async function getCheckoutSessionResult(sessionId: string): Promise<{ type: 'lesson'; lessonId: string } | { type: 'lesson_package'; packageId: string } | null> {
-  const res = await fetch(`/api/stripe/checkout/status?session_id=${encodeURIComponent(sessionId)}`)
+export async function getCheckoutSessionResult(sessionId: string): Promise<{ type: 'lesson'; lessonId: string; payment?: CheckoutPaymentBreakdown } | { type: 'lesson_package'; packageId: string; payment?: CheckoutPaymentBreakdown; firstLessonBookingStatus?: LessonPackageFirstBookingStatus; firstLessonId?: string; firstLessonBookingError?: string } | null> {
+  const idToken = await getIdToken()
+  const res = await fetch(`/api/stripe/checkout/status?session_id=${encodeURIComponent(sessionId)}`, {
+    headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+  })
   const data = await res.json().catch(() => ({}) as Record<string, unknown>)
   if (!res.ok) return null
-  if (data.type === 'lesson' && typeof data.lessonId === 'string') return { type: 'lesson', lessonId: data.lessonId }
-  if (data.type === 'lesson_package' && typeof data.packageId === 'string') return { type: 'lesson_package', packageId: data.packageId }
+  const payment = isCheckoutPaymentBreakdown(data.payment) ? data.payment : undefined
+  if (data.type === 'lesson' && typeof data.lessonId === 'string') return { type: 'lesson', lessonId: data.lessonId, payment }
+  if (data.type === 'lesson_package' && typeof data.packageId === 'string') {
+    return {
+      type: 'lesson_package',
+      packageId: data.packageId,
+      payment,
+      firstLessonBookingStatus: isLessonPackageFirstBookingStatus(data.firstLessonBookingStatus) ? data.firstLessonBookingStatus : undefined,
+      firstLessonId: typeof data.firstLessonId === 'string' ? data.firstLessonId : undefined,
+      firstLessonBookingError: typeof data.firstLessonBookingError === 'string' ? data.firstLessonBookingError : undefined,
+    }
+  }
   return null
+}
+
+function isLessonPackageFirstBookingStatus(value: unknown): value is LessonPackageFirstBookingStatus {
+  return value === 'not_requested' || value === 'pending' || value === 'booked' || value === 'slot_conflict' || value === 'failed'
+}
+
+function isCheckoutPaymentBreakdown(value: unknown): value is CheckoutPaymentBreakdown {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.subtotalGrosze === 'number'
+    && typeof candidate.studentServiceFeeGrosze === 'number'
+    && typeof candidate.studentTotalGrosze === 'number'
 }
 
 /** Backward-compatible convenience wrapper for old call sites that only care about single-lesson checkouts. */

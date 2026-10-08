@@ -6,6 +6,7 @@ import { getOrigin } from '@/lib/request-origin'
 import { splitPayment, toGrosze, STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { resolveEffectiveCommission } from '@/lib/founding-teacher-core'
+import { buildStudentPaymentBreakdown } from '@/lib/service-fees'
 import { collections } from '@/lib/firebase'
 import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
@@ -233,6 +234,7 @@ export async function POST(request: Request) {
     }, { status: 409 })
   }
   const priceGrosze = lessonTerms.priceGrosze
+  const paymentBreakdown = buildStudentPaymentBreakdown(priceGrosze)
   const paymentSettings = await getPlatformPaymentSettings()
   const { effectiveCommissionPercent, commissionSource } = resolveEffectiveCommission({
     standardCommissionPercent: paymentSettings.commissionPercent,
@@ -254,7 +256,15 @@ export async function POST(request: Request) {
           price_data: {
             currency: STRIPE_CURRENCY,
             product_data: { name: `${lessonTerms.lessonKind === 'trial' ? 'Lekcja próbna' : 'Lekcja'}: ${topic.trim()}`, description: `${teacher.name} · ${selectedSpecialty} · ${date} o ${time} · ${duration} min` },
-            unit_amount: priceGrosze,
+            unit_amount: paymentBreakdown.subtotalGrosze,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: STRIPE_CURRENCY,
+            product_data: { name: 'Opłata serwisowa Runbee', description: 'Obsługa rezerwacji, płatności i platformy.' },
+            unit_amount: paymentBreakdown.studentServiceFeeGrosze,
           },
           quantity: 1,
         },
@@ -278,7 +288,10 @@ export async function POST(request: Request) {
         duration: String(duration),
         lessonKind: lessonTerms.lessonKind,
         topic: safeMetaText(topic.trim()),
-        priceGrosze: String(priceGrosze),
+        priceGrosze: String(paymentBreakdown.subtotalGrosze),
+        subtotalGrosze: String(paymentBreakdown.subtotalGrosze),
+        studentServiceFeeGrosze: String(paymentBreakdown.studentServiceFeeGrosze),
+        studentTotalGrosze: String(paymentBreakdown.studentTotalGrosze),
         commissionPercent: String(effectiveCommissionPercent),
         effectiveCommissionPercent: String(effectiveCommissionPercent),
         commissionSource,

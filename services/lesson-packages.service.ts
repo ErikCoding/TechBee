@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import type { LessonBookingInput, LessonPackage } from '@/lib/types'
 
@@ -29,6 +29,38 @@ export async function getStudentLessonPackagesForTeacher(studentId: string, teac
   return snap.docs
     .map((doc) => ({ id: doc.id, ...doc.data() }) as LessonPackage)
     .filter((pkg) => pkg.teacherId === teacherId && pkg.status === 'active' && pkg.remainingCredits > 0)
+    .sort(compareLessonPackagesForUse)
+}
+
+export async function getStudentLessonPackages(studentId: string): Promise<LessonPackage[]> {
+  if (!isFirebaseConfigured || !db) return []
+  const snap = await getDocs(query(
+    collection(db, collections.lessonPackages),
+    where('studentId', '==', studentId),
+  ))
+  return snap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }) as LessonPackage)
+    .sort(compareLessonPackagesForDisplay)
+}
+
+export async function getLessonPackage(packageId: string): Promise<LessonPackage | null> {
+  if (!isFirebaseConfigured || !db) return null
+  const snap = await getDoc(doc(db, collections.lessonPackages, packageId))
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() } as LessonPackage
+}
+
+function compareLessonPackagesForDisplay(a: LessonPackage, b: LessonPackage): number {
+  const statusRank = (pkg: LessonPackage) => pkg.status === 'active' ? 0 : pkg.status === 'exhausted' ? 1 : 2
+  const statusDiff = statusRank(a) - statusRank(b)
+  if (statusDiff !== 0) return statusDiff
+  return (b.createdAt ?? 0) - (a.createdAt ?? 0)
+}
+
+function compareLessonPackagesForUse(a: LessonPackage, b: LessonPackage): number {
+  const createdDiff = (a.createdAt ?? 0) - (b.createdAt ?? 0)
+  if (createdDiff !== 0) return createdDiff
+  return a.id.localeCompare(b.id)
 }
 
 export async function bookLessonWithPackageCredit(input: Omit<LessonBookingInput, 'price' | 'lessonKind'> & {

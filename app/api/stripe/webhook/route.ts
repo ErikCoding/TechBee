@@ -31,6 +31,7 @@ import { alreadyProcessed, markProcessed } from '@/lib/stripe-webhook-shared'
 //   charge.refunded / refund.*  → snapshots real refund balance transactions and
 //                                    marks a Lesson refunded only once the charge
 //                                    is fully refunded (partial refunds remain paid)
+//                                    or locks a refunded LessonPackage for admin review
 //   transfer.created            → logged only (informational; the transfer/refund
 //                                    routes already write stripeTransferId themselves)
 //   account.updated             → logged only, see handleAccountUpdated for why

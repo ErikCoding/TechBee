@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { verifyCaller } from '@/lib/stripe-server-auth'
 import { collections } from '@/lib/firebase'
+import { canCompletePackageLessonCredit } from '@/lib/lesson-package-actions-core'
 import { completePackageLessonCredit } from '@/lib/lesson-package-credits.server'
 import type { Lesson } from '@/lib/types'
 
@@ -17,9 +18,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ les
   const lessonSnap = await adminDb.collection(collections.lessons).doc(lessonId).get()
   if (!lessonSnap.exists) return NextResponse.json({ error: 'Nie znaleziono lekcji.' }, { status: 404 })
   const lesson = lessonSnap.data() as Lesson
-  if (uid !== lesson.teacherId && uid !== lesson.studentId) {
-    return NextResponse.json({ error: 'Brak dostępu do tej lekcji.' }, { status: 403 })
-  }
+  const allowed = canCompletePackageLessonCredit(lesson, uid)
+  if (!allowed.ok) return NextResponse.json({ error: allowed.error }, { status: allowed.status })
 
   const result = await completePackageLessonCredit(lessonId)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })

@@ -152,3 +152,53 @@ test('admin revenue counts package purchase once and ignores package-funded less
   assert.equal(september?.platformFee, 8)
   assert.equal(september?.teacherAmount, 92)
 })
+
+test('admin revenue uses service fee snapshots for new lesson and package charges', () => {
+  const result = computeAdminPlatformRevenue([
+    {
+      paymentStatus: 'paid',
+      livemode: true,
+      priceGrosze: 10000,
+      subtotalGrosze: 10000,
+      studentServiceFeeGrosze: 300,
+      studentTotalGrosze: 10300,
+      platformFeeGrosze: 800,
+      teacherAmountGrosze: 9200,
+      stripeFeeGrosze: 330,
+      createdAt: currentMonth,
+    },
+    {
+      paymentStatus: 'paid',
+      paymentSource: 'package',
+      livemode: true,
+      priceGrosze: 10000,
+      studentServiceFeeGrosze: 0,
+      platformFeeGrosze: 800,
+      teacherAmountGrosze: 9200,
+      createdAt: currentMonth,
+    },
+  ], now, [
+    {
+      status: 'active',
+      livemode: true,
+      totalPriceGrosze: 50000,
+      subtotalGrosze: 50000,
+      studentServiceFeeGrosze: 1500,
+      studentTotalGrosze: 51500,
+      platformFeePerLessonGrosze: 800,
+      teacherAmountPerLessonGrosze: 9200,
+      usedCredits: 1,
+      stripeFeeGrosze: 1400,
+      createdAt: currentMonth,
+    },
+  ])
+
+  assert.equal(result.monthlyRevenue, 618)
+  assert.equal(result.monthlyNetRevenue, 16.7)
+
+  const september = result.revenueChart.find((entry) => entry.month === 'Wrz')
+  assert.equal(september?.amount, 618)
+  assert.equal(september?.platformFee, 34)
+  assert.equal(september?.teacherAmount, 184)
+  assert.equal(september?.netPlatformRevenue, 16.7)
+})

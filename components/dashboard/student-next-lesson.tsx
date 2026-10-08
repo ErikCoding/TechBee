@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { CalendarDays, Clock, Timer, Video, RefreshCw, Search, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MetaStrip } from '@/components/dashboard/dashboard-primitives'
 import { LessonJoinButton } from '@/components/lesson/lesson-join-button'
@@ -53,6 +54,12 @@ export function StudentNextLesson({ lesson, pendingCount, onManage }: Props) {
   }
 
   const joinHref = `/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.teacherName)}&topic=${encodeURIComponent(lesson.topic)}`
+  const subtotal = lesson.subtotalGrosze ?? lesson.priceGrosze
+  const serviceFee = lesson.studentServiceFeeGrosze ?? 0
+  const total = lesson.studentTotalGrosze ?? (typeof subtotal === 'number' ? subtotal + serviceFee : undefined)
+  const priceLabel = typeof total === 'number'
+    ? `${(total / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+    : `${lesson.price} zł`
 
   return (
     <section className="overflow-hidden rounded-2xl border border-primary/40 bg-card">
@@ -83,7 +90,14 @@ export function StudentNextLesson({ lesson, pendingCount, onManage }: Props) {
               {lesson.teacherName} · {lesson.specialty}
             </p>
           </div>
-          <span className="hidden shrink-0 text-sm font-bold text-foreground sm:block">{lesson.price} zł</span>
+          {lesson.paymentSource === 'package' ? (
+            <Badge variant="secondary" className="hidden shrink-0 sm:inline-flex">Z pakietu</Badge>
+          ) : (
+            <span className="hidden shrink-0 text-right text-sm font-bold text-foreground sm:block">
+              {priceLabel}
+              {serviceFee > 0 && <span className="block text-[10px] font-normal text-muted-foreground">w tym opłata</span>}
+            </span>
+          )}
         </div>
 
         {/* The scheduling facts, grouped instead of buried in a sentence */}
@@ -104,7 +118,11 @@ export function StudentNextLesson({ lesson, pendingCount, onManage }: Props) {
               Zmień termin
             </Button>
           )}
-          <span className="text-center text-sm font-bold text-foreground sm:hidden">{lesson.price} zł</span>
+          {lesson.paymentSource === 'package' ? (
+            <Badge variant="secondary" className="justify-center sm:hidden">Z pakietu</Badge>
+          ) : (
+            <span className="text-center text-sm font-bold text-foreground sm:hidden">{priceLabel}</span>
+          )}
         </div>
       </div>
     </section>

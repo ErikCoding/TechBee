@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { useAuth } from '@/lib/auth-context'
 import { getStudentLessons, getParentLessons, lessonToReportCard } from '@/services/lessons.service'
 import { getLinkedStudents, getStudentCanManageReports, setStudentCanManageReports } from '@/services/family-link.service'
+import { formatLessonStudentTotal, lessonStudentTotalGrosze } from '@/lib/lesson-money'
 import { canManageLessonReport } from '@/lib/report-permissions'
 import { Panel, PanelFooterLink, AllClearBanner } from '@/components/dashboard/dashboard-primitives'
 import { ParentChildBand, type ChildSummary } from '@/components/dashboard/parent-child-band'
@@ -81,7 +82,7 @@ export function ParentDashboardClient({ initialNotifications }: Props) {
         teacherCount: new Set(counted.map((l) => l.teacherId)).size,
         totalPaid: paid
           .filter((l) => l.studentId === s.id && l.status !== 'cancelled')
-          .reduce((sum, l) => sum + l.price, 0),
+          .reduce((sum, l) => sum + ((lessonStudentTotalGrosze(l) ?? 0) / 100), 0),
       }
     })
 
@@ -249,7 +250,7 @@ export function ParentDashboardClient({ initialNotifications }: Props) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
                         <p className="truncate text-xs text-muted-foreground">
-                          Zastrzeżenie w rozpatrywaniu · {lesson.teacherName} · {lesson.price} zł
+                          Zastrzeżenie w rozpatrywaniu · {lesson.teacherName} · {formatLessonStudentTotal(lesson)}
                         </p>
                       </div>
                       <span className="shrink-0 text-xs text-muted-foreground">Czeka na Runbee</span>
@@ -343,7 +344,7 @@ export function ParentDashboardClient({ initialNotifications }: Props) {
                             <span className="sm:hidden">Czeka</span>
                           </span>
                         ) : (
-                          <span className="shrink-0 text-xs font-semibold text-foreground">{lesson.price} zł</span>
+                          <span className="shrink-0 text-xs font-semibold text-foreground">{formatLessonStudentTotal(lesson)}</span>
                         )}
                       </li>
                     ))}
