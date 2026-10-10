@@ -60,6 +60,7 @@ type AdminAuthRestClient = {
   getUser: (uid: string) => Promise<AdminAuthUser>
   getUsers: (uids: string[]) => Promise<AdminAuthUser[]>
   getUserByEmail: (email: string) => Promise<AdminAuthUser>
+  updateUserDisabled: (uid: string, disabled: boolean) => Promise<AdminAuthUser>
   generateEmailVerificationLink: (email: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   generateVerifyAndChangeEmailLink: (email: string, newEmail: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   generatePasswordResetLink: (email: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
@@ -373,6 +374,14 @@ async function getUserByEmail(email: string): Promise<AdminAuthUser> {
   return mapFirebaseUser(data.users?.[0])
 }
 
+async function updateUserDisabled(uid: string, disabled: boolean): Promise<AdminAuthUser> {
+  const data = await identityToolkitRequest<FirebaseLookupUser>('accounts:update', {
+    localId: uid,
+    disableUser: disabled,
+  })
+  return mapFirebaseUser(data)
+}
+
 function actionCodeRequest(actionCodeSettings: AdminActionCodeSettings): Record<string, unknown> {
   const request: Record<string, unknown> = {
     continueUrl: actionCodeSettings.url,
@@ -422,6 +431,7 @@ export async function getAdminAuth(): Promise<AdminAuthRestClient | null> {
     getUser,
     getUsers,
     getUserByEmail,
+    updateUserDisabled,
     generateEmailVerificationLink: (email, settings) => generateActionLink('VERIFY_EMAIL', email, settings),
     generateVerifyAndChangeEmailLink: (email, newEmail, settings) => generateActionLink('VERIFY_AND_CHANGE_EMAIL', email, settings, newEmail),
     generatePasswordResetLink: (email, settings) => generateActionLink('PASSWORD_RESET', email, settings),

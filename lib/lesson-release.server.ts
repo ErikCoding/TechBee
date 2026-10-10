@@ -5,6 +5,7 @@ import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { lessonTeacherTransferIdempotencyKey } from '@/lib/lesson-release-core'
 import { isLessonReleaseEligible } from '@/lib/lesson-report-auto-confirm'
+import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
 import type { Lesson } from '@/lib/types'
 
 export type LessonTeacherReleaseResult =
@@ -51,6 +52,21 @@ export async function releaseLessonTeacherPayment(lessonId: string, now = Date.n
     })
 
     await lessonRef.update({ stripeTransferId: transfer.id, reportConfirmedAt: now, paymentReleased: true })
+    // Informational only — sendProductNotificationEmail never throws and never undoes the transfer.
+    await sendProductNotificationEmail({
+      eventId: `lesson:${lessonId}:transfer-released:teacher`,
+      recipientUid: lesson.teacherId,
+      type: 'payments.payout',
+      subject: 'Środki za lekcję zostały zwolnione',
+      title: 'Płatność za lekcję została zwolniona',
+      preheader: 'Środki za lekcję trafiły na Twoje konto Stripe Connect.',
+      body: `Raport z lekcji „${lesson.topic ?? 'Lekcja'}” został zaakceptowany, a należność została przekazana na Twoje konto Stripe Connect. Wypłatę na rachunek bankowy zlecisz w portfelu.`,
+      details: [
+        { label: 'Kwota', value: `${(amount / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł` },
+        { label: 'Lekcja', value: lesson.topic ?? 'Lekcja' },
+      ],
+      cta: { label: 'Otwórz portfel', href: runbeeAppUrl('/dashboard') },
+    })
     return { ok: true, transferId: transfer.id, alreadyTransferred: false }
   } catch (err) {
     console.error('[lesson-release] Failed to release teacher payment:', err)

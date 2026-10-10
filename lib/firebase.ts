@@ -74,6 +74,12 @@ export const collections = {
   passwordResetRateLimits: 'passwordResetRateLimits',
   /** Server-side throttle state for email change confirmations. Written via Admin SDK only. */
   emailChangeRateLimits: 'emailChangeRateLimits',
+  /** Server-side throttle state for self-service account deletion requests. Written via Admin SDK only. */
+  accountDeletionRateLimits: 'accountDeletionRateLimits',
+  /** User account deletion requests kept for administrator review instead of destructive automatic deletion. */
+  accountDeletionRequests: 'accountDeletionRequests',
+  /** Idempotency ledger for server-side product/security email notifications. */
+  emailEvents: 'emailEvents',
   /** Pending verify-and-change-email actions, keyed by hashed Firebase oobCode. */
   pendingEmailChanges: 'pendingEmailChanges',
   /** Processed Stripe webhook event ids — see app/api/stripe/webhook/route.ts's idempotency check (one doc per event.id, written before processing, checked before every write). */

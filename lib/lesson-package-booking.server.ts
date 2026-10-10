@@ -5,6 +5,7 @@ import { collections } from '@/lib/firebase'
 import { BOOKING_WINDOW_DAYS, getAvailabilityHoursForWeekday } from '@/lib/availability'
 import { buildWeeklyLessonOccurrences, LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
 import { packageSubjectKey, reservePackageCredits, validatePackageForBooking } from '@/lib/lesson-packages-core'
+import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
 import type { BookedLessonSlot, Lesson, LessonPackage, WeekdayCode } from '@/lib/types'
 
 const MAX_PACKAGE_BOOKING_OCCURRENCES = 10
@@ -166,6 +167,7 @@ export async function bookLessonWithPackageCreditServer(input: {
     : null
   const now = Date.now()
 
+  let creditInfo: { payerId: string; remaining: number } | null = null
   const result = await input.database.runTransaction(async (tx): Promise<PackageCreditBookingResult> => {
     if (requestRef && requestFingerprint) {
       const requestSnap = await tx.get(requestRef)
@@ -211,6 +213,7 @@ export async function bookLessonWithPackageCreditServer(input: {
     }
 
     const nextPackage = reservePackageCredits(pkg, occurrenceCount)
+    creditInfo = { payerId: (typeof pkg.payerId === 'string' && pkg.payerId) || input.studentId, remaining: nextPackage.remainingCredits }
     tx.update(packageRef, {
       remainingCredits: nextPackage.remainingCredits,
       reservedCredits: nextPackage.reservedCredits,
@@ -305,6 +308,42 @@ export async function bookLessonWithPackageCreditServer(input: {
       read: false,
       createdAt: now,
     })
+    await sendProductNotificationEmail({
+      eventId: `lesson-package-booking:${result.lessonIds.join(',')}:teacher`,
+      recipientUid: input.teacherId,
+      type: 'lessons.bookingCreated',
+      subject: occurrenceCount > 1 ? 'Nowa seria rezerwacji z pakietu' : 'Nowa rezerwacja z pakietu',
+      title: occurrenceCount > 1 ? 'Masz nową serię rezerwacji' : 'Masz nową rezerwację',
+      preheader: `${input.studentName} użył(a) lekcji z pakietu.`,
+      body: occurrenceCount > 1
+        ? `${input.studentName} użył(a) ${occurrenceCount} lekcji z pakietu. Potwierdź albo odrzuć lekcje w panelu nauczyciela.`
+        : `${input.studentName} użył(a) lekcji z pakietu. Potwierdź albo odrzuć rezerwację w panelu nauczyciela.`,
+      details: [
+        { label: 'Uczeń', value: input.studentName },
+        { label: 'Termin', value: `${occurrences[0].date} ${input.time}` },
+        { label: 'Temat', value: input.topic.trim() },
+      ],
+      cta: { label: 'Otwórz panel lekcji', href: runbeeAppUrl('/dashboard') },
+    })
+    // Payer/student confirmation of the credit use (the teacher mail above is the other side).
+    const credit = creditInfo as { payerId: string; remaining: number } | null
+    if (credit) {
+      await sendProductNotificationEmail({
+        eventId: `lesson-package-booking:${result.lessonIds.join(',')}:payer`,
+        recipientUid: credit.payerId,
+        type: 'lessons.bookingCreated',
+        subject: 'Lekcja z pakietu zarezerwowana',
+        title: 'Zarezerwowano lekcję z pakietu',
+        preheader: 'Wykorzystaliśmy kredyt z Twojego pakietu lekcji.',
+        body: `${occurrenceCount > 1 ? `Zarezerwowano ${occurrenceCount} lekcje` : 'Zarezerwowano lekcję'} z pakietu — czekają na potwierdzenie nauczyciela. Po rezerwacji w pakiecie zostało ${credit.remaining} ${credit.remaining === 1 ? 'lekcja' : 'lekcji'}.${credit.remaining === 1 ? ' To Twoja ostatnia lekcja z tego pakietu.' : ''} Jeśli nauczyciel odrzuci termin, kredyt wróci do pakietu.`,
+        details: [
+          { label: 'Termin', value: `${occurrences[0].date} ${input.time}` },
+          { label: 'Temat', value: input.topic.trim() },
+          { label: 'Pozostało w pakiecie', value: String(credit.remaining) },
+        ],
+        cta: { label: 'Otwórz panel lekcji', href: runbeeAppUrl('/dashboard') },
+      })
+    }
   }
 
   return result

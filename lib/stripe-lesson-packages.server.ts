@@ -5,6 +5,7 @@ import { collections } from '@/lib/firebase'
 import { existingLessonPackageIdForCheckout, normalizeLessonPackageSize, packageSubjectKey } from '@/lib/lesson-packages-core'
 import { normalizeLessonPackagePurchaseMode } from '@/lib/lesson-package-purchases-core'
 import { bookLessonWithPackageCreditServer } from '@/lib/lesson-package-booking.server'
+import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
 import type { LessonPackage, LessonPackageFirstBookingStatus, LessonPackagePurchaseIntent } from '@/lib/types'
 
 function paidCheckoutSession(session: Stripe.Checkout.Session): boolean {
@@ -116,6 +117,23 @@ export async function ensureLessonPackageForCheckoutSession(session: Stripe.Chec
       date: new Date(now).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
       read: false,
       createdAt: now,
+    })
+    await sendProductNotificationEmail({
+      // The payment confirmation belongs to whoever paid (a parent may pay for a student).
+      eventId: `lesson-package:${ref.id}:created:payer`,
+      recipientUid: payerId,
+      type: 'payments.paymentConfirmation',
+      subject: 'Pakiet lekcji Runbee jest aktywny',
+      title: 'Twój pakiet lekcji jest aktywny',
+      preheader: `Pakiet ${packageSize} lekcji jest gotowy do wykorzystania.`,
+      body: `Pakiet ${packageSize} lekcji z ${pkg.teacherName} został opłacony i jest gotowy do wykorzystania przy rezerwacji kolejnych terminów.`,
+      details: [
+        { label: 'Nauczyciel', value: pkg.teacherName },
+        { label: 'Przedmiot', value: pkg.specialty },
+        { label: 'Długość lekcji', value: `${pkg.duration} min` },
+        { label: 'Dostępne lekcje', value: `${pkg.remainingCredits}/${pkg.packageSize}` },
+      ],
+      cta: { label: 'Zobacz moje pakiety', href: runbeeAppUrl('/dashboard') },
     })
   }
 

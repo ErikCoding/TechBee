@@ -90,6 +90,33 @@ export async function requestPasswordChangedNotification(
   }
 }
 
+export async function requestAccountDeletionReview(
+  idToken: string,
+  confirmation: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ status: string; hasDependencies: boolean; emailSent: boolean }> {
+  const res = await fetchImpl('/api/account/deletion-request', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ confirmation }),
+  })
+
+  if (!res.ok) {
+    const parsed = await parseErrorResponse(res)
+    throw new AccountSecurityRequestError(parsed.message, res.status, parsed.retryAfterSeconds, parsed.code)
+  }
+
+  const body = await res.json().catch(() => ({})) as Record<string, unknown>
+  return {
+    status: typeof body.status === 'string' ? body.status : 'pending_review',
+    hasDependencies: body.hasDependencies === true,
+    emailSent: body.emailSent === true,
+  }
+}
+
 export async function syncEmailChangeAfterAction(
   oobCode: string,
   fetchImpl: typeof fetch = fetch,

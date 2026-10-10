@@ -13,6 +13,7 @@ import {
   writePackageRefundReview,
   type RefundReviewPatch,
 } from '@/lib/lesson-package-refunds-core'
+import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
 
 function objectWithId<T extends { id: string }>(value: string | T | null | undefined): T | null {
   return value && typeof value !== 'string' ? value : null
@@ -152,6 +153,34 @@ export async function persistStripeRefundFinancialEvent(refund: Stripe.Refund): 
       }
     }
   })
+  if (prepared.lessonRef && prepared.fullRefundForLesson) {
+    const lessonSnap = await prepared.lessonRef.get()
+    const lesson = lessonSnap.data()
+    const recipientUid = typeof lesson?.payerId === 'string'
+      ? lesson.payerId
+      : typeof lesson?.studentId === 'string'
+        ? lesson.studentId
+        : null
+    if (recipientUid) {
+      await sendProductNotificationEmail({
+        eventId: `refund:${prepared.event.stripeRefundId}:lesson:${lessonSnap.id}`,
+        recipientUid,
+        type: 'payments.refund',
+        subject: 'Zwrot płatności za lekcję Runbee',
+        title: 'Zwrot płatności został odnotowany',
+        preheader: 'Zaktualizowaliśmy status lekcji po zwrocie płatności.',
+        body: 'Stripe potwierdził zwrot płatności za lekcję. Zaktualizowaliśmy status rezerwacji w Runbee.',
+        details: [
+          { label: 'Lekcja', value: typeof lesson?.topic === 'string' ? lesson.topic : 'Lekcja Runbee' },
+          {
+            label: 'Kwota zwrotu',
+            value: `${((prepared.event.refundAmountGrosze ?? 0) / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`,
+          },
+        ],
+        cta: { label: 'Otwórz panel', href: runbeeAppUrl('/dashboard') },
+      })
+    }
+  }
 }
 
 export async function readPlatformStripeCostFinancialEvents(existingBalanceTransactionIds: Set<string>): Promise<StripeFinancialEventLike[]> {

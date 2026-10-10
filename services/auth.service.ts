@@ -16,7 +16,7 @@ import { resolveAuthSession, type AuthSessionResult } from '@/lib/auth-session-c
 import { syncParticipantProfile, toParticipant } from '@/services/chat.service'
 import { syncTeacherPublicIdentity } from '@/services/teachers.service'
 import { runPasswordChangeWithSecurityNotification } from '@/lib/account-security-core'
-import { AccountSecurityRequestError, requestEmailChangeVerification, requestPasswordChangedNotification } from '@/lib/account-security-client'
+import { AccountSecurityRequestError, requestAccountDeletionReview, requestEmailChangeVerification, requestPasswordChangedNotification } from '@/lib/account-security-client'
 import { requestEmailVerificationEmail } from '@/lib/email-verification-client'
 import type { AuthUser, PublicUserRole, UserRole } from '@/lib/types'
 
@@ -111,6 +111,11 @@ export type ChangePasswordInput = {
 export type RequestEmailChangeInput = {
   newEmail: string
   currentPassword?: string
+}
+
+export type RequestAccountDeletionInput = {
+  currentPassword: string
+  confirmation: string
 }
 
 /**
@@ -279,6 +284,17 @@ async function requestEmailChangeMock(input: RequestEmailChangeInput): Promise<v
   if (input.currentPassword && user.password !== input.currentPassword) throw new Error('Obecne hasło jest nieprawidłowe.')
 }
 
+async function requestAccountDeletionMock(input: RequestAccountDeletionInput): Promise<void> {
+  const current = getStoredSessionMock()
+  if (!current) throw new Error('Musisz być zalogowany, aby złożyć żądanie usunięcia konta.')
+  const users = readUsers()
+  const user = users.find((u) => u.id === current.id)
+  if (!user) throw new Error('Nie znaleziono profilu użytkownika.')
+  if (user.role === 'admin') throw new Error('Konta administratorów nie mogą być usuwane w trybie samoobsługowym.')
+  if (user.password !== input.currentPassword) throw new Error('Obecne hasło jest nieprawidłowe.')
+  if (input.confirmation.trim() !== 'USUŃ KONTO') throw new Error('Wpisz dokładnie: USUŃ KONTO.')
+}
+
 // ── Firebase implementation ──────────────────────────────────
 
 async function fetchFirebaseProfile(uid: string): Promise<AuthUser | null> {
@@ -428,6 +444,27 @@ async function requestEmailChangeFirebase(input: RequestEmailChangeInput): Promi
   }
 }
 
+async function requestAccountDeletionFirebase(input: RequestAccountDeletionInput): Promise<void> {
+  if (!auth?.currentUser) throw new Error('Musisz być zalogowany, aby złożyć żądanie usunięcia konta.')
+  const providers = firebaseProviderState()
+  if (providers.hasPasswordProvider) {
+    if (!input.currentPassword) throw new Error('Podaj obecne hasło.')
+    await reauthenticatePasswordUser(input.currentPassword)
+  } else {
+    throw new Error('Dla kont logowanych przez zewnętrznego dostawcę wymagane jest ponowne logowanie u tego dostawcy.')
+  }
+
+  const idToken = await auth.currentUser.getIdToken(true)
+  try {
+    await requestAccountDeletionReview(idToken, input.confirmation)
+  } catch (error) {
+    if (error instanceof AccountSecurityRequestError && error.code === 'requires-recent-login') {
+      throw new Error('Ze względów bezpieczeństwa zaloguj się ponownie i spróbuj jeszcze raz.')
+    }
+    throw error
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────
 
 export async function registerUser(input: RegisterInput): Promise<AuthUser> {
@@ -461,6 +498,10 @@ export async function changeCurrentUserPassword(input: ChangePasswordInput): Pro
 
 export async function requestCurrentUserEmailChange(input: RequestEmailChangeInput): Promise<void> {
   return isFirebaseConfigured ? requestEmailChangeFirebase(input) : requestEmailChangeMock(input)
+}
+
+export async function requestCurrentUserAccountDeletion(input: RequestAccountDeletionInput): Promise<void> {
+  return isFirebaseConfigured ? requestAccountDeletionFirebase(input) : requestAccountDeletionMock(input)
 }
 
 export async function resendEmailVerification(): Promise<void> {

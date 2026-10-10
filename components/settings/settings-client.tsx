@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type React from 'react'
-import { Bell, CheckCircle2, KeyRound, Loader2, Mail, ShieldCheck, UserRound } from 'lucide-react'
+import { Bell, CheckCircle2, KeyRound, Loader2, Mail, ShieldCheck, Trash2, UserRound } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -23,6 +23,7 @@ import { roleLabelPl } from '@/lib/utils'
 import {
   changeCurrentUserPassword,
   getCurrentAuthProviderState,
+  requestCurrentUserAccountDeletion,
   requestCurrentUserEmailChange,
   type AuthProviderState,
 } from '@/services/auth.service'
@@ -81,6 +82,12 @@ export function SettingsClient() {
   const [emailError, setEmailError] = useState<string | null>(null)
   const [emailMessage, setEmailMessage] = useState<string | null>(null)
   const [emailSaving, setEmailSaving] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null)
+  const [deleteSaving, setDeleteSaving] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -117,11 +124,15 @@ export function SettingsClient() {
     }
   }, [refreshVerification, user?.id])
 
-  const navItems = useMemo(() => [
-    { href: '#konto', label: 'Konto' },
-    { href: '#bezpieczenstwo', label: 'Bezpieczeństwo' },
-    { href: '#powiadomienia', label: 'Powiadomienia' },
-  ], [])
+  const navItems = useMemo(() => {
+    const items = [
+      { href: '#konto', label: 'Konto' },
+      { href: '#bezpieczenstwo', label: 'Bezpieczeństwo' },
+      { href: '#powiadomienia', label: 'Powiadomienia' },
+    ]
+    if (user?.role && user.role !== 'admin') items.push({ href: '#usun-konto', label: 'Usuń konto' })
+    return items
+  }, [user?.role])
 
   async function saveName() {
     if (!user || !name.trim() || name.trim() === user.name) return
@@ -205,6 +216,28 @@ export function SettingsClient() {
       }
     } finally {
       setEmailSaving(false)
+    }
+  }
+
+  async function submitAccountDeletionRequest(event: React.FormEvent) {
+    event.preventDefault()
+    setDeleteError(null)
+    setDeleteMessage(null)
+    if (!providerState.hasPasswordProvider) return
+    setDeleteSaving(true)
+    try {
+      await requestCurrentUserAccountDeletion({ currentPassword: deletePassword, confirmation: deleteConfirmation })
+      setDeleteMessage('Przyjęliśmy żądanie usunięcia konta. Konto zostanie sprawdzone przed wykonaniem dalszych kroków.')
+      setDeletePassword('')
+      setDeleteConfirmation('')
+    } catch (err) {
+      if (err instanceof AccountSecurityRequestError && err.status === 429) {
+        setDeleteError('Zbyt wiele prób. Spróbuj ponownie za chwilę.')
+      } else {
+        setDeleteError(err instanceof Error ? err.message : 'Nie udało się złożyć żądania usunięcia konta.')
+      }
+    } finally {
+      setDeleteSaving(false)
     }
   }
 
@@ -327,6 +360,24 @@ export function SettingsClient() {
               Maile bezpieczeństwa, weryfikacja adresu e-mail, reset hasła i potwierdzenia zmiany adresu nie są opcjonalne.
             </p>
           </SettingsSection>
+
+          {user.role !== 'admin' && (
+            <SettingsSection id="usun-konto" icon={Trash2} title="Usuń konto" description="Złóż żądanie bezpiecznego zamknięcia konta.">
+              <div className="flex flex-col gap-3 rounded-xl border border-destructive/35 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Żądanie usunięcia konta</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Runbee najpierw sprawdza aktywne lekcje, pakiety, rozliczenia i dane wymagające zachowania. Nie usuwamy automatycznie historii finansowej ani lekcji.
+                  </p>
+                </div>
+                <Button type="button" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Usuń konto
+                </Button>
+              </div>
+              {deleteMessage && <p className="mt-3 text-xs leading-relaxed text-success-on-surface">{deleteMessage}</p>}
+            </SettingsSection>
+          )}
         </div>
       </div>
 
@@ -410,6 +461,48 @@ export function SettingsClient() {
                 <Button type="submit" disabled={emailSaving} className="font-semibold">
                   {emailSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
                   Wyślij potwierdzenie
+                </Button>
+              )}
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Usuń konto</DialogTitle>
+            <DialogDescription>To zgłoszenie trafia do bezpiecznej obsługi. Konto nie zostanie automatycznie skasowane ani rozliczone bez sprawdzenia zależności.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitAccountDeletionRequest}>
+            <DialogBody>
+              {!providerState.hasPasswordProvider ? (
+                <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                  To konto korzysta z zewnętrznego dostawcy logowania. Skontaktuj się z pomocą Runbee, aby złożyć żądanie usunięcia konta.
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-destructive/35 bg-destructive/5 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+                    Sprawdzimy przyszłe lekcje, pakiety, rozliczenia, powiązania rodzinne i profil publiczny. Żądanie możesz złożyć także wtedy, gdy wymaga dalszej obsługi przez administratora.
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="settings-delete-password" className="text-xs font-medium text-foreground">Obecne hasło</label>
+                    <Input id="settings-delete-password" type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} required />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="settings-delete-confirmation" className="text-xs font-medium text-foreground">Wpisz: USUŃ KONTO</label>
+                    <Input id="settings-delete-confirmation" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} required />
+                  </div>
+                </>
+              )}
+              <FormError>{deleteError}</FormError>
+            </DialogBody>
+            <DialogFooter className="justify-end">
+              <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>Zamknij</Button>
+              {providerState.hasPasswordProvider && (
+                <Button type="submit" variant="destructive" disabled={deleteSaving || deleteConfirmation.trim() !== 'USUŃ KONTO'}>
+                  {deleteSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Złóż żądanie
                 </Button>
               )}
             </DialogFooter>

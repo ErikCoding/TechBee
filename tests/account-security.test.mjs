@@ -302,6 +302,20 @@ test('email change uses verified uid/current email and stores pending without up
   assert.equal(setup.calls.sentTo, 'new@runbee.pl')
 })
 
+test('email change can start for an unverified Firebase Auth email after recent login', async () => {
+  const setup = emailChangeDeps({
+    getUser: async () => ({ uid: 'user-1', email: 'typo@runbee.pl', emailVerified: false, disabled: false }),
+  })
+
+  const result = await handleRequestEmailChange('Bearer valid', { newEmail: 'correct@runbee.pl' }, setup.deps)
+
+  assert.equal(result.status, 200)
+  assert.equal(setup.calls.saved.uid, 'user-1')
+  assert.equal(setup.calls.saved.currentEmail, 'typo@runbee.pl')
+  assert.equal(setup.calls.saved.newEmail, 'correct@runbee.pl')
+  assert.equal(setup.calls.sentTo, 'correct@runbee.pl')
+})
+
 test('email change sync updates Firestore only after Firebase Auth has the new email', async () => {
   let updated = null
   let consumed = false

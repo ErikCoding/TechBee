@@ -12,6 +12,7 @@ import {
   createTeacherStripePayout,
   validateTeacherPayoutAmount,
 } from '@/lib/teacher-payout-core'
+import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
 import type { PayoutRecord } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -132,6 +133,20 @@ export async function POST(request: Request) {
         stripePayoutId: payout.id,
         finishedAt: Date.now(),
       })
+    })
+    await sendProductNotificationEmail({
+      eventId: `payout:${ref.id}:created:teacher`,
+      recipientUid: uid,
+      type: 'payments.payout',
+      subject: 'Wypłata Runbee została zlecona',
+      title: 'Wypłata została zlecona',
+      preheader: 'Zapisaliśmy zlecenie wypłaty środków z konta Stripe Connect.',
+      body: 'Twoja wypłata została zlecona w Stripe Connect. Status wypłaty może jeszcze zmienić się po przetworzeniu przez Stripe.',
+      details: [
+        { label: 'Kwota', value: `${(amountGrosze / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł` },
+        { label: 'Status', value: record.status },
+      ],
+      cta: { label: 'Otwórz portfel', href: runbeeAppUrl('/dashboard') },
     })
     return NextResponse.json({ payout: { id: ref.id, ...record } })
   } catch (err) {

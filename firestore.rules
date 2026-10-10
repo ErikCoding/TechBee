@@ -19,7 +19,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null
+        && (
+          !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          // Legacy profiles have no accountStatus: missing means active.
+          // Only an explicit 'deactivated' blocks access.
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'active') != 'deactivated'
+        );
     }
 
     function isOwner(userId) {
@@ -28,7 +34,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
     }
 
     // True if the caller is a parent linked to the given student (see
@@ -245,7 +251,13 @@ service cloud.firestore {
       // getDoc a client does before creating one — without it, reading a
       // not-yet-created conversation throws instead of just returning
       // "not found", which broke starting a first-time chat.
-      allow read, update: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participantIds);
+      allow read: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participantIds);
+      // Clients may only touch read counters and their own participant
+      // snapshot (markRead / profile sync). `lastMessage*` and the other
+      // participant's unread counter are written by /api/chat/messages.
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participantIds
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unread', 'participants']);
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
       // Admin-only — used by the "reset activity data" button (see
       // services/reset.service.ts) to wipe messaging before launch.
@@ -254,9 +266,11 @@ service cloud.firestore {
       match /items/{messageId} {
         allow read: if isSignedIn() &&
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
-        allow create: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds &&
-          request.resource.data.senderId == request.auth.uid;
+        // No client create: messages (incl. lesson report cards) are
+        // written only by POST /api/chat/messages via the admin SDK, which
+        // validates the sender, attachment paths and report ownership and
+        // is idempotent per clientMessageId. Updates below stay client-side.
+        allow create: if false;
         // Report-card messages (see services/chat.service.ts
         // updateReportCardStatus) get their `reportCard.status` flipped
         // live by whoever confirms/disputes it, by an admin resolving a

@@ -4,6 +4,7 @@ import { teachersData } from '@/data/teachers.data'
 import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getStudentReviewForTeacher, getTeacherApplication, submitTeacherReview } from '@/services/teachers.service'
 import { createNotification } from '@/services/notifications.service'
+import { notifyLessonEvent } from '@/services/lesson-email-events.service'
 import { refundLessonPayment as stripeRefund, transferLessonPayment as stripeTransfer } from '@/services/stripe.service'
 import { completePackageLessonCredit as completePackageCredit, returnPackageLessonCredit as returnPackageCredit } from '@/services/lesson-packages.service'
 import { resolveConfirmingParty } from '@/services/family-link.service'
@@ -560,6 +561,7 @@ export async function respondToBookingRequest(lesson: Lesson, decision: 'accepte
   if (decision === 'rejected' && isFirebaseConfigured && lesson.paymentSource !== 'package') {
     await stripeRefund(lesson.id).catch((err) => console.error('[respondToBookingRequest] Refund failed:', err))
   }
+  void notifyLessonEvent(lesson.id, decision === 'accepted' ? 'booking_accepted' : 'cancelled')
   createNotification({
     userId: lesson.studentId,
     type: 'lesson',
@@ -584,12 +586,13 @@ export async function requestLessonChange(lesson: Lesson, requestedBy: 'student'
       throw new Error('Ten termin jest już zajęty. Wybierz inną godzinę.')
     }
   }
-  const pendingChange: LessonChangeRequest = { ...change, requestedBy }
+  const pendingChange: LessonChangeRequest = { ...change, requestedBy, requestedAt: Date.now() }
   if (isFirebaseConfigured && db) {
     await updateDoc(doc(db, collections.lessons, lesson.id), { pendingChange })
   } else {
     updateLocalLesson(lesson.id, { pendingChange })
   }
+  void notifyLessonEvent(lesson.id, 'change_requested')
   const recipientId = requestedBy === 'student' ? lesson.teacherId : lesson.studentId
   const requesterLabel = requestedBy === 'student' ? lesson.studentName : lesson.teacherName
   const actionLabel = change.type === 'cancel' ? 'odwołanie' : 'przełożenie'
@@ -627,6 +630,7 @@ export async function respondToLessonChange(lesson: Lesson, decision: 'accepted'
         throw new Error('Ten termin jest już zajęty. Odrzuć prośbę i wybierzcie inną godzinę.')
       }
     }
+    patch.rescheduledAt = Date.now()
     patch.date = change.newDate ?? lesson.date
     patch.dateIso = change.newDateIso ?? lesson.dateIso
     patch.time = change.newTime ?? lesson.time
@@ -640,6 +644,7 @@ export async function respondToLessonChange(lesson: Lesson, decision: 'accepted'
     await updateLessonDoc(lesson.id, patch)
   }
 
+  if (decision === 'accepted') void notifyLessonEvent(lesson.id, change.type === 'cancel' ? 'cancelled' : 'rescheduled')
   const requesterId = change.requestedBy === 'student' ? lesson.studentId : lesson.teacherId
   const responderLabel = change.requestedBy === 'student' ? lesson.teacherName : lesson.studentName
   const actionLabel = change.type === 'cancel' ? 'odwołanie' : 'przełożenie'
@@ -834,6 +839,7 @@ export async function submitLessonReport(lesson: Lesson, report: LessonReport): 
     reportChatMessageId: primary?.messageId,
     reportChatDeliveries,
   })
+  void notifyLessonEvent(lesson.id, 'report_ready')
 
   createNotification({
     userId: confirmingParty.id,
@@ -916,6 +922,7 @@ export async function disputeLessonReport(
   if (!canManageLessonReport(lesson, raisedByUserId)) return
   const dispute: LessonDispute = { reason, note, raisedBy, raisedByUserId, raisedAt: Date.now(), status: 'open' }
   await updateLessonDoc(lesson.id, { dispute })
+  void notifyLessonEvent(lesson.id, 'dispute_opened')
   flipReportCardStatus(lesson, 'dispute_open') // not awaited — best-effort display update, see finalizeReportConfirmation
   createNotification({
     userId: lesson.teacherId,
@@ -937,6 +944,7 @@ export async function resolveDispute(lesson: Lesson, resolution: 'teacher' | 'pa
     resolvedByAdminId: adminId,
   }
   await updateLessonDoc(lesson.id, { dispute: resolvedDispute })
+  void notifyLessonEvent(lesson.id, 'dispute_resolved')
 
   const payerId = lesson.payerId ?? lesson.studentId
   if (resolution === 'teacher') {

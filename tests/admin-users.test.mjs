@@ -64,6 +64,25 @@ test('admin user rows do not invent verification state when Firebase Auth user i
   assert.equal(row.role, 'parent')
 })
 
+test('admin user rows expose real suspended status from Firebase Auth or Firestore profile', () => {
+  const rows = buildAdminUserRows([
+    profiles[0],
+    { ...profiles[1], accountStatus: 'deactivated', deactivatedAt: 123, deactivatedBy: 'admin-1' },
+  ], [
+    { uid: 'verified-user', email: 'verified@runbee.pl', emailVerified: true, disabled: true },
+    { uid: 'unverified-user', email: 'unverified@runbee.pl', emailVerified: false },
+  ])
+
+  const authDisabled = rows.find((item) => item.id === 'verified-user')
+  const firestoreDisabled = rows.find((item) => item.id === 'unverified-user')
+
+  assert.equal(authDisabled?.status, 'suspended')
+  assert.equal(authDisabled?.disabled, true)
+  assert.equal(firestoreDisabled?.status, 'suspended')
+  assert.equal(firestoreDisabled?.accountStatus, 'deactivated')
+  assert.equal(firestoreDisabled?.deactivatedAt, 123)
+})
+
 test('admin user rows preserve Firestore users when Firebase Auth lookup succeeds', async () => {
   const rows = await buildAdminUserRowsWithOptionalAuthLookup(profiles, async () => [
     { uid: 'verified-user', email: 'verified@runbee.pl', emailVerified: true },
@@ -102,6 +121,7 @@ test('admin users route is admin-only and does not expose a public client path',
   const serviceSource = readFileSync(new URL('../services/admin.service.ts', import.meta.url), 'utf8')
   const tableSource = readFileSync(new URL('../components/admin/admin-users-table.tsx', import.meta.url), 'utf8')
   const pageClientSource = readFileSync(new URL('../components/admin/admin-users-page-client.tsx', import.meta.url), 'utf8')
+  const accountStatusRouteSource = readFileSync(new URL('../app/api/admin/users/[userId]/account-status/route.ts', import.meta.url), 'utf8')
   const adminApiAuthSource = readFileSync(new URL('../lib/admin-api-auth.ts', import.meta.url), 'utf8')
 
   assert.equal(routeSource.includes('requireAdminRequest'), true)
@@ -121,6 +141,11 @@ test('admin users route is admin-only and does not expose a public client path',
   assert.equal(tableSource.includes('Spróbuj ponownie'), true)
   assert.equal(pageClientSource.includes('.catch((err)'), true)
   assert.equal(pageClientSource.includes('setError'), true)
+  assert.equal(accountStatusRouteSource.includes('requireAdminRequest'), true)
+  assert.equal(accountStatusRouteSource.includes('updateUserDisabled'), true)
+  assert.equal(accountStatusRouteSource.includes("profile.role === 'admin'"), true)
+  assert.equal(tableSource.includes('Dezaktywuj'), true)
+  assert.equal(tableSource.includes('Reaktywuj'), true)
 })
 
 test('admin Firebase Auth diagnostic endpoint requires admin authorization', () => {

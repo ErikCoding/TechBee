@@ -1,10 +1,8 @@
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
-  increment,
   onSnapshot,
   orderBy,
   query,
@@ -12,7 +10,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
-import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import type { ChatConversation, ChatMessage, ChatParticipant, LessonReportCard, LessonReportCardStatus } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -319,32 +317,19 @@ function subscribeToMessagesFirebase(conversationId: string, callback: (list: Ch
 
 async function sendMessageFirebase(conversationId: string, sender: ChatParticipant, text: string, attachment?: ChatMessage['attachment']) {
   if (!db) throw new Error('Firebase nie jest skonfigurowane.')
-  const messageText = text || (attachment ? `Wysłano załącznik: ${attachment.name}` : '')
-  const convRef = doc(db, collections.conversations, conversationId)
-  // `conversationId` is deterministically `[aId, bId].sort().join('__')`
-  // (see conversationIdFor above), so the other participant's id can be
-  // read straight off it — no need to getDoc() the conversation first
-  // just to find out who else is in it. Combined with dot-notation +
-  // increment() below (atomic, no read-then-write race on the unread
-  // counter either), this turns "send a message" from 1 write + 1 read +
-  // 1 write into 2 writes, run concurrently.
-  const otherId = conversationId.split('__').find((id) => id !== sender.id)
-  await Promise.all([
-    addDoc(collection(db, collections.conversations, conversationId, 'items'), {
-      senderId: sender.id,
-      text: messageText,
-      time: 'teraz',
-      createdAt: Date.now(),
-      ...(attachment ? { attachment } : {}),
-    }),
-    updateDoc(convRef, {
-      lastMessage: messageText,
-      lastMessageTime: 'teraz',
-      lastMessageAt: Date.now(),
-      [`participants.${sender.id}`]: sender,
-      ...(otherId ? { [`unread.${otherId}`]: increment(1) } : {}),
-    }),
-  ])
+  const idToken = await auth?.currentUser?.getIdToken().catch(() => undefined)
+  const clientMessageId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const res = await fetch('/api/chat/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, conversationId, clientMessageId, text, attachment }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(data.error || 'Nie udało się wysłać wiadomości.')
+  }
 }
 
 async function markReadFirebase(conversationId: string, viewerId: string) {
@@ -364,28 +349,20 @@ async function syncParticipantProfileFirebase(participant: ChatParticipant): Pro
   )
 }
 
-async function sendReportCardFirebase(conversationId: string, sender: ChatParticipant, card: LessonReportCard): Promise<string> {
+async function sendReportCardFirebase(conversationId: string, _sender: ChatParticipant, card: LessonReportCard): Promise<string> {
   if (!db) throw new Error('Firebase nie jest skonfigurowane.')
-  const convRef = doc(db, collections.conversations, conversationId)
-  // Same optimization as sendMessageFirebase above — see its comment.
-  const otherId = conversationId.split('__').find((id) => id !== sender.id)
-  const [ref] = await Promise.all([
-    addDoc(collection(db, collections.conversations, conversationId, 'items'), {
-      senderId: sender.id,
-      text: '',
-      time: 'teraz',
-      createdAt: Date.now(),
-      reportCard: card,
-    }),
-    updateDoc(convRef, {
-      lastMessage: reportCardPreviewText(card),
-      lastMessageTime: 'teraz',
-      lastMessageAt: Date.now(),
-      [`participants.${sender.id}`]: sender,
-      ...(otherId ? { [`unread.${otherId}`]: increment(1) } : {}),
-    }),
-  ])
-  return ref.id
+  const idToken = await auth?.currentUser?.getIdToken().catch(() => undefined)
+  const clientMessageId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const res = await fetch('/api/chat/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, conversationId, clientMessageId, reportCard: card }),
+  })
+  const data = await res.json().catch(() => ({})) as { error?: string; messageId?: string }
+  if (!res.ok || !data.messageId) throw new Error(data.error || 'Nie udało się wysłać raportu.')
+  return data.messageId
 }
 
 async function updateReportCardStatusFirebase(conversationId: string, messageId: string, status: LessonReportCardStatus) {

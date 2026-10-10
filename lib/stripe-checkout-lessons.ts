@@ -7,6 +7,7 @@ import { LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToM
 import { getStripePaymentFeeSnapshot } from '@/lib/stripe-payment-fees'
 import { resolveCheckoutSessionRaceDecision } from '@/lib/stripe-checkout-lessons-core'
 import { checkoutAutoRefundIdempotencyKey, normalizeLessonKind, trialLessonConsumesEligibility } from '@/lib/trial-lessons'
+import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
 import type { Lesson } from '@/lib/types'
 
 function paidCheckoutSession(session: Stripe.Checkout.Session): boolean {
@@ -238,6 +239,38 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     date: new Date(now).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }),
     read: false,
     createdAt: now,
+  })
+
+  await sendProductNotificationEmail({
+    eventId: `lesson:${result.lessonId}:booking-created:teacher`,
+    recipientUid: m.teacherId,
+    type: 'lessons.bookingCreated',
+    subject: 'Nowa rezerwacja w Runbee',
+    title: 'Masz nową rezerwację',
+    preheader: `${m.studentName} zarezerwował(a) lekcję w Runbee.`,
+    body: `${m.studentName} opłacił(a) lekcję i czeka na Twoją decyzję. Potwierdź albo odrzuć rezerwację w panelu nauczyciela.`,
+    details: [
+      { label: 'Uczeń', value: m.studentName ?? 'Uczeń Runbee' },
+      { label: 'Termin', value: `${m.date ?? ''} ${m.time ?? ''}`.trim() },
+      { label: 'Temat', value: m.topic ?? 'Lekcja' },
+    ],
+    cta: { label: 'Otwórz panel lekcji', href: runbeeAppUrl('/dashboard') },
+  })
+  await sendProductNotificationEmail({
+    eventId: `lesson:${result.lessonId}:payment-confirmation:payer`,
+    recipientUid: m.payerId || m.studentId,
+    type: 'payments.paymentConfirmation',
+    subject: 'Potwierdzenie płatności Runbee',
+    title: 'Płatność za lekcję została potwierdzona',
+    preheader: 'Twoja rezerwacja została opłacona i czeka na decyzję nauczyciela.',
+    body: 'Płatność za lekcję została potwierdzona. Rezerwacja czeka teraz na akceptację nauczyciela.',
+    details: [
+      { label: 'Nauczyciel', value: m.teacherName ?? 'Nauczyciel Runbee' },
+      { label: 'Termin', value: `${m.date ?? ''} ${m.time ?? ''}`.trim() },
+      { label: 'Temat', value: m.topic ?? 'Lekcja' },
+      { label: 'Kwota', value: `${(studentTotalGrosze / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł` },
+    ],
+    cta: { label: 'Otwórz panel', href: runbeeAppUrl('/dashboard') },
   })
 
   console.log(`[stripe/checkout] Created lesson ${result.lessonId} from checkout session ${session.id}`)

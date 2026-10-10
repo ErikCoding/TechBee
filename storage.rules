@@ -3,7 +3,11 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null
+        && (
+          !firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+          || firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'active') != 'deactivated'
+        );
     }
 
     function isOwner(userId) {
@@ -25,7 +29,12 @@ service firebase.storage {
 
     match /chat-attachments/{userId}/{conversationId}/{fileName} {
       allow read: if isConversationParticipant(conversationId);
-      allow create: if isOwner(userId)
+      // `resource == null` makes "never overwrite an existing attachment"
+      // explicit: the Storage emulator evaluates every upload (including an
+      // overwrite) as `create`, so relying on `update: false` alone is not
+      // enough to keep behaviour identical everywhere.
+      allow create: if resource == null
+        && isOwner(userId)
         && isConversationParticipant(conversationId)
         && request.resource.size < 8 * 1024 * 1024
         && request.resource.contentType.matches('(image|application/pdf|application/zip|application/msword|application/vnd.openxmlformats-officedocument.*|application/vnd.ms-.*|text/plain).*');

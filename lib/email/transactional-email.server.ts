@@ -41,6 +41,8 @@ export type SendTransactionalEmailInput = RunbeeEmailTemplateInput & {
   to: string | string[]
   subject: string
   text?: string
+  /** Sent to Resend as Idempotency-Key — a retry of the same logical email inside Resend's 24h window is deduplicated server-side. */
+  idempotencyKey?: string
 }
 
 function getResendClient(): Resend {
@@ -240,7 +242,7 @@ export async function sendTransactionalEmail(input: SendTransactionalEmailInput)
       subject: input.subject,
       html,
       text: input.text,
-    })
+    }, input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined)
 
     if (result.error) {
       console.error('[email] Resend send failed', {

@@ -252,6 +252,8 @@ export type LessonChangeRequest = {
   newDateIso?: string
   newTime?: string
   note?: string
+  /** Set when the request is created — lets the server tell one request from the next (email idempotency). */
+  requestedAt?: number
 }
 
 /** The tutor's required last step after a lesson — submitting one starts the 24h confirmation window that ultimately releases the held payment (see Lesson.confirmingPartyId below). */
@@ -296,6 +298,8 @@ export type Lesson = {
   time: string
   /** Epoch ms for the scheduled local start time. New lessons set it explicitly so countdowns do not depend on display text. */
   scheduledStartAt?: number
+  /** Set when an accepted reschedule moved the lesson — email idempotency + recency check. */
+  rescheduledAt?: number
   duration: number
   /** Missing/undefined on legacy lessons means a regular paid lesson. */
   lessonKind?: LessonKind
@@ -831,9 +835,59 @@ export type AdminUserRow = {
   emailVerified: boolean | null
   role: UserRole
   status: 'active' | 'pending' | 'suspended'
+  disabled?: boolean
+  accountStatus?: 'active' | 'deactivated'
+  deactivatedAt?: number
+  deactivatedBy?: string
   joined: string
   createdAt?: number
   lessons: number
+}
+
+export type AdminAccountDeletionRequestStatus = 'pending_review' | 'needs_resolution' | 'access_closed' | 'completed' | 'rejected'
+
+export type AdminAccountDeletionDependencySummary = {
+  activeLessons: number
+  activePackages: number
+  pendingReports: number
+  pendingPayouts: number
+  openDisputes?: number
+  familyLinks: number
+  publicTeacherProfile: boolean
+  conversations: number
+  stripeConnectReviewRequired: boolean
+  paymentRecordsReviewRequired?: boolean
+  scanComplete?: boolean
+  scanErrors?: string[]
+}
+
+export type AdminAccountDeletionHistoryEntry = {
+  action: 'requested' | 'review' | 'mark_needs_resolution' | 'deactivate_access' | 'complete' | 'reject'
+  actorId: string
+  actorRole: 'user' | 'admin' | 'system'
+  note?: string
+  createdAt: number
+}
+
+export type AdminAccountDeletionRequestRow = {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  role: UserRole
+  status: AdminAccountDeletionRequestStatus
+  requestedAt: number
+  updatedAt: number
+  resolvedAt?: number
+  resolvedBy?: string
+  rejectionReason?: string
+  adminNote?: string
+  hasDependencies: boolean
+  dependencySummary: AdminAccountDeletionDependencySummary
+  accountStatus?: 'active' | 'deactivated'
+  authDisabled?: boolean
+  accessClosureAuthError?: boolean
+  history: AdminAccountDeletionHistoryEntry[]
 }
 
 /** Minimal identity of one side of a conversation — enough to render an avatar/name without a extra lookup. */

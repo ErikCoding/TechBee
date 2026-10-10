@@ -1,6 +1,14 @@
 import { auth, isFirebaseConfigured } from '@/lib/firebase'
 import { emptyAdminStats } from '@/lib/admin-stats-core'
-import type { AdminStats, AdminUserRow, FoundingTeacherAdminDashboard, FoundingTeacherProgramConfig, PlatformWalletEntry, PlatformWalletSummary } from '@/lib/types'
+import type {
+  AdminAccountDeletionRequestRow,
+  AdminStats,
+  AdminUserRow,
+  FoundingTeacherAdminDashboard,
+  FoundingTeacherProgramConfig,
+  PlatformWalletEntry,
+  PlatformWalletSummary,
+} from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Data-access layer for the admin panel.
@@ -24,6 +32,22 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 export async function getAdminUsers(): Promise<AdminUserRow[]> {
   return isFirebaseConfigured ? getAdminUsersFirebase() : []
+}
+
+export async function setAdminUserDisabled(userId: string, disabled: boolean): Promise<{ user: AdminUserRow }> {
+  return adminJson(`/api/admin/users/${encodeURIComponent(userId)}/account-status`, 'PATCH', { disabled })
+}
+
+export async function listAdminAccountDeletionRequests(): Promise<{ requests: AdminAccountDeletionRequestRow[] }> {
+  return adminJson('/api/admin/account-deletion-requests', 'POST')
+}
+
+export async function updateAdminAccountDeletionRequest(
+  requestId: string,
+  action: 'review' | 'mark_needs_resolution' | 'deactivate_access' | 'complete' | 'reject',
+  reason?: string,
+): Promise<{ ok: true; status: AdminAccountDeletionRequestRow['status']; hasDependencies: boolean; dependencySummary: AdminAccountDeletionRequestRow['dependencySummary'] }> {
+  return adminJson(`/api/admin/account-deletion-requests/${encodeURIComponent(requestId)}`, 'PATCH', { action, reason })
 }
 
 async function getIdToken(): Promise<string | undefined> {

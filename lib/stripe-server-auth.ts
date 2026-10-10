@@ -30,8 +30,14 @@ export async function verifyCaller(idToken: string | undefined | null): Promise<
       body: JSON.stringify({ idToken }),
     })
     if (!res.ok) return null
-    const data = (await res.json()) as { users?: { localId?: string }[] }
-    return data.users?.[0]?.localId ?? null
+    const data = (await res.json()) as { users?: { localId?: string; disabled?: boolean }[] }
+    const user = data.users?.[0]
+    if (!user?.localId || user.disabled) return null
+    if (adminDb) {
+      const snap = await adminDb.collection('users').doc(user.localId).get()
+      if (snap.exists && snap.data()?.accountStatus === 'deactivated') return null
+    }
+    return user.localId
   } catch {
     return null
   }

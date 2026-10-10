@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { getAdminUsers } from '@/services/admin.service'
+import { getAdminUsers, setAdminUserDisabled } from '@/services/admin.service'
 import { AdminUsersTable } from '@/components/admin/admin-users-table'
 import type { AdminUserRow } from '@/lib/types'
 
@@ -15,6 +15,7 @@ export function AdminUsersPageClient({ initialUsers }: Props) {
   const [users, setUsers] = useState(initialUsers)
   const [loading, setLoading] = useState(initialUsers.length === 0)
   const [error, setError] = useState<string | null>(null)
+  const [busyUserId, setBusyUserId] = useState<string | null>(null)
 
   const loadUsers = useCallback(async () => {
     if (!user || user.role !== 'admin') return
@@ -53,5 +54,28 @@ export function AdminUsersPageClient({ initialUsers }: Props) {
     }
   }, [user])
 
-  return <AdminUsersTable users={users} loading={loading} error={error} onRetry={loadUsers} />
+  async function handleSetAccountDisabled(target: AdminUserRow, disabled: boolean) {
+    setBusyUserId(target.id)
+    setError(null)
+    try {
+      await setAdminUserDisabled(target.id, disabled)
+      await loadUsers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się zmienić statusu konta.')
+    } finally {
+      setBusyUserId(null)
+    }
+  }
+
+  return (
+    <AdminUsersTable
+      users={users}
+      loading={loading}
+      error={error}
+      onRetry={loadUsers}
+      currentAdminId={user?.id ?? null}
+      busyUserId={busyUserId}
+      onSetAccountDisabled={handleSetAccountDisabled}
+    />
+  )
 }

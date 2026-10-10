@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowDownUp, Loader2, Search, Sparkles } from 'lucide-react'
+import { ArrowDownUp, Ban, Loader2, RotateCcw, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { StatusBadge, type StatusTone } from '@/components/ui/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -14,6 +15,9 @@ interface AdminUsersTableProps {
   loading?: boolean
   error?: string | null
   onRetry?: () => void
+  currentAdminId?: string | null
+  busyUserId?: string | null
+  onSetAccountDisabled?: (user: AdminUserRow, disabled: boolean) => void | Promise<void>
 }
 
 const roleLabels: Record<AdminUserRow['role'], string> = {
@@ -59,10 +63,19 @@ function isNewUser(user: AdminUserRow): boolean {
   return Boolean(user.createdAt && Date.now() - user.createdAt <= NEW_USER_WINDOW_MS)
 }
 
-export function AdminUsersTable({ users, loading = false, error = null, onRetry }: AdminUsersTableProps) {
+export function AdminUsersTable({
+  users,
+  loading = false,
+  error = null,
+  onRetry,
+  currentAdminId = null,
+  busyUserId = null,
+  onSetAccountDisabled,
+}: AdminUsersTableProps) {
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<AdminUserRow['role'] | 'all'>('all')
   const [sortMode, setSortMode] = useState<SortMode>('newest')
+  const [confirmAction, setConfirmAction] = useState<{ user: AdminUserRow; disabled: boolean } | null>(null)
 
   const filtered = useMemo(() => {
     const scoped = users.filter((u) => {
@@ -148,6 +161,7 @@ export function AdminUsersTable({ users, loading = false, error = null, onRetry 
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Dołączył</th>
               <th className="px-4 py-3 text-right font-medium">Lekcje</th>
+              <th className="px-4 py-3 text-right font-medium">Akcje</th>
             </tr>
           </thead>
           <tbody>
@@ -155,6 +169,10 @@ export function AdminUsersTable({ users, loading = false, error = null, onRetry 
               const status = statusConfig[u.status]
               const emailStatus = emailVerificationConfig(u.emailVerified)
               const newUser = isNewUser(u)
+              const isProtectedAdmin = u.role === 'admin'
+              const isSelf = u.id === currentAdminId
+              const actionDisabled = Boolean(isProtectedAdmin || isSelf || !onSetAccountDisabled || busyUserId)
+              const shouldEnable = u.status === 'suspended'
               return (
                 <tr
                   key={u.id}
@@ -196,12 +214,38 @@ export function AdminUsersTable({ users, loading = false, error = null, onRetry 
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{u.joined}</td>
                   <td className="px-4 py-3 text-right text-xs font-semibold text-foreground">{u.lessons.toLocaleString('pl-PL')}</td>
+                  <td className="px-4 py-3 text-right">
+                    {isProtectedAdmin ? (
+                      <span className="inline-flex items-center justify-end gap-1 text-xs font-medium text-muted-foreground">
+                        <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                        Chronione
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant={shouldEnable ? 'outline' : 'destructive'}
+                        size="sm"
+                        disabled={actionDisabled}
+                        onClick={() => setConfirmAction({ user: u, disabled: !shouldEnable })}
+                        title={isSelf ? 'Nie możesz zmienić statusu własnego konta.' : undefined}
+                      >
+                        {busyUserId === u.id ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        ) : shouldEnable ? (
+                          <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <Ban className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        {shouldEnable ? 'Reaktywuj' : 'Dezaktywuj'}
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               )
             })}
             {loading && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                     Ładowanie użytkowników...
@@ -211,7 +255,7 @@ export function AdminUsersTable({ users, loading = false, error = null, onRetry 
             )}
             {!loading && error && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center">
+                <td colSpan={6} className="px-4 py-10 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <p className="text-sm text-muted-foreground">{error}</p>
                     {onRetry && (
@@ -225,7 +269,7 @@ export function AdminUsersTable({ users, loading = false, error = null, onRetry 
             )}
             {!loading && !error && filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   {users.length === 0 ? 'Brak użytkowników.' : 'Brak użytkowników pasujących do filtrów.'}
                 </td>
               </tr>
@@ -233,6 +277,43 @@ export function AdminUsersTable({ users, loading = false, error = null, onRetry 
           </tbody>
         </table>
       </div>
+      <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {confirmAction?.disabled ? 'Dezaktywować konto?' : 'Reaktywować konto?'}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction?.disabled
+                ? 'Użytkownik nie będzie mógł zalogować się do Runbee. Dane finansowe, lekcje, raporty i historia rozliczeń pozostaną zachowane.'
+                : 'Użytkownik odzyska możliwość logowania. Historia konta pozostanie bez zmian.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm">
+              <p className="font-semibold text-foreground">{confirmAction?.user.name}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{confirmAction?.user.email}</p>
+            </div>
+          </DialogBody>
+          <DialogFooter className="justify-end">
+            <Button type="button" variant="outline" onClick={() => setConfirmAction(null)}>
+              Anuluj
+            </Button>
+            <Button
+              type="button"
+              variant={confirmAction?.disabled ? 'destructive' : 'default'}
+              onClick={async () => {
+                if (!confirmAction || !onSetAccountDisabled) return
+                const action = confirmAction
+                setConfirmAction(null)
+                await onSetAccountDisabled(action.user, action.disabled)
+              }}
+            >
+              {confirmAction?.disabled ? 'Dezaktywuj konto' : 'Reaktywuj konto'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -6,6 +6,9 @@ export type StoredAdminUserProfile = {
   name?: string
   email?: string
   role?: UserRole
+  accountStatus?: 'active' | 'deactivated'
+  deactivatedAt?: number
+  deactivatedBy?: string
   initials?: string
   avatarColor?: string
   photoUrl?: string
@@ -27,6 +30,7 @@ export function buildAdminUserRows(
   return profiles
     .map((profile) => {
       const authUser = authByUid.get(profile.id)
+      const disabled = Boolean(authUser?.disabled || profile.accountStatus === 'deactivated')
       return {
         id: profile.id,
         name: profile.name ?? 'Bez nazwy',
@@ -36,9 +40,11 @@ export function buildAdminUserRows(
         email: authUser?.email ?? profile.email ?? '—',
         emailVerified: authUser ? authUser.emailVerified : null,
         role: profile.role ?? 'student',
-        // There's no suspension flow yet, so every real account reads as
-        // active — this replaces the old fully-fabricated status field.
-        status: 'active' as const,
+        status: disabled ? 'suspended' as const : 'active' as const,
+        disabled,
+        accountStatus: profile.accountStatus === 'deactivated' ? 'deactivated' as const : 'active' as const,
+        ...(profile.deactivatedAt ? { deactivatedAt: profile.deactivatedAt } : {}),
+        ...(profile.deactivatedBy ? { deactivatedBy: profile.deactivatedBy } : {}),
         joined: joinedLabel(profile.createdAt),
         createdAt: profile.createdAt ?? 0,
         // Per-user lesson counts aren't cheaply computable without an
