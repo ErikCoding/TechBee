@@ -4,6 +4,7 @@ import { getAdminAuth, isAdminAuthConfigured } from '@/lib/firebase-admin-auth'
 import { collections } from '@/lib/firebase'
 import { buildAdminUserRowsWithOptionalAuthLookup, type StoredAdminUserProfile } from '@/lib/admin-users-core'
 import { requireAdminRequest } from '@/lib/admin-api-auth'
+import { isRequestLockedByFinalization } from '@/lib/account-deletion-core'
 
 type Params = {
   params: Promise<{ userId: string }>
@@ -38,6 +39,17 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Nie znaleziono użytkownika.' }, { status: 404 })
   }
   const profile = { id: userId, ...userSnap.data() } as StoredAdminUserProfile
+  // A permanently deleted (or being deleted) account must never be switched back on from here.
+  if (profile.accountStatus === 'deleted') {
+    return NextResponse.json({ error: 'To konto zostało trwale usunięte i nie można go przywrócić.' }, { status: 409 })
+  }
+  const deletionRequestId = (userSnap.data() ?? {}).accountDeletionRequestId
+  if (!disabled && typeof deletionRequestId === 'string') {
+    const deletionSnap = await adminDb.collection(collections.accountDeletionRequests).doc(deletionRequestId).get()
+    if (deletionSnap.exists && isRequestLockedByFinalization(deletionSnap.data()?.status)) {
+      return NextResponse.json({ error: 'Trwa lub zakończyło się usuwanie tego konta — nie można go przywrócić.' }, { status: 409 })
+    }
+  }
   if (profile.role === 'admin') {
     return NextResponse.json({ error: 'Konta administratorów są chronione przed dezaktywacją z panelu.' }, { status: 400 })
   }

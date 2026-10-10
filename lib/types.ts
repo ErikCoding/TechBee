@@ -844,7 +844,7 @@ export type AdminUserRow = {
   lessons: number
 }
 
-export type AdminAccountDeletionRequestStatus = 'pending_review' | 'needs_resolution' | 'access_closed' | 'completed' | 'rejected'
+export type AdminAccountDeletionRequestStatus = 'pending_review' | 'needs_resolution' | 'access_closed' | 'finalizing' | 'completed' | 'rejected'
 
 export type AdminAccountDeletionDependencySummary = {
   activeLessons: number
@@ -862,7 +862,7 @@ export type AdminAccountDeletionDependencySummary = {
 }
 
 export type AdminAccountDeletionHistoryEntry = {
-  action: 'requested' | 'review' | 'mark_needs_resolution' | 'deactivate_access' | 'complete' | 'reject'
+  action: 'requested' | 'review' | 'mark_needs_resolution' | 'deactivate_access' | 'finalize' | 'finalize_failed' | 'finalize_completed' | 'reject'
   actorId: string
   actorRole: 'user' | 'admin' | 'system'
   note?: string
@@ -884,9 +884,17 @@ export type AdminAccountDeletionRequestRow = {
   adminNote?: string
   hasDependencies: boolean
   dependencySummary: AdminAccountDeletionDependencySummary
-  accountStatus?: 'active' | 'deactivated'
+  accountStatus?: 'active' | 'deactivated' | 'deleted'
   authDisabled?: boolean
   accessClosureAuthError?: boolean
+  /** Progress of the irreversible deletion; present once finalization was started. */
+  finalization?: {
+    state: 'in_progress' | 'failed' | 'completed'
+    completedSteps: string[]
+    totalSteps: number
+    attempts: number
+    lastErrorStep?: string
+  }
   history: AdminAccountDeletionHistoryEntry[]
 }
 

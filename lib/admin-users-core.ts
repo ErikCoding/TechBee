@@ -6,7 +6,7 @@ export type StoredAdminUserProfile = {
   name?: string
   email?: string
   role?: UserRole
-  accountStatus?: 'active' | 'deactivated'
+  accountStatus?: 'active' | 'deactivated' | 'deleted'
   deactivatedAt?: number
   deactivatedBy?: string
   initials?: string
@@ -28,6 +28,8 @@ export function buildAdminUserRows(
   const authByUid = new Map(authUsers.map((user) => [user.uid, user]))
 
   return profiles
+    // Tombstones of permanently deleted accounts (see account-deletion finalization) are not users any more.
+    .filter((profile) => profile.accountStatus !== 'deleted')
     .map((profile) => {
       const authUser = authByUid.get(profile.id)
       const disabled = Boolean(authUser?.disabled || profile.accountStatus === 'deactivated')

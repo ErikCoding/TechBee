@@ -6,6 +6,7 @@ import { getAdminAuth, isAdminAuthConfigured } from '@/lib/firebase-admin-auth'
 import {
   accountDeletionStatusEmailText,
   buildAccountDeletionAdminPatch,
+  isRequestLockedByFinalization,
   normalizeAccountDeletionAdminAction,
   normalizeAdminReason,
 } from '@/lib/account-deletion-core'
@@ -41,6 +42,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const action = normalizeAccountDeletionAdminAction(body?.action)
   if (!action) return NextResponse.json({ error: 'Nieprawidłowa akcja.' }, { status: 400 })
+  if (action === 'finalize') {
+    return NextResponse.json({ error: 'Trwałe usunięcie konta ma osobny, dodatkowo potwierdzany endpoint.' }, { status: 400 })
+  }
   if (action === 'deactivate_access' && !await isAdminAuthConfigured()) {
     return NextResponse.json({ error: 'Firebase Auth Admin API nie jest skonfigurowane.' }, { status: 503 })
   }
@@ -52,6 +56,14 @@ export async function PATCH(request: Request, { params }: Params) {
   const requestSnap = await requestRef.get()
   if (!requestSnap.exists) return NextResponse.json({ error: 'Nie znaleziono żądania.' }, { status: 404 })
   const requestData = requestSnap.data() as RequestDoc
+  // Once irreversible deletion has started (or finished) the request can only be driven by the finalize endpoint.
+  if (isRequestLockedByFinalization(requestData.status)) {
+    return NextResponse.json({
+      error: requestData.status === 'completed'
+        ? 'Konto zostało już usunięte — żądanie jest zamknięte.'
+        : 'Trwa usuwanie konta. Użyj akcji „Wznów usuwanie konta”, aby je dokończyć.',
+    }, { status: 409 })
+  }
   const userId = requestData.userId || requestSnap.id
   const userSnap = await adminDb.collection(collections.users).doc(userId).get()
   if (!userSnap.exists) return NextResponse.json({ error: 'Nie znaleziono profilu użytkownika.' }, { status: 404 })

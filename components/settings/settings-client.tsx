@@ -130,7 +130,7 @@ export function SettingsClient() {
       { href: '#bezpieczenstwo', label: 'Bezpieczeństwo' },
       { href: '#powiadomienia', label: 'Powiadomienia' },
     ]
-    if (user?.role && user.role !== 'admin') items.push({ href: '#usun-konto', label: 'Usuń konto' })
+    if (user?.role && user.role !== 'admin') items.push({ href: '#usun-konto', label: 'Usuwanie konta' })
     return items
   }, [user?.role])
 
@@ -227,7 +227,7 @@ export function SettingsClient() {
     setDeleteSaving(true)
     try {
       await requestCurrentUserAccountDeletion({ currentPassword: deletePassword, confirmation: deleteConfirmation })
-      setDeleteMessage('Przyjęliśmy żądanie usunięcia konta. Konto zostanie sprawdzone przed wykonaniem dalszych kroków.')
+      setDeleteMessage('Przyjęliśmy wniosek o usunięcie konta. Konto działa do czasu rozpatrzenia wniosku; poinformujemy Cię e-mailem o kolejnych krokach.')
       setDeletePassword('')
       setDeleteConfirmation('')
     } catch (err) {
@@ -362,17 +362,17 @@ export function SettingsClient() {
           </SettingsSection>
 
           {user.role !== 'admin' && (
-            <SettingsSection id="usun-konto" icon={Trash2} title="Usuń konto" description="Złóż żądanie bezpiecznego zamknięcia konta.">
+            <SettingsSection id="usun-konto" icon={Trash2} title="Usuwanie konta" description="Złóż wniosek o usunięcie konta. Konto działa normalnie do czasu rozpatrzenia wniosku.">
               <div className="flex flex-col gap-3 rounded-xl border border-destructive/35 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Żądanie usunięcia konta</p>
+                  <p className="text-sm font-semibold text-foreground">Wniosek o usunięcie konta</p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Runbee najpierw sprawdza aktywne lekcje, pakiety, rozliczenia i dane wymagające zachowania. Nie usuwamy automatycznie historii finansowej ani lekcji.
+                    Przed usunięciem sprawdzamy aktywne lekcje, pakiety i rozliczenia. Po usunięciu nie będziesz mógł(-ła) się zalogować, a dane osobowe zostaną usunięte lub zanonimizowane. Dokumentację płatności i wypłat musimy zachować w ograniczonym zakresie.
                   </p>
                 </div>
                 <Button type="button" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Usuń konto
+                  Złóż wniosek o usunięcie konta
                 </Button>
               </div>
               {deleteMessage && <p className="mt-3 text-xs leading-relaxed text-success-on-surface">{deleteMessage}</p>}
@@ -471,19 +471,19 @@ export function SettingsClient() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Usuń konto</DialogTitle>
-            <DialogDescription>To zgłoszenie trafia do bezpiecznej obsługi. Konto nie zostanie automatycznie skasowane ani rozliczone bez sprawdzenia zależności.</DialogDescription>
+            <DialogTitle>Wniosek o usunięcie konta</DialogTitle>
+            <DialogDescription>Składasz wniosek, a nie usuwasz konta od razu. Administrator sprawdzi zależności (lekcje, pakiety, rozliczenia), a o każdym kroku dostaniesz e-mail.</DialogDescription>
           </DialogHeader>
           <form onSubmit={submitAccountDeletionRequest}>
             <DialogBody>
               {!providerState.hasPasswordProvider ? (
                 <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                  To konto korzysta z zewnętrznego dostawcy logowania. Skontaktuj się z pomocą Runbee, aby złożyć żądanie usunięcia konta.
+                  To konto korzysta z zewnętrznego dostawcy logowania. Skontaktuj się z pomocą Runbee, aby złożyć wniosek o usunięcie konta.
                 </div>
               ) : (
                 <>
                   <div className="rounded-xl border border-destructive/35 bg-destructive/5 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
-                    Sprawdzimy przyszłe lekcje, pakiety, rozliczenia, powiązania rodzinne i profil publiczny. Żądanie możesz złożyć także wtedy, gdy wymaga dalszej obsługi przez administratora.
+                    Sprawdzimy przyszłe lekcje, pakiety, rozliczenia, powiązania rodzinne i profil publiczny. Wniosek możesz złożyć także wtedy, gdy wymaga dalszej obsługi przez administratora. Usunięcie konta jest nieodwracalne.
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="settings-delete-password" className="text-xs font-medium text-foreground">Obecne hasło</label>
@@ -502,7 +502,7 @@ export function SettingsClient() {
               {providerState.hasPasswordProvider && (
                 <Button type="submit" variant="destructive" disabled={deleteSaving || deleteConfirmation.trim() !== 'USUŃ KONTO'}>
                   {deleteSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Złóż żądanie
+                  Złóż wniosek
                 </Button>
               )}
             </DialogFooter>

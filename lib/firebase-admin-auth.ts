@@ -61,6 +61,8 @@ type AdminAuthRestClient = {
   getUsers: (uids: string[]) => Promise<AdminAuthUser[]>
   getUserByEmail: (email: string) => Promise<AdminAuthUser>
   updateUserDisabled: (uid: string, disabled: boolean) => Promise<AdminAuthUser>
+  /** Permanently deletes the Firebase Auth user. Resolves (does not throw) when the user no longer exists, so a retry after a partial failure is safe. */
+  deleteUser: (uid: string) => Promise<void>
   generateEmailVerificationLink: (email: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   generateVerifyAndChangeEmailLink: (email: string, newEmail: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
   generatePasswordResetLink: (email: string, actionCodeSettings: AdminActionCodeSettings) => Promise<string>
@@ -382,6 +384,15 @@ async function updateUserDisabled(uid: string, disabled: boolean): Promise<Admin
   return mapFirebaseUser(data)
 }
 
+async function deleteUser(uid: string): Promise<void> {
+  try {
+    await identityToolkitRequest<Record<string, unknown>>('accounts:delete', { localId: uid })
+  } catch (error) {
+    if ((error as FirebaseAuthDiagnosticError)?.code === 'auth/user-not-found') return
+    throw error
+  }
+}
+
 function actionCodeRequest(actionCodeSettings: AdminActionCodeSettings): Record<string, unknown> {
   const request: Record<string, unknown> = {
     continueUrl: actionCodeSettings.url,
@@ -432,6 +443,7 @@ export async function getAdminAuth(): Promise<AdminAuthRestClient | null> {
     getUsers,
     getUserByEmail,
     updateUserDisabled,
+    deleteUser,
     generateEmailVerificationLink: (email, settings) => generateActionLink('VERIFY_EMAIL', email, settings),
     generateVerifyAndChangeEmailLink: (email, newEmail, settings) => generateActionLink('VERIFY_AND_CHANGE_EMAIL', email, settings, newEmail),
     generatePasswordResetLink: (email, settings) => generateActionLink('PASSWORD_RESET', email, settings),

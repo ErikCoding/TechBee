@@ -6,6 +6,8 @@ const MONTH_LABELS_PL = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie',
 export type AdminStatsUserRow = {
   role?: 'student' | 'teacher' | 'admin' | 'parent'
   createdAt?: number
+  /** 'deleted' = tombstone left after permanent account deletion (see account-deletion finalization); never counted as a user. */
+  accountStatus?: string
 }
 
 export type AdminStatsTeacherRow = {
@@ -44,12 +46,14 @@ export function buildAdminStatsFromRows(input: {
   now?: Date
 }): AdminStats {
   const now = input.now ?? new Date()
-  const totalStudents = input.users.filter((u) => u.role === 'student').length
-  const totalTeachers = input.users.filter((u) => u.role === 'teacher').length
-  const totalParents = input.users.filter((u) => u.role === 'parent').length
-  const totalUsers = input.users.length
+  // Permanently deleted accounts keep a tombstone doc (with their role) for audit — they are not users.
+  const users = input.users.filter((u) => u.accountStatus !== 'deleted')
+  const totalStudents = users.filter((u) => u.role === 'student').length
+  const totalTeachers = users.filter((u) => u.role === 'teacher').length
+  const totalParents = users.filter((u) => u.role === 'parent').length
+  const totalUsers = users.length
   const weekAgo = now.getTime() - WEEK_MS
-  const newSignupsThisWeek = input.users.filter((u) => (u.createdAt ?? 0) >= weekAgo).length
+  const newSignupsThisWeek = users.filter((u) => (u.createdAt ?? 0) >= weekAgo).length
 
   return {
     ...input.revenue,

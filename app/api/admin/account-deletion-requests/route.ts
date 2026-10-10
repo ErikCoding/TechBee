@@ -3,6 +3,7 @@ import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { getAdminAuth } from '@/lib/firebase-admin-auth'
 import { collections } from '@/lib/firebase'
 import { requireAdminRequest } from '@/lib/admin-api-auth'
+import { ACCOUNT_FINALIZATION_STEPS } from '@/lib/account-deletion-core'
 import type { AdminAccountDeletionRequestRow, UserRole } from '@/lib/types'
 
 type RequestDoc = {
@@ -19,6 +20,7 @@ type RequestDoc = {
   dependencySummary?: AdminAccountDeletionRequestRow['dependencySummary']
   history?: AdminAccountDeletionRequestRow['history']
   accessClosureAuthError?: boolean
+  finalization?: { state?: string; completedSteps?: string[]; attempts?: number; lastError?: { step?: string } }
 }
 
 const emptyDependencySummary: AdminAccountDeletionRequestRow['dependencySummary'] = {
@@ -36,7 +38,7 @@ const emptyDependencySummary: AdminAccountDeletionRequestRow['dependencySummary'
 }
 
 function normalizeStatus(value: unknown): AdminAccountDeletionRequestRow['status'] {
-  return value === 'needs_resolution' || value === 'access_closed' || value === 'completed' || value === 'rejected' ? value : 'pending_review'
+  return value === 'needs_resolution' || value === 'access_closed' || value === 'finalizing' || value === 'completed' || value === 'rejected' ? value : 'pending_review'
 }
 
 export async function POST(request: Request) {
@@ -82,9 +84,18 @@ export async function POST(request: Request) {
       ...(doc.adminNote ? { adminNote: doc.adminNote } : {}),
       hasDependencies: doc.hasDependencies === true,
       dependencySummary,
-      accountStatus: profile.accountStatus === 'deactivated' ? 'deactivated' : 'active',
+      accountStatus: profile.accountStatus === 'deleted' ? 'deleted' : profile.accountStatus === 'deactivated' ? 'deactivated' : 'active',
       authDisabled: Boolean(authUser?.disabled),
       ...(doc.accessClosureAuthError ? { accessClosureAuthError: true } : {}),
+      ...(doc.finalization ? {
+        finalization: {
+          state: doc.finalization.state === 'completed' ? 'completed' as const : doc.finalization.state === 'failed' ? 'failed' as const : 'in_progress' as const,
+          completedSteps: Array.isArray(doc.finalization.completedSteps) ? doc.finalization.completedSteps : [],
+          totalSteps: ACCOUNT_FINALIZATION_STEPS.length,
+          attempts: Number(doc.finalization.attempts ?? 0),
+          ...(doc.finalization.lastError?.step ? { lastErrorStep: doc.finalization.lastError.step } : {}),
+        },
+      } : {}),
       history,
     }
   })

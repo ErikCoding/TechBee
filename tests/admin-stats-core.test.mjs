@@ -61,3 +61,30 @@ test('empty admin stats remain explicit SSR placeholders only', () => {
   assert.equal(stats.monthlyRevenue, 0)
   assert.equal(stats.revenueChart.length, 6)
 })
+
+test('permanently deleted accounts (tombstones) are not counted in any user counter and match the users list', async () => {
+  const { buildAdminUserRows } = await import('../lib/admin-users-core.ts')
+  const now = new Date('2026-10-10T12:00:00Z')
+  const fresh = now.getTime() - 1000
+  const rows = [
+    { id: 'a', role: 'student', createdAt: fresh },
+    { id: 'b', role: 'student', createdAt: fresh, accountStatus: 'deactivated' }, // blocked but still a user
+    { id: 'c', role: 'student', createdAt: fresh, accountStatus: 'deleted' },
+    { id: 'd', role: 'teacher', createdAt: fresh, accountStatus: 'deleted' },
+    { id: 'e', role: 'teacher', createdAt: fresh },
+    { id: 'f', role: 'parent', createdAt: fresh, accountStatus: 'deleted' },
+    { id: 'g', role: 'parent', createdAt: fresh },
+    { id: 'h', role: 'admin', createdAt: fresh },
+  ]
+  const revenue = emptyAdminStats(now)
+  const stats = buildAdminStatsFromRows({ users: rows, teachers: [], revenue, now })
+  assert.equal(stats.totalUsers, 5)
+  assert.equal(stats.totalStudents, 2)
+  assert.equal(stats.totalTeachers, 1)
+  assert.equal(stats.newSignupsThisWeek, 5)
+  assert.deepEqual(stats.usersByRole.map((r) => r.count), [2, 1, 1, 1]) // students, teachers, parents, admins
+  // the overview counter equals the number of rows in the users list
+  assert.equal(buildAdminUserRows(rows, []).length, stats.totalUsers)
+  // the route feeds the raw profile docs (incl. accountStatus) into the same function
+  assert.match(readFileSync(new URL('../app/api/admin/stats/route.ts', import.meta.url), 'utf8'), /users: usersSnap\.docs\.map\(\(doc\) => doc\.data\(\)\)/)
+})

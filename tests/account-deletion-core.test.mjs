@@ -46,7 +46,7 @@ test('account deletion dependencies force admin review', () => {
   assert.equal(assessAccountDeletionDependencies({ ...clear, activeLessons: 1 }).status, 'blocking')
 })
 
-test('admin account deletion decisions always block completion until finalization process exists', () => {
+test('finalization is never a plain status patch: it has its own confirmed endpoint', () => {
   const dependencySummary = {
     activeLessons: 0,
     activePackages: 0,
@@ -61,14 +61,14 @@ test('admin account deletion decisions always block completion until finalizatio
   }
 
   const result = buildAccountDeletionAdminPatch({
-    decision: { action: 'complete', reason: 'Manual work complete' },
+    decision: { action: 'finalize', reason: 'Manual work complete' },
     adminId: 'admin-1',
     now: 123,
     dependencySummary,
   })
 
   assert.equal(result.ok, false)
-  assert.equal(result.status, 409)
+  assert.equal(result.status, 400)
 })
 
 test('admin account deletion can close access only when there are no dependencies', () => {
@@ -148,12 +148,12 @@ test('admin account deletion decisions require reasons for terminal or blocking 
   }).ok, false)
 
   const completed = buildAccountDeletionAdminPatch({
-    decision: { action: 'complete', reason: 'Manual anonymization completed under approved policy.' },
+    decision: { action: 'finalize', reason: 'Anonymization completed under approved policy.' },
     adminId: 'admin-1',
     now: 456,
     dependencySummary,
   })
 
   assert.equal(completed.ok, false)
-  assert.equal(completed.status, 409)
+  assert.equal(completed.status, 400)
 })

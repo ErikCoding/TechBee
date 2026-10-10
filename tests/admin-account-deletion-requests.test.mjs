@@ -19,21 +19,23 @@ test('admin account deletion requests routes are admin-only and do not call Stri
   assert.equal(actionRoute.includes('@/lib/stripe'), false)
 })
 
-test('admin account deletion UI exposes review actions and manual-processing warning', () => {
+test('admin account deletion UI exposes review actions and an honest finalization flow', () => {
   const panel = readFileSync(new URL('../components/admin/admin-account-deletion-requests-panel.tsx', import.meta.url), 'utf8')
   const nav = readFileSync(new URL('../components/admin/admin-nav-items.ts', import.meta.url), 'utf8')
 
   assert.equal(panel.includes('Rozpatrz żądanie'), true)
   assert.equal(panel.includes('Wymaga rozwiązania'), true)
-  assert.equal(panel.includes('Zamknij dostęp'), true)
+  assert.equal(panel.includes('Zamknij dostęp (nie usuwa danych)'), true)
   assert.equal(panel.includes('Dostęp zamknięty'), true)
   assert.equal(panel.includes('Brak aktywnych zobowiązań'), true)
   assert.equal(panel.includes('Aktywne zobowiązania'), true)
   assert.equal(panel.includes('Wymagany przegląd'), true)
   assert.equal(panel.includes('Dane historyczne, nieblokujące dostępu'), true)
-  assert.equal(panel.includes('Finalizacja zablokowana'), true)
-  assert.equal(panel.includes('Finalizacja wymaga wdrożenia zweryfikowanego procesu'), true)
-  assert.equal(panel.includes('Zamknij z uzasadnieniem'), true)
+  // the dead, hard-coded "blocked" finalization button is gone; the real one explains its blockers
+  assert.equal(panel.includes('Finalizacja zablokowana'), false)
+  assert.equal(panel.includes('Usuń konto trwale'), true)
+  assert.equal(panel.includes('Usunięcie niemożliwe, bo:'), true)
+  assert.equal(panel.includes('Zamknij bez usuwania konta'), true)
   assert.equal(panel.includes('Nie usuwa automatycznie Stripe ani danych rozliczeniowych'), true)
   assert.equal(nav.includes('/admin/account-deletion-requests'), true)
 })

@@ -44,10 +44,17 @@ export async function listAdminAccountDeletionRequests(): Promise<{ requests: Ad
 
 export async function updateAdminAccountDeletionRequest(
   requestId: string,
-  action: 'review' | 'mark_needs_resolution' | 'deactivate_access' | 'complete' | 'reject',
+  action: 'review' | 'mark_needs_resolution' | 'deactivate_access' | 'reject',
   reason?: string,
 ): Promise<{ ok: true; status: AdminAccountDeletionRequestRow['status']; hasDependencies: boolean; dependencySummary: AdminAccountDeletionRequestRow['dependencySummary'] }> {
   return adminJson(`/api/admin/account-deletion-requests/${encodeURIComponent(requestId)}`, 'PATCH', { action, reason })
+}
+
+export async function finalizeAdminAccountDeletion(
+  requestId: string,
+  input: { confirmation: string; confirmUserId: string; stripeConnectAcknowledged?: boolean },
+): Promise<{ ok: true; status: 'completed'; alreadyCompleted?: boolean }> {
+  return adminJson(`/api/admin/account-deletion-requests/${encodeURIComponent(requestId)}/finalize`, 'POST', input)
 }
 
 async function getIdToken(): Promise<string | undefined> {
