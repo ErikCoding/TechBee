@@ -1,0 +1,48 @@
+/* Layout-critical rules for the public teacher profile.
+   Kept in a CSS module (not utility classes) so the grid, avatar size and
+   sticky sidebar never depend on utility-class generation for this route. */
+
+.heroRow { display: flex; flex-direction: column; gap: 24px; }
+.avatarWrap { width: 112px; height: 112px; flex-shrink: 0; }
+.avatarWrap > * { width: 100% !important; height: 100% !important; border-radius: 28px !important; box-shadow: 0 0 0 4px color-mix(in srgb, #f4b400 15%, transparent); }
+.avatarWrap > * > * { border-radius: 28px !important; font-size: 34px !important; }
+.heroMain { min-width: 0; flex: 1; }
+.mobilePrice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--card) 60%, transparent); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.main { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.side { min-width: 0; scroll-margin-top: 80px; }
+.sideInner { display: flex; flex-direction: column; gap: 16px; }
+
+@media (min-width: 768px) {
+  .heroRow { flex-direction: row; align-items: flex-start; }
+  .avatarWrap { width: 128px; height: 128px; }
+  .mobilePrice { display: none; }
+}
+
+@media (min-width: 1024px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+  .sideInner { position: sticky; top: 80px; }
+}
+
+/* ── About card ── */
+.card { padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--card) 60%, transparent); }
+.aboutBody { display: flex; flex-direction: column; gap: 20px; margin-top: 20px; }
+.quote { margin: 0; padding: 2px 0 2px 18px; border-left: 2px solid #f4b400; font-size: 16px; font-weight: 500; line-height: 1.65; color: var(--foreground); }
+.bio { margin: 0; font-size: 14px; line-height: 1.8; color: var(--muted-foreground); white-space: pre-line; }
+.skills { padding-top: 18px; border-top: 1px solid var(--border); }
+.label { margin: 0 0 10px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── Availability card ── */
+.availCard { padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--card) 60%, transparent); }
+.availTitle { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 700; color: var(--foreground); }
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 16px; }
+.day { display: flex; align-items: center; justify-content: center; padding: 9px 0; border: 1px solid var(--border); border-radius: 10px; font-size: 11px; color: color-mix(in srgb, var(--muted-foreground) 45%, transparent); }
+.dayOn { border-color: color-mix(in srgb, #f4b400 40%, transparent); background: color-mix(in srgb, #f4b400 10%, transparent); font-weight: 600; color: var(--foreground); }
+.hours { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+.section { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.sectionLabel { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.sectionValue { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: var(--foreground); }
+.langs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+@media (max-width: 767px) { .card { padding: 20px; } }

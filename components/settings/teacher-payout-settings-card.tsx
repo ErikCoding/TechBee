@@ -70,17 +70,17 @@ export function TeacherPayoutSettingsCard() {
   }
 
   if (loading) {
-    return <div className="h-44 animate-pulse rounded-2xl border border-border bg-card" />
+    return <div className="h-44 animate-pulse rounded-2xl border border-border bg-card/60" />
   }
 
   const configured = Boolean(status?.onboardingComplete)
   const hasAccount = Boolean(status?.accountId)
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex flex-col gap-4 border-b border-border bg-muted/35 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card/60">
+      <div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <Landmark className="h-4 w-4 text-bee-yellow-dark" aria-hidden="true" />
           </div>
           <div>
@@ -102,7 +102,7 @@ export function TeacherPayoutSettingsCard() {
       </div>
 
       <div className="grid gap-4 p-5 lg:grid-cols-[1fr_260px]">
-        <div className="rounded-xl border border-border bg-background/45 p-4">
+        <div className="rounded-xl border border-border bg-background/60 p-4">
           <div className="flex items-start gap-3">
             {configured ? (
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden="true" />

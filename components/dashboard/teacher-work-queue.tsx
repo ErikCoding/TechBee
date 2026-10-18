@@ -83,11 +83,9 @@ export function TeacherWorkQueue({
   const visibleReports = reportsExpanded ? needsReport : needsReport.slice(0, COLLAPSED_ROWS)
 
   return (
-    <section className={`overflow-hidden rounded-2xl border ${total > 0 ? 'border-warning/40' : 'border-border'}`}>
+    <section className={`overflow-hidden rounded-2xl border bg-card/60 ${total > 0 ? 'border-warning/30' : 'border-border'}`}>
       <div
-        className={`flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between ${
-          total > 0 ? 'bg-warning-surface' : 'bg-muted/40'
-        }`}
+        className="flex flex-col gap-3 border-b border-border px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5"
       >
         <div className="flex items-center gap-2">
           <ListChecks
@@ -99,7 +97,7 @@ export function TeacherWorkQueue({
         <SegmentedTabs tabs={tabs} value={tab} onChange={selectTab} label="Filtruj zadania" />
       </div>
 
-      <div className="bg-card">
+      <div>
         {/* ── Reports due — first, because an unfiled report holds the teacher's own payment ── */}
         {tab === 'reports' && (
           needsReport.length === 0 ? (
@@ -116,7 +114,7 @@ export function TeacherWorkQueue({
               </p>
               <ul className="flex flex-col divide-y divide-border">
                 {visibleReports.map((lesson) => (
-                  <li key={lesson.id} className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                  <li key={lesson.id} className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-foreground/[0.03] sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <Avatar className="h-9 w-9 shrink-0">
                         <AvatarFallback color={lesson.teacherColor} className="text-[11px]">
@@ -160,7 +158,7 @@ export function TeacherWorkQueue({
           ) : (
             <ul className="flex flex-col divide-y divide-border">
               {bookingRequests.map((req) => (
-                <li key={req.id} className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                <li key={req.id} className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-foreground/[0.03] sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar className="h-9 w-9 shrink-0">
                       <AvatarFallback color={req.teacherColor} className="text-[11px]">
@@ -211,7 +209,7 @@ export function TeacherWorkQueue({
           ) : (
             <ul className="flex flex-col divide-y divide-border">
               {changeRequests.map((lesson) => (
-                <li key={lesson.id} className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                <li key={lesson.id} className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-foreground/[0.03] sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{lesson.topic}</p>
                     <p className="text-xs text-muted-foreground">

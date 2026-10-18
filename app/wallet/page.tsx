@@ -23,7 +23,7 @@ export default function WalletPage() {
         <RequireAuth role="teacher">
           <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
             <BackButton />
-            <div className="mb-5 rounded-2xl border border-border bg-card px-5 py-5 md:px-6">
+            <div className="mb-5 rounded-2xl border border-border bg-card/60 px-5 py-5 md:px-6">
               <h1 className="text-xl font-bold text-foreground sm:text-2xl">Portfel</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">Saldo i historia wypłat ze Stripe</p>
             </div>

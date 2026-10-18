@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Star, UserCog, ExternalLink, BookOpen, Users, TrendingUp, Gauge, MessageCircle, CheckCircle2, Settings } from 'lucide-react'
+import { Star, UserCog, ExternalLink, BookOpen, Users, TrendingUp, Gauge, MessageCircle, CheckCircle2, Settings, LayoutDashboard, CalendarDays, Wallet, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/lib/auth-context'
 import { getTeacherDashboard, getTeacherLessons, respondToBookingRequest, respondToLessonChange } from '@/services/lessons.service'
 import { subscribeToConversations } from '@/services/chat.service'
-import { DashboardHeader, Panel, StatRow } from '@/components/dashboard/dashboard-primitives'
-import { DashboardMessagesPreview } from '@/components/dashboard/dashboard-messages-preview'
+import { DashboardColumns, DashboardHeader, DashboardTabPanel, DashboardTabs, Panel, StatRow } from '@/components/dashboard/dashboard-primitives'
 import { TeacherReadinessPanel } from '@/components/dashboard/teacher-readiness-panel'
 import { TeacherNextLesson } from '@/components/dashboard/teacher-next-lesson'
 import { TeacherWorkQueue } from '@/components/dashboard/teacher-work-queue'
@@ -17,6 +16,8 @@ import { TeacherSchedulePanel } from '@/components/dashboard/teacher-schedule-pa
 import { TeacherEarningsPanel } from '@/components/dashboard/teacher-earnings-panel'
 import { NotificationsPanel } from '@/components/dashboard/notifications-panel'
 import { LessonReportModal } from '@/components/dashboard/lesson-report-modal'
+import { DashboardMessagesTab } from '@/components/dashboard/dashboard-messages-tab'
+import { TeacherWalletTile } from '@/components/dashboard/teacher-wallet-tile'
 import type { ChatConversation, Lesson, LessonReport, Notification, Teacher, TeacherDashboardData } from '@/lib/types'
 
 interface Props {
@@ -51,6 +52,7 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
   const [lessons, setLessons] = useState(initialLessons)
   const [conversations, setConversations] = useState<ChatConversation[] | null>(null)
   const [application, setApplication] = useState<Teacher | null>(null)
+  const [tab, setTab] = useState<'overview' | 'schedule' | 'earnings' | 'messages'>('overview')
   const [actingOn, setActingOn] = useState<string | null>(null)
   const [reportModalFor, setReportModalFor] = useState<Lesson | null>(null)
 
@@ -125,6 +127,30 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
     }
   }
 
+  const resultsPanel = (
+    <Panel icon={Gauge} title="Wyniki">
+              <StatRow
+                items={[
+                  { icon: BookOpen, label: 'Lekcje', value: data.lessonsThisMonth },
+                  { icon: Users, label: 'Uczniowie', value: data.studentsThisMonth },
+                  { icon: TrendingUp, label: 'Ukończenie', value: `${data.completionRate}%` },
+                ]}
+              />
+              <div className="flex flex-col divide-y divide-border border-t border-border">
+                <div className="flex items-center gap-2.5 px-5 py-2.5">
+                  <MessageCircle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Wskaźnik odpowiedzi</span>
+                  <span className="shrink-0 text-xs font-semibold text-foreground">{data.responseRate}%</span>
+                </div>
+                <div className="flex items-center gap-2.5 px-5 py-2.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Lekcje łącznie</span>
+                  <span className="shrink-0 text-xs font-semibold text-foreground">{data.lessonsThisMonth * 12}</span>
+                </div>
+              </div>
+            </Panel>
+  )
+
   const displayName = user?.role === 'teacher' ? user.name : data.name
   const initials = user?.role === 'teacher' ? user.initials : data.initials
   const avatarColor = user?.role === 'teacher' ? user.avatarColor : data.avatarColor
@@ -186,78 +212,70 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
         }
       />
 
-      <div className="mt-5">
+      <div className="mt-4">
         <TeacherReadinessPanel onApplicationLoaded={handleApplicationLoaded} />
       </div>
 
-      {/*
-        Mobile flattens both columns into one ordered stack via
-        `display: contents`, so a phone gets: next lesson → the to-do
-        queue → messages → earnings → schedule → notifications → metrics.
-        Earnings deliberately outrank the remaining schedule on a phone
-        (a teacher checks money far more often than next week's calendar),
-        while passive performance metrics sink to the bottom.
-      */}
-      <div className="mt-5 flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
-        <div className="contents lg:flex lg:flex-col lg:gap-5">
-          <div className="order-1">
-            <TeacherNextLesson lesson={buckets.nextLesson} requestCount={buckets.bookingRequests.length} />
-          </div>
-          <div className="order-2">
-            <TeacherWorkQueue
-              bookingRequests={buckets.bookingRequests}
-              changeRequests={buckets.changeRequests}
-              needsReport={buckets.needsReport}
-              actingOn={actingOn}
-              onBookingDecision={handleBookingDecision}
-              onChangeDecision={handleChangeDecision}
-              onWriteReport={setReportModalFor}
-            />
-          </div>
-          <div className="order-6">
-            <TeacherSchedulePanel lessons={buckets.laterSchedule} />
-          </div>
-        </div>
-
-        <div className="contents lg:flex lg:flex-col lg:gap-5">
-          <div className="order-3">
-            <NotificationsPanel initialNotifications={initialNotifications} />
-          </div>
-          <div className="order-4">
-            <DashboardMessagesPreview
-              conversations={conversations}
-              unread={unread}
-              emptyDescription="Uczniowie napiszą do Ciebie po rezerwacji lekcji."
-            />
-          </div>
-          <div className="order-5">
-            <TeacherEarningsPanel data={data} />
-          </div>
-          <div className="order-7">
-            <Panel icon={Gauge} title="Wyniki">
-              <StatRow
-                items={[
-                  { icon: BookOpen, label: 'Lekcje', value: data.lessonsThisMonth },
-                  { icon: Users, label: 'Uczniowie', value: data.studentsThisMonth },
-                  { icon: TrendingUp, label: 'Ukończenie', value: `${data.completionRate}%` },
-                ]}
-              />
-              <div className="flex flex-col divide-y divide-border border-t border-border">
-                <div className="flex items-center gap-2.5 px-5 py-2.5">
-                  <MessageCircle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Wskaźnik odpowiedzi</span>
-                  <span className="shrink-0 text-xs font-semibold text-foreground">{data.responseRate}%</span>
-                </div>
-                <div className="flex items-center gap-2.5 px-5 py-2.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Lekcje łącznie</span>
-                  <span className="shrink-0 text-xs font-semibold text-foreground">{data.lessonsThisMonth * 12}</span>
-                </div>
-              </div>
-            </Panel>
-          </div>
-        </div>
+      <div className="mt-5">
+        <DashboardTabs
+          label="Sekcje panelu nauczyciela"
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: 'overview', label: 'Przegląd', icon: LayoutDashboard, count: todoCount },
+            { key: 'schedule', label: 'Grafik', icon: CalendarDays, count: buckets.laterSchedule.length },
+            { key: 'earnings', label: 'Zarobki', icon: Wallet },
+            { key: 'messages', label: 'Wiadomości', icon: MessageSquare, count: unread },
+          ]}
+        />
       </div>
+
+      <DashboardTabPanel tab={tab}>
+        {tab === 'overview' && (
+          <DashboardColumns
+            main={
+              <>
+                <TeacherNextLesson lesson={buckets.nextLesson} requestCount={buckets.bookingRequests.length} />
+                <TeacherWorkQueue
+                  bookingRequests={buckets.bookingRequests}
+                  changeRequests={buckets.changeRequests}
+                  needsReport={buckets.needsReport}
+                  actingOn={actingOn}
+                  onBookingDecision={handleBookingDecision}
+                  onChangeDecision={handleChangeDecision}
+                  onWriteReport={setReportModalFor}
+                />
+              </>
+            }
+            side={
+              <>
+                <TeacherEarningsPanel data={data} />
+                <NotificationsPanel initialNotifications={initialNotifications} />
+              </>
+            }
+          />
+        )}
+        {tab === 'schedule' && <TeacherSchedulePanel lessons={buckets.laterSchedule} />}
+        {tab === 'earnings' && (
+          <DashboardColumns
+            main={<TeacherEarningsPanel data={data} />}
+            side={
+              <>
+                <TeacherWalletTile />
+                {resultsPanel}
+              </>
+            }
+          />
+        )}
+        {tab === 'messages' && (
+          <DashboardMessagesTab
+            conversations={conversations}
+            unread={unread}
+            emptyDescription="Uczniowie napiszą do Ciebie po rezerwacji lekcji."
+            notifications={initialNotifications}
+          />
+        )}
+      </DashboardTabPanel>
 
       {reportModalFor && (
         <LessonReportModal

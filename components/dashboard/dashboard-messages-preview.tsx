@@ -15,6 +15,8 @@ interface Props {
   unread: number
   /** Wording differs per role — a teacher's threads are with students, a student's with teachers. */
   emptyDescription: string
+  /** How many threads to show (default 4). */
+  limit?: number
 }
 
 /**
@@ -24,15 +26,15 @@ interface Props {
  * replied. Unread threads sort to the top; a row deep-links straight
  * into that thread rather than the chat index.
  */
-export function DashboardMessagesPreview({ conversations, unread, emptyDescription }: Props) {
+export function DashboardMessagesPreview({ conversations, unread, emptyDescription, limit = 4 }: Props) {
   const sorted = conversations
     ? [...conversations]
         .sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || b.lastMessageAt - a.lastMessageAt)
-        .slice(0, 4)
+        .slice(0, limit)
     : null
 
   return (
-    <Panel icon={MessageSquare} title="Wiadomości" count={unread} bodyClassName="bg-card">
+    <Panel icon={MessageSquare} title="Wiadomości" count={unread} bodyClassName="">
       {sorted === null ? (
         <div className="flex flex-col gap-3 p-4">
           {[0, 1, 2].map((i) => (
@@ -54,7 +56,7 @@ export function DashboardMessagesPreview({ conversations, unread, emptyDescripti
               <li key={c.id}>
                 <Link
                   href={`/chat?with=${c.id}`}
-                  className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/40"
+                  className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-foreground/[0.03]"
                 >
                   <Avatar className="h-9 w-9 shrink-0">
                     {c.participant.photoUrl && <AvatarImage src={c.participant.photoUrl} alt="" />}

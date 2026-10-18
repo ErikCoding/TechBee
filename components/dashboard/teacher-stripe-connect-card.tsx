@@ -121,7 +121,7 @@ export function TeacherStripeConnectCard({ variant = 'card', onStatusChange }: S
         className={
           isRow
             ? 'flex items-center justify-center px-5 py-4'
-            : 'flex items-center justify-center rounded-2xl border border-border bg-card p-5'
+            : 'flex items-center justify-center rounded-2xl border border-border bg-card/60 p-5'
         }
       >
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />

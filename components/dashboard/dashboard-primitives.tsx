@@ -26,18 +26,18 @@ export type PanelTone = 'default' | 'attention' | 'positive' | 'primary' | 'crit
 
 const panelBorder: Record<PanelTone, string> = {
   default: 'border-border',
-  attention: 'border-warning/40',
-  positive: 'border-success/30',
-  primary: 'border-primary/40',
+  attention: 'border-warning/30',
+  positive: 'border-success/25',
+  primary: 'border-primary/30',
   critical: 'border-destructive/30',
 }
 
 const panelHeader: Record<PanelTone, string> = {
-  default: 'bg-muted/40',
-  attention: 'bg-warning-surface',
-  positive: 'bg-success-surface',
-  primary: 'bg-accent',
-  critical: 'bg-destructive/5',
+  default: '',
+  attention: '',
+  positive: '',
+  primary: '',
+  critical: '',
 }
 
 const panelIcon: Record<PanelTone, string> = {
@@ -76,7 +76,7 @@ export function DashboardHeader({
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{eyebrow}</p>
+        <p className="text-xs font-medium text-muted-foreground">{eyebrow}</p>
         <h1 className="mt-1 truncate text-xl font-bold text-foreground sm:text-2xl">{title}</h1>
         {status && <p className="mt-1 text-sm text-muted-foreground">{status}</p>}
       </div>
@@ -111,8 +111,8 @@ export function Panel({
   bodyClassName?: string
 }) {
   return (
-    <section className={cn('overflow-hidden rounded-2xl border', panelBorder[tone], className)}>
-      <div className={cn('flex items-center gap-2 px-5 py-3.5', panelHeader[tone])}>
+    <section className={cn('overflow-hidden rounded-2xl border bg-card/60', panelBorder[tone], className)}>
+      <div className={cn('flex items-center gap-2 border-b border-border px-4 py-3.5 sm:px-5', panelHeader[tone])}>
         {Icon && <Icon className={cn('h-4 w-4 shrink-0', panelIcon[tone])} aria-hidden="true" />}
         <h2 className="min-w-0 truncate text-sm font-semibold text-foreground">{title}</h2>
         {headerAction ? (
@@ -128,7 +128,7 @@ export function Panel({
           </span>
         ) : null}
       </div>
-      <div className={cn('bg-card', bodyClassName)}>{children}</div>
+      <div className={cn(bodyClassName)}>{children}</div>
     </section>
   )
 }
@@ -146,7 +146,7 @@ export function PanelFooterLink({
   return (
     <Link
       href={href}
-      className="flex items-center gap-2 border-t border-border px-5 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+      className="flex items-center gap-2 border-t border-border px-5 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.03] hover:text-foreground"
     >
       {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
       {children}
@@ -181,7 +181,7 @@ export function AttentionRow({
   }
 
   return (
-    <li className="flex flex-col gap-2.5 px-5 py-3.5 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:gap-4">
+    <li className="flex flex-col gap-2.5 px-5 py-3.5 transition-colors hover:bg-foreground/[0.03] sm:flex-row sm:items-center sm:gap-4">
       <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', iconWrap[tone])}>
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
@@ -234,7 +234,7 @@ export function SegmentedTabs<T extends string>({
           onClick={() => onChange(t.key)}
           className={cn(
             'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-            value === t.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            value === t.key ? 'bg-foreground/[0.08] text-foreground' : 'text-muted-foreground hover:text-foreground',
           )}
         >
           {t.label}
@@ -273,7 +273,7 @@ export function MetaStrip({
       )}
     >
       {items.map(({ icon: Icon, label, value }) => (
-        <div key={label} className="flex items-center gap-2 bg-card px-3 py-2.5">
+        <div key={label} className="flex items-center gap-2 bg-background/70 px-3 py-2.5">
           <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <div className="min-w-0">
             <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
@@ -300,7 +300,7 @@ export function StatRow({
   return (
     <div
       className={cn(
-        'grid divide-x divide-border bg-card',
+        'grid divide-x divide-border',
         items.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : items.length === 2 ? 'grid-cols-2' : 'grid-cols-3',
         items.length === 4 && 'divide-y sm:divide-y-0',
         className,
@@ -313,6 +313,88 @@ export function StatRow({
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Dashboard tabs — the top-level navigation of a dashboard. Underline
+// style, sticky under the navbar, scrolls sideways on narrow phones.
+// ─────────────────────────────────────────────────────────────
+
+export function DashboardTabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+  label,
+}: {
+  tabs: { key: T; label: string; icon: React.ElementType; count?: number }[]
+  value: T
+  onChange: (key: T) => void
+  label: string
+}) {
+  return (
+    <div className="sticky top-16 z-20 -mx-4 border-b border-border bg-background/90 px-4 backdrop-blur md:-mx-8 md:px-8">
+      <div role="tablist" aria-label={label} className="flex gap-1 overflow-x-auto">
+        {tabs.map(({ key, label: text, icon: Icon, count }) => {
+          const active = value === key
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              id={`dash-tab-${key}`}
+              aria-selected={active}
+              aria-controls="dash-tabpanel"
+              onClick={() => onChange(key)}
+              className={cn(
+                'relative flex shrink-0 items-center gap-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:px-4',
+                active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              {text}
+              {count !== undefined && count > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                  {count}
+                </span>
+              )}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary transition-opacity duration-200 motion-reduce:transition-none',
+                  active ? 'opacity-100' : 'opacity-0',
+                )}
+              />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** The content area under DashboardTabs: one focused column, re-animated per tab. */
+export function DashboardTabPanel({ tab, children }: { tab: string; children: React.ReactNode }) {
+  return (
+    <div
+      key={tab}
+      id="dash-tabpanel"
+      role="tabpanel"
+      aria-labelledby={`dash-tab-${tab}`}
+      className="mt-5 flex w-full animate-fade-in-up flex-col gap-4"
+    >
+      {children}
+    </div>
+  )
+}
+
+/** Full-width tab content: a main column plus an optional side column from `lg`, stacked on phones. */
+export function DashboardColumns({ main, side }: { main: React.ReactNode; side?: React.ReactNode }) {
+  return (
+    <div className={cn('grid gap-4 lg:items-start', side ? 'lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]' : '')}>
+      <div className="flex min-w-0 flex-col gap-4">{main}</div>
+      {side ? <div className="flex min-w-0 flex-col gap-4">{side}</div> : null}
     </div>
   )
 }

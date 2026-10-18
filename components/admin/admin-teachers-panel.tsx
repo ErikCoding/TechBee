@@ -1,4 +1,5 @@
 'use client'
+import { formatAvailabilityDay } from '@/lib/availability-core'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -56,7 +57,7 @@ function formatAvailability(t: Teacher) {
     ? t.availability
         .map((day) => {
           const hours = t.availabilityHours?.[day as keyof typeof t.availabilityHours]
-          return hours ? `${WEEKDAY_LABELS[day] ?? day} ${hours.start}-${hours.end}` : null
+          return hours ? `${WEEKDAY_LABELS[day] ?? day} ${formatAvailabilityDay(day as keyof NonNullable<Teacher['availabilityHours']>, t)}` : null
         })
         .filter(Boolean)
         .join(', ')

@@ -91,8 +91,8 @@ export function NotificationsPanel({ initialNotifications }: Props) {
 
   return (
     <>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="grid gap-3 border-b border-border bg-muted/40 px-4 py-3.5 sm:px-5">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card/60">
+        <div className="grid gap-3 border-b border-border px-4 py-3.5 sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
             <Bell className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">Powiadomienia</h3>

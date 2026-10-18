@@ -67,12 +67,12 @@ export function StudentLinkCodeWidget() {
   const isLinked = parents.length > 0
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card/60">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 px-5 py-3.5 text-left transition-colors hover:bg-muted/40"
+        className="flex w-full items-center gap-2.5 px-5 py-3.5 text-left transition-colors hover:bg-foreground/[0.03]"
       >
         <Users className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <div className="min-w-0 flex-1">

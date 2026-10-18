@@ -31,8 +31,8 @@ interface Props {
 export function TeacherNextLesson({ lesson, requestCount }: Props) {
   if (!lesson) {
     return (
-      <section className="rounded-2xl border border-dashed border-border bg-card px-5 py-8 text-center sm:px-8 sm:py-10">
-        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-muted">
+      <section className="rounded-2xl border border-dashed border-border bg-card/60 px-5 py-8 text-center sm:px-8 sm:py-10">
+        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-foreground/[0.06]">
           <CalendarX2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
         </div>
         <h2 className="mt-3 text-base font-bold text-foreground">Brak zaplanowanych lekcji</h2>
@@ -51,13 +51,13 @@ export function TeacherNextLesson({ lesson, requestCount }: Props) {
   const joinHref = `/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.studentName)}&topic=${encodeURIComponent(lesson.topic)}`
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-primary/40 bg-card">
-      <div className="flex flex-wrap items-center gap-2 border-b border-primary/25 bg-accent px-5 py-2.5">
+    <section className="overflow-hidden rounded-2xl border border-primary/30 bg-card/60">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
         <span className="relative flex h-2 w-2" aria-hidden="true">
           <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
         </span>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-accent-foreground">Następna lekcja</p>
+        <p className="text-xs font-semibold text-foreground">Następna lekcja</p>
         <LessonLiveStatus lesson={lesson} className="ml-auto max-w-full" />
         {lesson.pendingChange && (
           <span className="flex items-center gap-1 text-[11px] font-medium text-warning">

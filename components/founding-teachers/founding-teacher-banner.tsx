@@ -6,7 +6,7 @@ export function FoundingTeacherBanner({ program }: { program: FoundingTeacherPub
   if (!program.activeForPublic || !program.homepageBannerEnabled) return null
 
   return (
-    <div className="border-b border-primary/20 bg-primary text-primary-foreground">
+    <div className="border-b border-emerald-300/20 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
       <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between md:px-8">
         <div className="flex min-w-0 items-center gap-2">
           <Trophy className="h-4 w-4 shrink-0" aria-hidden="true" />

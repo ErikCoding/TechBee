@@ -9,6 +9,7 @@ import {
 } from '@/lib/founding-teacher-program'
 import { FOUNDING_TEACHER_CONFIG_DOC_ID, normalizeFoundingTeacherConfig } from '@/lib/founding-teacher-core'
 import { normalizeLessonDurations } from '@/lib/lesson-durations'
+import { normalizeAvailability } from '@/lib/availability-core'
 import type { Teacher, TeacherProfileSnapshot } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -67,6 +68,7 @@ export async function POST(
     let awarded: { number: number; promotion: NonNullable<Teacher['foundingTeacherPromotion']>; name: string } | null = null
 
     if (decision === 'approved') {
+      normalizeAvailability(teacher)
       const approvedAt = typeof (teacher as Teacher & { approvedAt?: unknown }).approvedAt === 'number'
         ? (teacher as Teacher & { approvedAt: number }).approvedAt
         : now

@@ -1,9 +1,10 @@
+import { lessonSlotLockIds as slotLockIds } from '@/lib/lesson-slot-locks'
 import 'server-only'
 import type Stripe from 'stripe'
 import { adminDb } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import { stripe } from '@/lib/stripe'
-import { LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { slotOverlapsBookedLesson } from '@/lib/lesson-time'
 import { getStripePaymentFeeSnapshot } from '@/lib/stripe-payment-fees'
 import { resolveCheckoutSessionRaceDecision } from '@/lib/stripe-checkout-lessons-core'
 import { checkoutAutoRefundIdempotencyKey, normalizeLessonKind, trialLessonConsumesEligibility } from '@/lib/trial-lessons'
@@ -19,15 +20,6 @@ function moneyMeta(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : fallback
 }
 
-function slotLockIds(teacherId: string, dateIso: string, time: string, duration: number): string[] {
-  const start = timeToMinutes(time)
-  if (start === null) return []
-  const ids: string[] = []
-  for (let m = start; m < start + duration + LESSON_BUFFER_MINUTES; m += 15) {
-    ids.push(`${teacherId}__${dateIso}__${minutesToTime(m).replace(':', '-')}`)
-  }
-  return ids
-}
 
 function trialGuardId(studentId: string, teacherId: string): string {
   return `${encodeURIComponent(studentId)}__${encodeURIComponent(teacherId)}`
@@ -131,6 +123,11 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
   const result = await database.runTransaction(async (tx): Promise<{ lessonId: string | null; created: boolean; reason?: 'slot_unavailable' | 'trial_already_used' | 'same_session_in_progress' }> => {
     const existingInTx = await tx.get(database.collection(collections.lessons).where('stripeCheckoutSessionId', '==', session.id).limit(1))
     if (!existingInTx.empty) return { lessonId: existingInTx.docs[0].id, created: false }
+
+    const active = await tx.get(database.collection(collections.lessons).where('teacherId', '==', m.teacherId).where('status', 'in', ['pending', 'upcoming']))
+    if (slotOverlapsBookedLesson({ dateIso: m.dateIso, time: m.time, duration, booked: active.docs.map((doc) => doc.data() as Lesson) })) {
+      return { lessonId: null, created: false, reason: 'slot_unavailable' }
+    }
 
     const trialGuardRef = lessonKind === 'trial'
       ? database.collection(collections.trialLessonGuards).doc(trialGuardId(m.studentId, m.teacherId))

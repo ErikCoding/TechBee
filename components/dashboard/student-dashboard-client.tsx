@@ -2,24 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search, UserCog } from 'lucide-react'
+import { CalendarDays, LayoutDashboard, MessageSquare, PackageCheck, Search, UserCog, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { getStudentLessons, getStudentStats } from '@/services/lessons.service'
 import { subscribeToConversations } from '@/services/chat.service'
 import { canManageLessonReport } from '@/lib/report-permissions'
 import { getReviewedTeacherIds } from '@/services/teachers.service'
-import { DashboardHeader } from '@/components/dashboard/dashboard-primitives'
+import { DashboardColumns, DashboardHeader, DashboardTabPanel, DashboardTabs } from '@/components/dashboard/dashboard-primitives'
 import { StudentNextLesson } from '@/components/dashboard/student-next-lesson'
 import { StudentActionCenter } from '@/components/dashboard/student-action-center'
 import { StudentLessonsPanel } from '@/components/dashboard/student-lessons-panel'
 import { StudentPackagesPanel } from '@/components/dashboard/student-packages-panel'
-import { DashboardMessagesPreview } from '@/components/dashboard/dashboard-messages-preview'
 import { StudentStatsCards } from '@/components/dashboard/student-stats-client'
 import { StudentLinkCodeWidget } from '@/components/dashboard/student-link-code-widget'
 import { NotificationsPanel } from '@/components/dashboard/notifications-panel'
 import { LessonChangeModal } from '@/components/dashboard/lesson-change-modal'
 import { LessonReviewModal } from '@/components/dashboard/lesson-review-modal'
+import { DashboardMessagesTab } from '@/components/dashboard/dashboard-messages-tab'
 import type { ChatConversation, Lesson, Notification, StudentStats } from '@/lib/types'
 
 interface Props {
@@ -52,6 +52,7 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
   const [conversations, setConversations] = useState<ChatConversation[] | null>(null)
   /** Teachers this student has already written their one review for. */
   const [reviewedTeacherIds, setReviewedTeacherIds] = useState<Set<string>>(new Set())
+  const [tab, setTab] = useState<'overview' | 'lessons' | 'packages' | 'messages' | 'account'>('overview')
   const [changeModalFor, setChangeModalFor] = useState<Lesson | null>(null)
   const [reviewModalFor, setReviewModalFor] = useState<Lesson | null>(null)
 
@@ -162,73 +163,74 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
         }
       />
 
-      {/*
-        One ordering source for both breakpoints.
+      <div className="mt-5">
+        <DashboardTabs
+          label="Sekcje panelu ucznia"
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: 'overview', label: 'Przegląd', icon: LayoutDashboard, count: attentionCount },
+            { key: 'lessons', label: 'Lekcje', icon: CalendarDays, count: buckets.pending.length },
+            { key: 'packages', label: 'Pakiety', icon: PackageCheck },
+            { key: 'messages', label: 'Wiadomości', icon: MessageSquare, count: unread },
+            { key: 'account', label: 'Konto', icon: UserRound },
+          ]}
+        />
+      </div>
 
-        Mobile (`display: contents` on the two column wrappers) flattens
-        everything into a single ordered stack, so the phone hierarchy can
-        differ from the desktop one instead of being "desktop columns,
-        stacked": next lesson → what needs attention → messages → lesson
-        list → notifications → totals → parent linking. Messages
-        deliberately outrank the full lesson list on a phone; passive
-        totals sink to the bottom.
-
-        From `lg` the wrappers become real columns and the order utilities
-        stop applying, giving the two-column desktop layout.
-      */}
-      <div className="mt-6 flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
-        <div className="contents lg:flex lg:flex-col lg:gap-5">
-          <div className="order-1">
-            <StudentNextLesson
-              lesson={buckets.nextLesson}
-              pendingCount={buckets.pending.length}
-              onManage={setChangeModalFor}
-            />
-          </div>
-          <div className="order-2">
-            <StudentActionCenter
-              awaitingReportConfirmation={buckets.awaitingReportConfirmation}
-              openDisputes={buckets.openDisputes}
-              awaitingReview={buckets.awaitingReview}
-              awaitingTeacherOnChange={buckets.awaitingTeacherOnChange}
-              unreadMessages={unread}
-              onReview={setReviewModalFor}
-            />
-          </div>
-          <div className="order-3">
-            <StudentPackagesPanel />
-          </div>
-          <div className="order-5">
-            <StudentLessonsPanel
-              upcoming={buckets.laterUpcoming}
-              pending={buckets.pending}
-              past={buckets.past}
-              onManage={setChangeModalFor}
-              onReview={setReviewModalFor}
-              reviewedTeacherIds={reviewedTeacherIds}
-            />
-          </div>
-        </div>
-
-        <div className="contents lg:flex lg:flex-col lg:gap-5">
-          <div className="order-4">
-            <NotificationsPanel initialNotifications={initialNotifications} />
-          </div>
-          <div className="order-6">
-            <DashboardMessagesPreview
-              conversations={conversations}
-              unread={unread}
-              emptyDescription="Napisz do nauczyciela z jego profilu, aby zacząć."
-            />
-          </div>
-          <div className="order-7">
-            <StudentStatsCards stats={stats} />
-          </div>
-          <div className="order-8">
+      <DashboardTabPanel tab={tab}>
+        {tab === 'overview' && (
+          <DashboardColumns
+            main={
+              <>
+                <StudentNextLesson
+                  lesson={buckets.nextLesson}
+                  pendingCount={buckets.pending.length}
+                  onManage={setChangeModalFor}
+                />
+                <StudentActionCenter
+                  awaitingReportConfirmation={buckets.awaitingReportConfirmation}
+                  openDisputes={buckets.openDisputes}
+                  awaitingReview={buckets.awaitingReview}
+                  awaitingTeacherOnChange={buckets.awaitingTeacherOnChange}
+                  unreadMessages={unread}
+                  onReview={setReviewModalFor}
+                />
+              </>
+            }
+            side={
+              <>
+                <StudentStatsCards stats={stats} />
+                <NotificationsPanel initialNotifications={initialNotifications} />
+              </>
+            }
+          />
+        )}
+        {tab === 'lessons' && (
+          <StudentLessonsPanel
+            upcoming={buckets.laterUpcoming}
+            pending={buckets.pending}
+            past={buckets.past}
+            onManage={setChangeModalFor}
+            onReview={setReviewModalFor}
+            reviewedTeacherIds={reviewedTeacherIds}
+          />
+        )}
+        {tab === 'packages' && <StudentPackagesPanel />}
+        {tab === 'messages' && (
+          <DashboardMessagesTab
+            conversations={conversations}
+            unread={unread}
+            emptyDescription="Napisz do nauczyciela z jego profilu, aby zacząć."
+            notifications={initialNotifications}
+          />
+        )}
+        {tab === 'account' && (
+          <div className="max-w-xl">
             <StudentLinkCodeWidget />
           </div>
-        </div>
-      </div>
+        )}
+      </DashboardTabPanel>
 
       {changeModalFor && (
         <LessonChangeModal

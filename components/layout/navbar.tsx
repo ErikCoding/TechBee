@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Menu, X, Wallet, Star, MessageSquare, LayoutDashboard, LogOut, ChevronDown, ClipboardCheck, Settings, UserCog } from 'lucide-react'
+import { Menu, X, Wallet, Star, MessageSquare, LayoutDashboard, LogOut, ChevronDown, ClipboardCheck, Landmark, Settings, UserCog } from 'lucide-react'
 import { BeeLogo } from '@/components/shared/bee-logo'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -137,12 +137,6 @@ export function Navbar() {
                   Wiadomości
                 </DropdownMenuItem>
                 {(user.role === 'student' || user.role === 'teacher') && (
-                  <DropdownMenuItem onClick={() => router.push(profileHref)}>
-                    <UserCog className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    Edytuj profil
-                  </DropdownMenuItem>
-                )}
-                {(user.role === 'student' || user.role === 'teacher') && (
                   <DropdownMenuItem onClick={() => router.push('/reports')}>
                     <ClipboardCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     Raporty
@@ -154,22 +148,29 @@ export function Navbar() {
                     Portfel
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => router.push('/beepoints')}>
+                  <Star className="h-4 w-4 fill-primary stroke-primary" aria-hidden="true" />
+                  BeePoints
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {(user.role === 'student' || user.role === 'teacher') && (
+                  <DropdownMenuItem onClick={() => router.push(profileHref)}>
+                    <UserCog className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Edytuj profil
+                  </DropdownMenuItem>
+                )}
+                {user.role === 'teacher' && (
+                  <DropdownMenuItem onClick={() => router.push('/dashboard/teacher/settings')}>
+                    <Landmark className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Konto bankowe
+                  </DropdownMenuItem>
+                )}
                 {user.role !== 'admin' && (
                   <DropdownMenuItem onClick={() => router.push('/settings')}>
                     <Settings className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     Ustawienia konta
                   </DropdownMenuItem>
                 )}
-                {user.role === 'teacher' && (
-                  <DropdownMenuItem onClick={() => router.push('/dashboard/teacher/settings')}>
-                    <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    Wypłaty
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => router.push('/beepoints')}>
-                  <Star className="h-4 w-4 fill-primary stroke-primary" aria-hidden="true" />
-                  BeePoints
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive data-highlighted:bg-destructive/10">
                   <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -244,11 +245,6 @@ export function Navbar() {
                   <MessageSquare className="h-4 w-4" /> Wiadomości
                 </Link>
                 {user.role !== 'admin' && (
-                  <Link href={profileHref} onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
-                    <UserCog className="h-4 w-4" /> Edytuj profil
-                  </Link>
-                )}
-                {user.role !== 'admin' && (
                   <Link href="/reports" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
                     <ClipboardCheck className="h-4 w-4" /> Raporty
                   </Link>
@@ -258,19 +254,25 @@ export function Navbar() {
                     <Wallet className="h-4 w-4" /> Portfel
                   </Link>
                 )}
+                <Link href="/beepoints" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                  <Star className="h-4 w-4 fill-primary stroke-primary" /> BeePoints
+                </Link>
+                <div className="my-1 border-t border-border" role="separator" />
+                {user.role !== 'admin' && (
+                  <Link href={profileHref} onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                    <UserCog className="h-4 w-4" /> Edytuj profil
+                  </Link>
+                )}
+                {user.role === 'teacher' && (
+                  <Link href="/dashboard/teacher/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                    <Landmark className="h-4 w-4" /> Konto bankowe
+                  </Link>
+                )}
                 {user.role !== 'admin' && (
                   <Link href="/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
                     <Settings className="h-4 w-4" /> Ustawienia konta
                   </Link>
                 )}
-                {user.role === 'teacher' && (
-                  <Link href="/dashboard/teacher/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
-                    <Wallet className="h-4 w-4" /> Wypłaty
-                  </Link>
-                )}
-                <Link href="/beepoints" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
-                  <Star className="h-4 w-4 fill-primary stroke-primary" /> BeePoints
-                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}

@@ -43,9 +43,9 @@ function SettingsSection({
   children: React.ReactNode
 }) {
   return (
-    <section id={id} className="scroll-mt-20 overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex items-start gap-3 border-b border-border bg-muted/35 px-5 py-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-bee-yellow-dark">
+    <section id={id} className="scroll-mt-20 overflow-hidden rounded-2xl border border-border bg-card/60">
+      <div className="flex items-start gap-3 border-b border-border px-5 py-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -61,6 +61,30 @@ function SettingsSection({
 export function SettingsClient() {
   const { user, updateProfile, refreshVerification } = useAuth()
   const [name, setName] = useState(user?.name ?? '')
+  const [activeSection, setActiveSection] = useState('konto')
+
+  // Live navigation: highlight the section currently in view.
+  useEffect(() => {
+    const ids = ['konto', 'bezpieczenstwo', 'powiadomienia', 'usun-konto']
+    const elements = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => Boolean(el))
+    if (elements.length === 0) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top)
+        if (visible[0]) setActiveSection(visible[0].target.id)
+      },
+      { rootMargin: '-90px 0px -60% 0px' },
+    )
+    elements.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [user?.role])
+
+  function goToSection(id: string) {
+    setActiveSection(id)
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    document.getElementById(id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    window.history.replaceState(null, '', `#${id}`)
+  }
   const [preferences, setPreferences] = useState<NotificationPreferences>(() => normalizeNotificationPreferences(null))
   const [loadingPrefs, setLoadingPrefs] = useState(true)
   const [savingName, setSavingName] = useState(false)
@@ -246,14 +270,32 @@ export function SettingsClient() {
   return (
     <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
       <aside className="lg:sticky lg:top-20">
-        <div className="rounded-2xl border border-border bg-card p-3">
+        <div className="rounded-2xl border border-border bg-card/60 p-3">
           <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Ustawienia</p>
           <nav className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible" aria-label="Sekcje ustawień">
-            {navItems.map((item) => (
-              <a key={item.href} href={item.href} className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                {item.label}
-              </a>
-            ))}
+            {navItems.map((item) => {
+              const id = item.href.replace('#', '')
+              const active = activeSection === id
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? 'location' : undefined}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    goToSection(id)
+                  }}
+                  className={`relative whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-foreground/[0.07] text-foreground'
+                      : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground'
+                  }`}
+                >
+                  {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 hidden w-0.5 rounded-full bg-primary lg:block" />}
+                  {item.label}
+                </a>
+              )
+            })}
           </nav>
         </div>
       </aside>
@@ -279,7 +321,7 @@ export function SettingsClient() {
                 <Input id="settings-email" value={user.email} disabled readOnly />
               </div>
             </div>
-            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-background/45 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-foreground">Status adresu e-mail</p>
                 <p className="mt-1 text-xs text-muted-foreground">Potwierdzony adres pomaga chronić konto i odblokowuje wszystkie funkcje.</p>
@@ -306,7 +348,7 @@ export function SettingsClient() {
           </SettingsSection>
 
           <SettingsSection id="bezpieczenstwo" icon={ShieldCheck} title="Bezpieczeństwo" description="Opcje bezpieczeństwa konta.">
-            <div className="flex flex-col gap-3 rounded-xl border border-border bg-background/45 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-foreground">Hasło</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -323,7 +365,7 @@ export function SettingsClient() {
           <SettingsSection id="powiadomienia" icon={Bell} title="Powiadomienia" description="Wybierz, które opcjonalne maile transakcyjne chcesz dostawać.">
             <FormError className="mb-3">{prefsError}</FormError>
             {loadingPrefs ? (
-              <div className="h-40 animate-pulse rounded-xl border border-border bg-muted/40" />
+              <div className="h-40 animate-pulse rounded-xl border border-border bg-foreground/[0.04]" />
             ) : (
               <div className="divide-y divide-border rounded-xl border border-border">
                 {EMAIL_NOTIFICATION_GROUPS.map((group) => (
@@ -337,7 +379,7 @@ export function SettingsClient() {
                         const type = `${group.id}.${item.id}` as EmailNotificationType
                         const checked = getEmailNotificationPreference(preferences, type)
                         return (
-                          <label key={type} className="flex min-h-12 items-center justify-between gap-4 rounded-lg border border-border bg-background/40 px-3 py-2">
+                          <label key={type} className="flex min-h-12 items-center justify-between gap-4 rounded-lg border border-border bg-background/60 px-3 py-2">
                             <span className="min-w-0">
                               <span className="block text-sm font-medium text-foreground">{item.label}</span>
                               <span className="block text-xs leading-relaxed text-muted-foreground">{item.description}</span>
@@ -390,7 +432,7 @@ export function SettingsClient() {
           <form onSubmit={submitPasswordChange}>
             <DialogBody>
               {!providerState.hasPasswordProvider ? (
-                <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
                   To konto nie używa hasła Runbee. Hasło zmienisz u dostawcy logowania, którego używasz do wejścia na konto.
                 </div>
               ) : (
@@ -434,12 +476,12 @@ export function SettingsClient() {
           <form onSubmit={submitEmailChange}>
             <DialogBody>
               {!providerState.hasPasswordProvider ? (
-                <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
                   To konto korzysta z zewnętrznego dostawcy logowania. Zmianę adresu e-mail wykonaj u tego dostawcy albo skontaktuj się z pomocą Runbee.
                 </div>
               ) : (
                 <>
-                  <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+                  <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
                     Obecny adres <span className="font-medium text-foreground">{user.email}</span> pozostanie aktywny, dopóki nie potwierdzisz nowego adresu.
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -477,7 +519,7 @@ export function SettingsClient() {
           <form onSubmit={submitAccountDeletionRequest}>
             <DialogBody>
               {!providerState.hasPasswordProvider ? (
-                <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
                   To konto korzysta z zewnętrznego dostawcy logowania. Skontaktuj się z pomocą Runbee, aby złożyć wniosek o usunięcie konta.
                 </div>
               ) : (

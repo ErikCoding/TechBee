@@ -35,7 +35,7 @@ export function TeacherSchedulePanel({ lessons }: Props) {
           {lessons.map((lesson) => (
             <li
               key={lesson.id}
-              className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:gap-4"
+              className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-foreground/[0.03] sm:flex-row sm:items-center sm:gap-4"
             >
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar className="h-10 w-10 shrink-0">

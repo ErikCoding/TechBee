@@ -131,7 +131,7 @@ export function TeacherCard({ teacher, className, featured, bookingFor }: Teache
           </span>
         )}
         {showFoundingBadge && (
-          <span className="rounded-md bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+          <span className="rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 px-2 py-0.5 text-[10px] font-semibold text-white">
             Pierwsza 50
           </span>
         )}

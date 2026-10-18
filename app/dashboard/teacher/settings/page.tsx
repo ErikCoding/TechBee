@@ -16,7 +16,7 @@ export default function TeacherSettingsPage() {
         <RequireAuth role="teacher">
           <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
             <BackButton fallbackHref="/dashboard/teacher" />
-            <div className="mb-5 rounded-2xl border border-border bg-card px-5 py-5 md:px-6">
+            <div className="mb-5 rounded-2xl border border-border bg-card/60 px-5 py-5 md:px-6">
               <h1 className="text-xl font-bold text-foreground sm:text-2xl">Ustawienia</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">Profil, wypłaty i dane konta nauczyciela.</p>
             </div>

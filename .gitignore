@@ -27,3 +27,6 @@ next-env.d.ts
 # pin and fails the build outright.
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# local UI backups (not for the repo)
+ui-backup/

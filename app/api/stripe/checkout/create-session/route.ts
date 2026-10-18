@@ -1,3 +1,4 @@
+import { fitsAvailability, isBookableDate } from '@/lib/availability-core'
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { adminDb } from '@/lib/firebase-admin'
@@ -10,11 +11,10 @@ import { buildStudentPaymentBreakdown } from '@/lib/service-fees'
 import { collections } from '@/lib/firebase'
 import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
-import { BOOKING_WINDOW_DAYS, getAvailabilityHoursForWeekday } from '@/lib/availability'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
-import { slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
+import { slotOverlapsBookedLesson, zonedDateTimeToMs } from '@/lib/lesson-time'
 import { resolveCheckoutLessonTerms, studentHasConsumedTrialLesson } from '@/lib/trial-lessons'
-import type { AvailabilityHours, BookedLessonSlot, FoundingTeacherPromotion, Lesson, LessonKind, WeekdayCode } from '@/lib/types'
+import type { AvailabilityHours, BookedLessonSlot, FoundingTeacherPromotion, Lesson, LessonKind } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // Starts payment for a specific lesson slot. A Lesson doc is
@@ -168,32 +168,7 @@ export async function POST(request: Request) {
     : undefined
   const selectedSpecialty = safeMetaText(selectedSubjectName || customSubject || teacher.specialty || '')
 
-  const requestedStart = timeToMinutes(time)
-  const requestedDate = new Date(`${dateIso}T12:00:00`)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const latestDate = new Date(today)
-  latestDate.setDate(today.getDate() + BOOKING_WINDOW_DAYS)
-  const weekdayCode = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][requestedDate.getDay()] as WeekdayCode
-  const dayHours = getAvailabilityHoursForWeekday(
-    weekdayCode,
-    { start: teacher.availabilityStart ?? '09:00', end: teacher.availabilityEnd ?? '17:00' },
-    teacher.availabilityHours,
-  )
-  const availabilityStart = timeToMinutes(dayHours.start)
-  const availabilityEnd = timeToMinutes(dayHours.end)
-  const teacherAvailability = teacher.availability ?? []
-  if (
-    requestedStart === null ||
-    availabilityStart === null ||
-    availabilityEnd === null ||
-    Number.isNaN(requestedDate.getTime()) ||
-    requestedDate <= today ||
-    requestedDate > latestDate ||
-    !teacherAvailability.includes(weekdayCode) ||
-    requestedStart < availabilityStart ||
-    requestedStart + duration > availabilityEnd
-  ) {
+  if (!isBookableDate(dateIso) || !fitsAvailability(teacher, dateIso, time, duration)) {
     return NextResponse.json({ error: 'Ten termin nie mieści się już w dostępności nauczyciela.' }, { status: 409 })
   }
 

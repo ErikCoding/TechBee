@@ -1,7 +1,7 @@
 import { addDoc, collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import { studentLessonsData, studentStatsData, teacherDashboardDataMock, teacherLessonsData } from '@/data/lessons.data'
 import { teachersData } from '@/data/teachers.data'
-import { collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { getStudentReviewForTeacher, getTeacherApplication, submitTeacherReview } from '@/services/teachers.service'
 import { createNotification } from '@/services/notifications.service'
 import { notifyLessonEvent } from '@/services/lesson-email-events.service'
@@ -573,7 +573,23 @@ export async function respondToBookingRequest(lesson: Lesson, decision: 'accepte
 }
 
 /** Either party requests a cancel/reschedule of an upcoming lesson — sits on the doc until the *other* party responds. */
+async function sendReschedule(lesson: Lesson, payload: Record<string, unknown>) {
+  const idToken = await auth?.currentUser?.getIdToken()
+  const response = await fetch(`/api/lessons/${encodeURIComponent(lesson.id)}/reschedule`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, ...payload }),
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.error ?? 'Nie udało się zmienić terminu.')
+}
+
 export async function requestLessonChange(lesson: Lesson, requestedBy: 'student' | 'teacher', change: Omit<LessonChangeRequest, 'requestedBy'>): Promise<void> {
+  if (isFirebaseConfigured && change.type === 'reschedule') {
+    const fingerprint = JSON.stringify([lesson.id, lesson.dateIso, lesson.time, lesson.pendingChange?.requestedAt ?? 0, change.newDateIso, change.newTime, change.note ?? ''])
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprint))
+    const requestId = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return sendReschedule(lesson, { action: 'request', requestId, dateIso: change.newDateIso, time: change.newTime, note: change.note })
+  }
   if (change.type === 'cancel' && (!change.note || change.note.trim().length < 8)) {
     throw new Error('Podaj powód odwołania lekcji.')
   }
@@ -609,6 +625,9 @@ export async function requestLessonChange(lesson: Lesson, requestedBy: 'student'
 export async function respondToLessonChange(lesson: Lesson, decision: 'accepted' | 'rejected'): Promise<void> {
   const change = lesson.pendingChange
   if (!change) return
+  if (isFirebaseConfigured && change.type === 'reschedule') {
+    return sendReschedule(lesson, { action: decision, requestId: `respond-${change.requestedAt}-${decision}`, expectedRequestedAt: change.requestedAt })
+  }
 
   // Firestore rejects `undefined` field values (see toParticipant() in
   // chat.service.ts for the same gotcha) — `null` is how a field gets

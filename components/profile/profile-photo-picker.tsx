@@ -75,7 +75,7 @@ export function ProfilePhotoPicker({ value, onChange, onCommit, initials, avatar
   const busy = uploading || committing
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-border bg-card/60 p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar className="h-20 w-20 shrink-0">
           {value && <AvatarImage src={value} alt="" />}

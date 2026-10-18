@@ -36,7 +36,9 @@ export type Category = {
 
 export type WeekdayCode = 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat'
 
-export type AvailabilityHours = Partial<Record<WeekdayCode, { start: string; end: string }>>
+export type AvailabilityInterval = { start: string; end: string }
+/** start/end retain the first window for older readers; intervals is authoritative when present. */
+export type AvailabilityHours = Partial<Record<WeekdayCode, AvailabilityInterval & { intervals?: AvailabilityInterval[] }>>
 
 export type TeacherProfileSnapshot = {
   name: string

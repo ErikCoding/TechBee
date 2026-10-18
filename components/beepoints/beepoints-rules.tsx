@@ -17,10 +17,10 @@ function RuleCard({ rule, index }: { rule: BeePointsRule; index: number }) {
   const Icon = iconMap[rule.icon] ?? Star
   return (
     <div
-      className="animate-fade-in-up flex gap-3 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-sm"
+      className="animate-fade-in-up flex gap-3 rounded-xl border border-border bg-card/60 p-4 transition-shadow hover:shadow-sm"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
         <Icon className="h-4 w-4 text-bee-yellow-dark" aria-hidden="true" />
       </div>
       <div className="min-w-0">

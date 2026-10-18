@@ -199,17 +199,17 @@ export default async function TeachPage() {
         </section>
 
         {foundingProgram.activeForPublic && foundingProgram.teachSectionEnabled && (
-          <section className="border-b border-border bg-primary text-primary-foreground" aria-labelledby="founding-heading">
+          <section className="border-b border-emerald-300/20 bg-gradient-to-r from-emerald-600 to-teal-600 text-white" aria-labelledby="founding-heading">
             <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 md:grid-cols-[1fr_auto] md:items-center md:px-8">
               <div className="max-w-3xl">
-                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground/80">
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/80">
                   <Trophy className="h-4 w-4" aria-hidden="true" />
                   Pierwsza 50 Runbee
                 </p>
                 <h2 id="founding-heading" className="mt-2 text-2xl font-bold leading-tight sm:text-3xl">
                   Dołącz do Pierwszej 50 Runbee i korzystaj z obniżonej prowizji {promoCommissionLabel}% przez pierwsze {foundingProgram.durationDays} dni
                 </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-primary-foreground/85">
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/85">
                   {promoCommissionLabel}% zamiast standardowych {standardCommissionLabel}%. Miejsce jest nadawane po akceptacji profilu przez administratora. Po zakończeniu okresu promocyjnego obowiązuje aktualna standardowa prowizja Runbee. W programie zostało {foundingProgram.remaining} z {foundingProgram.limit} miejsc.
                 </p>
               </div>

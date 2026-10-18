@@ -113,7 +113,7 @@ export function ReportsClient() {
 
   if (!user || entries === null || groups === null) {
     return (
-      <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-border bg-card">
+      <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-border bg-card/60">
         <Spinner size="lg" className="text-muted-foreground" />
       </div>
     )
@@ -121,7 +121,7 @@ export function ReportsClient() {
 
   if (entries.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-card">
+      <div className="rounded-2xl border border-border bg-card/60">
         <EmptyState
           icon={Inbox}
           title="Brak raportów"

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { BookOpenCheck, CalendarPlus, Clock, PackageCheck } from 'lucide-react'
+import { BookOpenCheck, CalendarPlus, Clock, PackageCheck, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -47,7 +47,7 @@ function PackageCard({ pkg, muted = false }: { pkg: LessonPackage; muted?: boole
   const total = pkg.studentTotalGrosze ?? subtotal + serviceFee
 
   return (
-    <article className={cn('flex flex-col gap-4 px-5 py-4 transition-colors hover:bg-muted/30', muted && 'opacity-75')}>
+    <article className={cn('flex flex-col gap-4 px-5 py-4 transition-colors hover:bg-foreground/[0.03]', muted && 'opacity-75')}>
       <div className="flex items-start gap-3">
         <Avatar className="h-10 w-10 shrink-0">
           {pkg.teacherPhotoUrl && <AvatarImage src={pkg.teacherPhotoUrl} alt="" />}
@@ -136,11 +136,35 @@ export function StudentPackagesPanel({ initialPackages = [] }: Props) {
     exhaustedPackages: packages.filter((pkg) => pkg.status === 'exhausted'),
   }), [packages])
 
-  if (packages.length === 0) return null
+  if (packages.length === 0) {
+    return (
+      <section className="overflow-hidden rounded-2xl border border-border bg-card/60">
+        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
+          <PackageCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <h2 className="min-w-0 flex-1 text-sm font-semibold text-foreground">Moje pakiety</h2>
+        </div>
+        <div className="flex flex-col items-center px-5 py-10 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <PackageCheck className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <h3 className="mt-3 text-base font-bold text-foreground">Brak pakietów</h3>
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+            Pakiet to kilka lekcji opłaconych z góry u jednego nauczyciela. Pakiet kupisz przy rezerwacji lekcji u nauczyciela, który go oferuje.
+          </p>
+          <Link href="/marketplace" className="mt-5">
+            <Button className="font-semibold">
+              <Search className="h-4 w-4" aria-hidden="true" />
+              Wybierz nauczyciela
+            </Button>
+          </Link>
+        </div>
+      </section>
+    )
+  }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-5 py-3.5">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card/60">
+      <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
         <PackageCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <h2 className="min-w-0 flex-1 text-sm font-semibold text-foreground">Moje pakiety</h2>
         {activePackages.length > 0 && <Badge className="text-[10px]">{activePackagesLabel(activePackages.length)}</Badge>}
@@ -165,7 +189,7 @@ export function StudentPackagesPanel({ initialPackages = [] }: Props) {
       )}
 
       {exhaustedPackages.length > 0 && (
-        <div className="border-t border-border bg-muted/20">
+        <div className="border-t border-border">
           <div className="px-5 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Historia pakietów
           </div>

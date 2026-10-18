@@ -69,6 +69,40 @@ beforeEach(seed)
 const fs = (uid) => env.authenticatedContext(uid).firestore()
 const anon = () => env.unauthenticatedContext().firestore()
 
+describe('availability and rescheduling require trusted writes', () => {
+  test('teacher can edit identity but cannot bypass application validation; admin moderation remains possible', async () => {
+    const profile = { authUserId: U.teacher, status: 'approved', name: 'Teacher', availability: ['Mon'], availabilityHours: { Mon: { start: '08:00', end: '12:00' } }, reviews: [], rating: 0, reviewCount: 0 }
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'teachers', U.teacher), profile))
+    await assertSucceeds(updateDoc(doc(fs(U.teacher), 'teachers', U.teacher), { name: 'New name' }))
+    await assertFails(updateDoc(doc(fs(U.teacher), 'teachers', U.teacher), { status: 'pending', availabilityHours: { Mon: { start: '08:00', end: '12:00', intervals: [{ start: '12:00', end: '08:00' }] } } }))
+    await assertFails(updateDoc(doc(fs(U.teacher), 'teachers', U.teacher), { status: 'pending', previousProfile: { status: 'approved' } }))
+    await assertFails(setDoc(doc(fs(U.outsider), 'teachers', U.outsider), { ...profile, authUserId: U.outsider, status: 'pending' }))
+    await assertSucceeds(updateDoc(doc(fs(U.admin), 'teachers', U.teacher), { featured: true }))
+    await assertSucceeds(updateDoc(doc(fs(U.admin), 'teachers', U.teacher), { status: 'pending' }))
+    await assertSucceeds(updateDoc(doc(fs(U.admin), 'teachers', U.teacher), { status: 'approved' }))
+    await assertSucceeds(updateDoc(doc(fs(U.student), 'teachers', U.teacher), { reviews: [{ rating: 5 }], rating: 5, reviewCount: 1 }))
+  })
+  test('lesson dates, participants and duration cannot be forged; cancel requests and reports still work', async () => {
+    for (const uid of [U.student, U.parent, U.teacher, U.admin]) {
+      for (const patch of [{ time: '14:00' }, { dateIso: '2026-10-19' }, { duration: 120 }, { teacherId: 'other' }, { scheduledStartAt: 123 }, { pendingChange: { type: 'reschedule', newTime: '14:00' } }]) {
+        await assertFails(updateDoc(doc(fs(uid), 'lessons', 'L1'), patch))
+      }
+    }
+    await assertSucceeds(updateDoc(doc(fs(U.student), 'lessons', 'L1'), { pendingChange: { type: 'cancel', requestedBy: 'student', note: 'Powód anulowania' } }))
+    await assertSucceeds(updateDoc(doc(fs(U.teacher), 'lessons', 'L1'), { pendingChange: null }))
+    await assertSucceeds(updateDoc(doc(fs(U.teacher), 'lessons', 'L1'), { report: { summary: 'Raport' } }))
+    await assertSucceeds(updateDoc(doc(fs(U.teacher), 'lessons', 'L1'), { status: 'completed' }))
+    await assertFails(updateDoc(doc(fs(U.teacher), 'lessons', 'L1'), { status: 'upcoming' }))
+    await assertFails(updateDoc(doc(fs(U.teacher), 'lessons', 'L1'), { status: 'reset' }))
+  })
+  test('server reschedule request and operation receipt cannot be overwritten by participants', async () => {
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'lessons', 'L1'), { pendingChange: { type: 'reschedule', requestedBy: 'student', requestedAt: 1, newTime: '18:00' } }))
+    await assertFails(updateDoc(doc(fs(U.teacher), 'lessons', 'L1'), { pendingChange: null }))
+    await assertFails(updateDoc(doc(fs(U.student), 'lessons', 'L1'), { pendingChange: { type: 'cancel' } }))
+    await assertFails(setDoc(doc(fs(U.teacher), 'lessons', 'L1', 'scheduleOperations', 'fake'), { result: { ok: true } }))
+  })
+})
+
 describe('firestore: accounts (active / deactivated / admin)', () => {
   test('signed-out cannot read profiles; active user can', async () => {
     await assertFails(getDoc(doc(anon(), 'users', U.teacher)))

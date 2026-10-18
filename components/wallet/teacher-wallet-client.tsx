@@ -172,16 +172,16 @@ export function TeacherWalletClient() {
       </div>
 
       {/* History */}
-      <div className="animate-fade-in-up mt-6 overflow-hidden rounded-2xl border border-border" style={{ animationDelay: '80ms' }}>
-        <div className="flex items-center gap-2 bg-muted/40 px-5 py-3.5">
+      <div className="animate-fade-in-up mt-6 overflow-hidden rounded-2xl border border-border bg-card/60" style={{ animationDelay: '80ms' }}>
+        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
           <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <h2 className="text-sm font-semibold text-foreground">Ostatnie transakcje</h2>
         </div>
-        <div className="flex flex-col divide-y divide-border bg-card">
+        <div className="flex flex-col divide-y divide-border">
           {history.map((entry, i) => {
             if (entry.kind === 'lesson') {
               return (
-                <div key={`lesson-${entry.lessonId}-${i}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted/40">
+                <div key={`lesson-${entry.lessonId}-${i}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-foreground/[0.03]">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-surface">
                     <ArrowDownLeft className="h-4 w-4 text-success-on-surface" aria-hidden="true" />
                   </div>
@@ -197,7 +197,7 @@ export function TeacherWalletClient() {
             }
             const status = payoutStatusConfig[entry.status]
             return (
-              <div key={`payout-${i}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted/40">
+              <div key={`payout-${i}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-foreground/[0.03]">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted">
                   <ArrowUpRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </div>

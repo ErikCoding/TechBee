@@ -45,52 +45,63 @@ export function UserProfileForm() {
   if (!user) return null
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <ProfilePhotoPicker
-        value={photoUrl}
-        onChange={setPhotoUrl}
-        onCommit={(nextUrl) => saveProfile(nextUrl)}
-        initials={user.initials}
-        avatarColor={user.avatarColor}
-      />
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="profile-name" className="text-xs font-medium text-foreground">Imię i nazwisko</label>
-          <Input
-            id="profile-name"
-            required
-            autoComplete="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="profile-email" className="text-xs font-medium text-foreground">Adres e-mail</label>
-          <Input id="profile-email" value={user.email} disabled />
+    <form onSubmit={handleSubmit} className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">
+      <div className="flex flex-col gap-4">
+        <ProfilePhotoPicker
+          value={photoUrl}
+          onChange={setPhotoUrl}
+          onCommit={(nextUrl) => saveProfile(nextUrl)}
+          initials={user.initials}
+          avatarColor={user.avatarColor}
+        />
+        <div className="rounded-2xl border border-border bg-card/60 px-4 py-3">
+          <p className="text-xs font-medium text-muted-foreground">Typ konta</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{roleLabelPl(user.role)}</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-muted/40 px-4 py-3">
-        <p className="text-xs font-medium text-muted-foreground">Typ konta</p>
-        <p className="mt-1 text-sm font-semibold text-foreground">{roleLabelPl(user.role)}</p>
+      <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card/60 p-5">
+        <div>
+          <h2 className="text-base font-bold text-foreground">Dane podstawowe</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Widoczne w panelu oraz w rozmowach z nauczycielami.</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="profile-name" className="text-xs font-medium text-foreground">Imię i nazwisko</label>
+            <Input
+              id="profile-name"
+              required
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="profile-email" className="text-xs font-medium text-foreground">Adres e-mail</label>
+            <Input id="profile-email" value={user.email} disabled />
+            <p className="text-[11px] text-muted-foreground">Adres zmienisz w Ustawieniach konta.</p>
+          </div>
+        </div>
+
+        {error && (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
+        )}
+
+        {saved && !error && (
+          <p className="flex items-center gap-2 rounded-lg bg-success-surface px-3 py-2 text-xs text-success-on-surface">
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Profil został zapisany.
+          </p>
+        )}
+
+        <div className="flex justify-end border-t border-border pt-4">
+          <Button type="submit" disabled={saving} className="w-full font-semibold sm:w-auto">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+            Zapisz profil
+          </Button>
+        </div>
       </div>
-
-      {error && (
-        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
-      )}
-
-      {saved && !error && (
-        <p className="flex items-center gap-2 rounded-lg bg-success-surface px-3 py-2 text-xs text-success-on-surface">
-          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-          Profil został zapisany.
-        </p>
-      )}
-
-      <Button type="submit" disabled={saving} className="font-semibold sm:w-fit">
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
-        Zapisz profil
-      </Button>
     </form>
   )
 }

@@ -6,7 +6,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { AvailabilityHours, BookedLessonSlot, WeekdayCode } from '@/lib/types'
-import { dateIsoFromLocalDate, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { addCalendarDays, availabilityIntervals, fitsAvailability, warsawDateIso } from './availability-core'
 
 const WEEKDAY_CODES: WeekdayCode[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const WEEKDAY_LABELS_PL = ['Niedz', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob']
@@ -64,19 +65,18 @@ export function buildAvailability(
   const duration = options.duration ?? 60
   const bookedLessons = options.bookedLessons ?? []
   const days: AvailabilityDay[] = []
-  const today = new Date()
+  const today = warsawDateIso()
   for (let i = 1; i <= daysAhead; i++) {
-    const date = new Date(today)
-    date.setDate(today.getDate() + i)
-    const code = WEEKDAY_CODES[date.getDay()]
+    const isoDate = addCalendarDays(today, i)
+    const date = new Date(`${isoDate}T12:00:00Z`)
+    const code = WEEKDAY_CODES[date.getUTCDay()]
     if (!availability.includes(code)) continue
-    const isoDate = dateIsoFromLocalDate(date)
-    const dayHours = getAvailabilityHoursForWeekday(code, hours, options.availabilityHours)
-    const allSlots = generatePotentialSlots(dayHours.start, dayHours.end)
-    const endMin = timeToMinutes(dayHours.end) ?? timeToMinutes(DEFAULT_HOURS.end)!
+    const schedule = { availability, availabilityStart: hours.start, availabilityEnd: hours.end, availabilityHours: options.availabilityHours }
+    let ranges: WorkingHours[]
+    try { ranges = availabilityIntervals(code, schedule) } catch { continue }
+    const allSlots = [...new Set(ranges.flatMap((range) => generatePotentialSlots(range.start, range.end)))].sort()
     const slots = allSlots.map((time) => {
-      const startMin = timeToMinutes(time)
-      const fitsWorkingWindow = startMin !== null && startMin + duration <= endMin
+      const fitsWorkingWindow = fitsAvailability(schedule, isoDate, time, duration)
       const booked = fitsWorkingWindow && slotOverlapsBookedLesson({
         dateIso: isoDate,
         time,
@@ -91,8 +91,8 @@ export function buildAvailability(
 
     days.push({
       isoDate,
-      weekdayLabel: WEEKDAY_LABELS_PL[date.getDay()],
-      dayLabel: `${WEEKDAY_LABELS_PL[date.getDay()]}, ${date.getDate()} ${MONTHS_PL[date.getMonth()]}`,
+      weekdayLabel: WEEKDAY_LABELS_PL[date.getUTCDay()],
+      dayLabel: `${WEEKDAY_LABELS_PL[date.getUTCDay()]}, ${date.getUTCDate()} ${MONTHS_PL[date.getUTCMonth()]}`,
       slots,
     })
   }

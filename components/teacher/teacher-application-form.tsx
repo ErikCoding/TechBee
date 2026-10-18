@@ -1,8 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { AvailabilityEditor } from './availability-editor'
+import { normalizeAvailability } from '@/lib/availability-core'
+
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, CheckCircle2, ChevronDown, Clock, Loader2, Save, Send, Sparkles, UserRound } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, Clock, FileText, Loader2, Save, Send, UserRound } from 'lucide-react'
+import styles from './teacher-application-form.module.css'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -10,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { ProfilePhotoPicker } from '@/components/profile/profile-photo-picker'
 import { useAuth } from '@/lib/auth-context'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
-import { timeToMinutes } from '@/lib/lesson-time'
 import { toGrosze, fromGrosze } from '@/lib/stripe-config'
 import { getCategories } from '@/services/categories.service'
 import { getTeacherApplication, submitTeacherApplication } from '@/services/teachers.service'
@@ -20,64 +23,50 @@ import { normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { normalizeTeachingLevels, teachingLevels } from '@/lib/teaching-levels'
 import { normalizeOfferedLessonPackageSizes } from '@/lib/lesson-packages-core'
 import { normalizeTrialLessonDuration, normalizeTrialLessonPriceGrosze } from '@/lib/trial-lessons'
-import type { AvailabilityHours, Category, LessonPackageSize, Teacher, WeekdayCode } from '@/lib/types'
-
-const WEEKDAYS = [
-  { code: 'Mon', label: 'Pon' },
-  { code: 'Tue', label: 'Wt' },
-  { code: 'Wed', label: 'Śr' },
-  { code: 'Thu', label: 'Czw' },
-  { code: 'Fri', label: 'Pt' },
-  { code: 'Sat', label: 'Sob' },
-  { code: 'Sun', label: 'Niedz' },
-] satisfies { code: WeekdayCode; label: string }[]
+import type { AvailabilityHours, Category, LessonPackageSize, Teacher } from '@/lib/types'
 
 const DEFAULT_AVAILABILITY_START = '09:00'
 const DEFAULT_AVAILABILITY_END = '17:00'
 
 const VISIBLE_CATEGORY_LIMIT = 9
+const SECTIONS = [
+  { id: 'identity', label: 'Twój profil', icon: UserRound },
+  { id: 'subjects', label: 'Przedmioty i poziomy', icon: BookOpen },
+  { id: 'description', label: 'O Tobie', icon: FileText },
+  { id: 'offer', label: 'Lekcje i ceny', icon: Clock },
+  { id: 'availability', label: 'Dostępność', icon: CalendarDays },
+] as const
 
 function categoryIdsFromProfile(cats: Category[], app: Teacher) {
   return normalizeTeacherApplicationCategoryIds(cats, app.categoryId, app.categoryIds)
 }
 
-function assertValidHours(start: string, end: string, label: string) {
-  const startMin = timeToMinutes(start)
-  const endMin = timeToMinutes(end)
-  if (startMin === null || endMin === null || endMin <= startMin) {
-    throw new Error(`${label}: godzina "do" musi być późniejsza niż "od".`)
-  }
-}
-
-function normalizeAvailabilityHours(
-  activeDays: string[],
-  availabilityHours: AvailabilityHours,
-  fallback: { start: string; end: string },
-): AvailabilityHours {
-  return activeDays.reduce<AvailabilityHours>((acc, day) => {
-    const code = day as WeekdayCode
-    const hours = availabilityHours[code] ?? fallback
-    acc[code] = { start: hours.start, end: hours.end }
-    return acc
-  }, {})
-}
 
 function FormSection({
-  icon: Icon,
+  id,
   title,
+  description,
+  aside,
   children,
 }: {
-  icon: React.ElementType
+  id: string
+  number?: string
+  icon?: React.ElementType
   title: string
+  description: string
+  aside?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-4 py-3.5 sm:px-5">
-        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      </div>
-      <div className="flex flex-col gap-4 p-4 sm:p-5">{children}</div>
+    <section id={`application-${id}`} aria-labelledby={`heading-${id}`} className={styles.section}>
+      <header className={styles.sectionHeader}>
+        <div>
+          <h2 id={`heading-${id}`} tabIndex={-1}>{title}</h2>
+          <p>{description}</p>
+        </div>
+        {aside}
+      </header>
+      <div className={styles.sectionBody}>{children}</div>
     </section>
   )
 }
@@ -88,6 +77,7 @@ export function TeacherApplicationForm() {
   const [categories, setCategories] = useState<Category[]>([])
   const [existing, setExisting] = useState<Teacher | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   const [displayName, setDisplayName] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
@@ -112,7 +102,6 @@ export function TeacherApplicationForm() {
   const [availability, setAvailability] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
   const [availabilityStart, setAvailabilityStart] = useState('09:00')
   const [availabilityEnd, setAvailabilityEnd] = useState('17:00')
-  const [customAvailabilityHours, setCustomAvailabilityHours] = useState(false)
   const [availabilityHours, setAvailabilityHours] = useState<AvailabilityHours>({})
 
   const [submitting, setSubmitting] = useState(false)
@@ -120,6 +109,35 @@ export function TeacherApplicationForm() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [step, setStep] = useState(0)
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+  const formRef = useRef<HTMLFormElement>(null)
+  const stepperRef = useRef<HTMLDivElement>(null)
+  const errorRef = useRef<HTMLParagraphElement>(null)
+  const lastStep = SECTIONS.length - 1
+  const progress = ((step + 1) / SECTIONS.length) * 100
+
+  useEffect(() => { if (profileError) errorRef.current?.focus() }, [profileError])
+
+  function changeStep(next: number) {
+    setDirection(next > step ? 'forward' : 'back')
+    setStep(next)
+    requestAnimationFrame(() => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      stepperRef.current?.scrollIntoView({ behavior: reduce ? 'instant' : 'smooth', block: 'start' })
+      document.getElementById(`heading-${SECTIONS[next].id}`)?.focus({ preventScroll: true })
+    })
+  }
+
+  function goNext() {
+    // Only the current step is mounted, so native validation covers exactly this step.
+    if (formRef.current && !formRef.current.reportValidity()) return
+    if (step < lastStep) changeStep(step + 1)
+  }
+
+  function goBack() {
+    if (step > 0) changeStep(step - 1)
+  }
 
   useEffect(() => {
     if (!user) return
@@ -155,37 +173,15 @@ export function TeacherApplicationForm() {
         setAvailabilityStart(app.availabilityStart ?? DEFAULT_AVAILABILITY_START)
         setAvailabilityEnd(app.availabilityEnd ?? DEFAULT_AVAILABILITY_END)
         setAvailabilityHours(app.availabilityHours ?? {})
-        setCustomAvailabilityHours(Boolean(app.availabilityHours && Object.keys(app.availabilityHours).length > 0))
       } else if (cats[0]) {
         setPhotoUrl(user.photoUrl ?? '')
         setCategoryId(cats[0].id)
         setCategoryIds([cats[0].id])
       }
       setLoaded(true)
-    })
+    }).catch(() => setLoadFailed(true))
   }, [user?.id])
 
-  function toggleDay(code: string) {
-    setAvailability((prev) => (prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]))
-  }
-
-  function dayHours(code: WeekdayCode) {
-    return availabilityHours[code] ?? { start: availabilityStart, end: availabilityEnd }
-  }
-
-  function updateDayHours(code: WeekdayCode, field: 'start' | 'end', value: string) {
-    setAvailabilityHours((prev) => ({
-      ...prev,
-      [code]: {
-        ...(prev[code] ?? { start: availabilityStart, end: availabilityEnd }),
-        [field]: value,
-      },
-    }))
-  }
-
-  function applyGlobalHoursToActiveDays() {
-    setAvailabilityHours((prev) => normalizeAvailabilityHours(availability, prev, { start: availabilityStart, end: availabilityEnd }))
-  }
 
   function toggleLessonDuration(minutes: number) {
     setLessonDurations((prev) => {
@@ -262,17 +258,7 @@ export function TeacherApplicationForm() {
       if (trialLessonEnabled && !selectedTrialPriceGrosze) {
         throw new Error('Podaj poprawną cenę lekcji próbnej.')
       }
-      assertValidHours(availabilityStart, availabilityEnd, 'Globalna dostępność')
-      const selectedAvailabilityHours = customAvailabilityHours
-        ? normalizeAvailabilityHours(availability, availabilityHours, { start: availabilityStart, end: availabilityEnd })
-        : undefined
-      if (selectedAvailabilityHours) {
-        for (const day of availability) {
-          const weekday = WEEKDAYS.find((d) => d.code === day)
-          const hours = selectedAvailabilityHours[day as WeekdayCode]
-          if (hours) assertValidHours(hours.start, hours.end, weekday?.label ?? day)
-        }
-      }
+      const selectedAvailabilityHours = normalizeAvailability({ availability, availabilityStart, availabilityEnd, availabilityHours })
       await submitTeacherApplication(toParticipant(profileUser), {
         photoUrl: trimmedPhotoUrl || undefined,
         categoryId: selectedCategoryIds.includes(categoryId) ? categoryId : selectedCategoryIds[0],
@@ -306,19 +292,30 @@ export function TeacherApplicationForm() {
     }
   }
 
+  if (loadFailed) return <div role="alert" className="p-6 text-sm">Nie udało się wczytać ogłoszenia. <Button variant="outline" onClick={() => window.location.reload()}>Spróbuj ponownie</Button></div>
   if (!loaded) {
     return <div className="h-64 animate-pulse rounded-2xl border border-border bg-card" />
   }
 
   if (submitted) {
     return (
-      <div className="animate-fade-in-up rounded-2xl border border-primary/30 bg-accent p-8 text-center">
-        <CheckCircle2 className="mx-auto h-10 w-10 text-bee-yellow-dark" aria-hidden="true" />
-        <h2 className="mt-3 text-lg font-semibold text-accent-foreground">Zgłoszenie wysłane!</h2>
-        <p className="mt-1 text-sm text-accent-foreground/80">
+      <div className={styles.success} role="status">
+        <div className={styles.successBadge} aria-hidden="true">
+          <span className={styles.successRing} />
+          <span className={styles.successRing} data-delay="true" />
+          <svg viewBox="0 0 52 52" className={styles.successSvg}>
+            <circle className={styles.successCircle} cx="26" cy="26" r="23" fill="none" />
+            <path className={styles.successTick} d="M15 27l8 8 14-16" fill="none" />
+          </svg>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <i key={i} className={styles.spark} style={{ '--a': `${i * 30}deg`, '--d': `${(i % 4) * 60}ms` } as React.CSSProperties} />
+          ))}
+        </div>
+        <h2>Zgłoszenie wysłane!</h2>
+        <p>
           Dane zawodowe czekają teraz na weryfikację przez administratora. Zdjęcie i nazwa konta zostały zapisane osobno.
         </p>
-        <Button onClick={() => router.push('/dashboard/teacher')} className="mt-5 font-semibold">
+        <Button onClick={() => router.push('/dashboard/teacher')} className={styles.successButton}>
           Wróć do panelu
         </Button>
       </div>
@@ -330,21 +327,61 @@ export function TeacherApplicationForm() {
     : categories.filter((category, index) => index < VISIBLE_CATEGORY_LIMIT || categoryIds.includes(category.id))
   const hiddenCategoryCount = categories.length - visibleCategories.length
 
+  const stepAside = (
+    <span className={styles.stepAside} aria-live="polite">
+      <CalendarDays size={14} aria-hidden="true" />
+      Krok {step + 1} z {SECTIONS.length} · {step === lastStep ? 'ostatni krok' : `zostało ${lastStep - step}`}
+    </span>
+  )
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {existing?.status === 'rejected' && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Twoje poprzednie zgłoszenie zostało odrzucone. Popraw dane poniżej i wyślij ponownie — trafi do kolejnej weryfikacji.
-        </div>
-      )}
+    <div className={styles.editor}>
+      <header className={styles.pageHeader}>
+        <h1>{existing ? 'Edytuj swoje ogłoszenie' : 'Stwórz swoje ogłoszenie'}</h1>
+        <p>Przedstaw się, dopasuj lekcje i wybierz godziny, w których chcesz uczyć.</p>
+      </header>
+      <div ref={stepperRef} className={styles.stepperAnchor}>
+        <nav aria-label="Etapy ogłoszenia" className={styles.stepper}>
+          <ol className={styles.stepList}>
+            {SECTIONS.map(({ id, label }, index) => {
+              const done = index < step
+              const active = index === step
+              const inner = (
+                <>
+                  <span className={styles.stepDot} data-state={active ? 'active' : done ? 'done' : 'todo'}>
+                    {done ? <Check size={13} aria-hidden="true" /> : index + 1}
+                  </span>
+                  <span className={styles.stepLabel} data-active={active}>{label}</span>
+                </>
+              )
+              return (
+                <li key={id} aria-current={active ? 'step' : undefined}>
+                  {done ? (
+                    <button type="button" className={styles.stepButton} onClick={() => changeStep(index)} disabled={submitting}>{inner}</button>
+                  ) : (
+                    <div className={styles.stepButton}>{inner}</div>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
+          <div className={styles.progressTrack} role="progressbar" aria-valuemin={1} aria-valuemax={SECTIONS.length} aria-valuenow={step + 1} aria-label="Postęp wypełniania ogłoszenia">
+            <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+          </div>
+        </nav>
+      </div>
+    <form ref={formRef} onSubmit={(event) => { if (step < lastStep) { event.preventDefault(); goNext(); return } handleSubmit(event) }} className={styles.form}>
+      {profileError && <p ref={errorRef} tabIndex={-1} role="alert" className={styles.error}>{profileError}</p>}
       {existing?.status === 'pending' && (
-        <div className="rounded-xl border border-warning/30 bg-warning-surface p-4 text-sm text-warning-on-surface">
-          Masz już zgłoszenie oczekujące na weryfikację. Możesz je poniżej zaktualizować — wyślij ponownie, aby zapisać zmiany.
+        <div className={`${styles.notice} ${styles.noticePending}`}>
+          <strong>Zgłoszenie czeka na weryfikację</strong>
+          Możesz je poniżej zaktualizować — wyślij ponownie, aby zapisać zmiany.
         </div>
       )}
 
-      <FormSection icon={UserRound} title="Zdjęcie i dane konta">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
+      <div key={step} className={styles.stepPanel} data-direction={direction}>
+      {step === 0 && <FormSection aside={stepAside} id="identity" number="01" icon={UserRound} title="Daj się poznać" description="Zdjęcie i nazwa, które zobaczą Twoi przyszli uczniowie.">
+        <div className={styles.identityLayout}>
           <div className="flex flex-col gap-4">
             <ProfilePhotoPicker
               value={photoUrl}
@@ -388,16 +425,14 @@ export function TeacherApplicationForm() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-background/60 p-4">
-            <p className="text-sm font-semibold text-foreground">Zapis bez weryfikacji</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Zdjęcie i nazwa konta odświeżą się od razu w panelu, czacie oraz publicznym profilu nauczyciela.
-            </p>
+          <div className={styles.identityActions}>
+            <p>Zdjęcie i nazwa są zapisywane od razu, niezależnie od weryfikacji ogłoszenia.</p>
             <Button
               type="button"
               onClick={handleSavePublicProfile}
               disabled={profileSaving}
-              className="mt-4 w-full font-semibold"
+              variant="outline"
+              className="min-h-11 shrink-0 font-semibold"
             >
               {profileSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Zapisz profil
@@ -411,9 +446,9 @@ export function TeacherApplicationForm() {
             {profileError && <p className="mt-3 text-xs font-medium text-destructive">{profileError}</p>}
           </div>
         </div>
-      </FormSection>
+      </FormSection>}
 
-      <FormSection icon={Sparkles} title="Profil na giełdzie - wymaga weryfikacji">
+      {step === 1 && <FormSection aside={stepAside} id="subjects" number="02" icon={BookOpen} title="Czego uczysz?" description="Wybierz przedmioty i poziomy, na których czujesz się najlepiej.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-3 sm:col-span-2">
             <div className="flex flex-col gap-1">
@@ -422,7 +457,7 @@ export function TeacherApplicationForm() {
                 Zaznacz wszystkie dziedziny, pod którymi profil ma pojawiać się w filtrach giełdy.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={styles.choiceGrid}>
               {visibleCategories.map((c) => {
                 const active = categoryIds.includes(c.id)
                 return (
@@ -431,14 +466,10 @@ export function TeacherApplicationForm() {
                     type="button"
                     onClick={() => toggleCategory(c.id)}
                     aria-pressed={active}
-                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
-                      active
-                        ? 'border-primary bg-accent font-semibold text-accent-foreground'
-                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={styles.choice}
                   >
                     <span>{c.name}</span>
-                    {active && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                    <span className={styles.choiceCheck} aria-hidden="true">{active && <Check size={12} />}</span>
                   </button>
                 )
               })}
@@ -478,7 +509,7 @@ export function TeacherApplicationForm() {
                 Zaznacz poziomy, na których prowadzisz zajęcia.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={styles.levelGrid}>
               {teachingLevels.map((level) => {
                 const active = selectedTeachingLevels.includes(level.id)
                 return (
@@ -487,14 +518,10 @@ export function TeacherApplicationForm() {
                     type="button"
                     onClick={() => toggleTeachingLevel(level.id)}
                     aria-pressed={active}
-                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
-                      active
-                        ? 'border-primary bg-accent font-semibold text-accent-foreground'
-                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={styles.choice}
                   >
                     <span>{level.label}</span>
-                    {active && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                    <span className={styles.choiceCheck} aria-hidden="true">{active && <Check size={12} />}</span>
                   </button>
                 )
               })}
@@ -526,18 +553,17 @@ export function TeacherApplicationForm() {
             <label htmlFor="location" className="text-xs font-medium text-foreground">Lokalizacja</label>
             <Input id="location" required value={location} onChange={(e) => setLocation(e.target.value)} placeholder="np. Warszawa" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="hourlyRate" className="text-xs font-medium text-foreground">Stawka (zł)</label>
-              <Input id="hourlyRate" type="number" min={5} required value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="experience" className="text-xs font-medium text-foreground">Doświadczenie</label>
+              <label htmlFor="experience" className="text-xs font-medium text-foreground">Doświadczenie (lata)</label>
               <Input id="experience" type="number" min={0} required value={experience} onChange={(e) => setExperience(e.target.value)} />
             </div>
           </div>
         </div>
 
+      </FormSection>}
+
+      {step === 2 && <FormSection aside={stepAside} id="description" number="03" icon={FileText} title="Twoje podejście do nauki" description="Opowiedz, co wyróżnia Twoje lekcje i jak pomagasz osiągać cele.">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="shortBio" className="text-xs font-medium text-foreground">Krótki opis na giełdzie</label>
           <Textarea id="shortBio" required rows={2} value={shortBio} onChange={(e) => setShortBio(e.target.value)} placeholder="Jedno-dwa zdania podsumowujące Twoje doświadczenie." />
@@ -559,6 +585,13 @@ export function TeacherApplicationForm() {
           </div>
         </div>
 
+      </FormSection>}
+
+      {step === 3 && <FormSection aside={stepAside} id="offer" number="04" icon={Clock} title="Lekcje na Twoich zasadach" description="Ustal stawkę i wybierz dostępne formaty spotkań.">
+        <div className={styles.rateRow}>
+          <div><label htmlFor="hourlyRate">Twoja stawka</label><p>Za standardową lekcję 60 minut</p></div>
+          <div className={styles.rateInput}><Input id="hourlyRate" type="number" min={5} required value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} /><span aria-hidden="true">zł / 60 min</span></div>
+        </div>
         <div className="flex flex-col gap-2">
           <div>
             <p className="text-xs font-medium text-foreground">Długość lekcji</p>
@@ -573,28 +606,24 @@ export function TeacherApplicationForm() {
                   type="button"
                   onClick={() => toggleLessonDuration(option.minutes)}
                   aria-pressed={active}
-                  className={`flex h-11 items-center justify-center rounded-xl border text-sm font-semibold transition-colors ${
-                    active
-                      ? 'border-primary bg-accent text-accent-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                  }`}
+                  className={`${styles.choice} ${styles.durationChoice}`}
                 >
-                  {option.label}
+                  <Clock size={16} aria-hidden="true" />{option.label}
                 </button>
               )
             })}
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-background/60 p-4">
+        <div className={styles.offerOption}>
           <label className="flex items-start justify-between gap-4">
             <span>
-              <span className="block text-xs font-medium text-foreground">Oferuję lekcję próbną</span>
+              <span className="block text-sm font-semibold text-foreground">Lekcja próbna</span>
               <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                Lekcja próbna jest płatna i przechodzi przez standardową rezerwację oraz płatność Stripe.
+                Ustal długość i cenę pierwszego spotkania.
               </span>
             </span>
-            <Switch checked={trialLessonEnabled} onCheckedChange={setTrialLessonEnabled} />
+            <Switch checked={trialLessonEnabled} onCheckedChange={setTrialLessonEnabled} aria-label="Oferuję lekcję próbną" />
           </label>
 
           {trialLessonEnabled && (
@@ -630,9 +659,9 @@ export function TeacherApplicationForm() {
           )}
         </div>
 
-        <div className="rounded-xl border border-border bg-background/60 p-4">
+        <div className={styles.offerOption}>
           <div>
-            <p className="text-xs font-medium text-foreground">Pakiety lekcji</p>
+            <p className="text-sm font-semibold text-foreground">Regularna nauka w pakiecie</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               Uczeń płaci za pakiet jednorazowo, a środki za poszczególne lekcje są rozliczane zgodnie z odbytymi lekcjami.
             </p>
@@ -647,116 +676,43 @@ export function TeacherApplicationForm() {
                   type="button"
                   onClick={() => toggleLessonPackageSize(packageSize)}
                   aria-pressed={active}
-                  className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
-                    active
-                      ? 'border-primary bg-accent font-semibold text-accent-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                  }`}
+                  className={`${styles.choice} ${styles.packageChoice}`}
                 >
-                  <span>Pakiet {packageSize} lekcji</span>
-                  {active && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                  <span><strong>{packageSize}</strong> lekcji</span>
+                  <span className={styles.choiceCheck} aria-hidden="true">{active && <Check size={12} />}</span>
                 </button>
               )
             })}
           </div>
         </div>
-      </FormSection>
+      </FormSection>}
 
-      <FormSection icon={CalendarDays} title="Dostępność">
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-xs font-medium text-foreground">Dni tygodnia</p>
-            <span className="text-[11px] text-muted-foreground">{availability.length}/7 aktywnych</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-4 sm:grid-cols-7">
-            {WEEKDAYS.map((d) => {
-              const active = availability.includes(d.code)
-              return (
-                <button
-                  key={d.code}
-                  type="button"
-                  onClick={() => toggleDay(d.code)}
-                  aria-pressed={active}
-                  className={`flex h-12 items-center justify-center rounded-xl border text-sm font-semibold transition-colors ${
-                    active
-                      ? 'border-primary bg-accent text-accent-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {d.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+      {step === 4 && <FormSection aside={stepAside} id="availability" number="05" icon={CalendarDays} title="Twój tydzień, Twój rytm" description="Wybierz dni i przedziały, w których przyjmujesz rezerwacje.">
+        <AvailabilityEditor activeDays={availability} hours={availabilityHours} fallback={{ start: availabilityStart, end: availabilityEnd }} onDaysChange={setAvailability} onHoursChange={setAvailabilityHours} />
+      </FormSection>}
+      </div>
 
-        <div className="rounded-xl border border-border bg-background/60 p-4">
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <p className="text-xs font-medium text-foreground">Godziny rezerwacji</p>
-            </div>
-            <label className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <Switch checked={customAvailabilityHours} onCheckedChange={setCustomAvailabilityHours} />
-              Osobne godziny dla dni
-            </label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="availabilityStart" className="text-[11px] text-muted-foreground">
-                {customAvailabilityHours ? 'Domyślnie od' : 'Od'}
-              </label>
-              <Input id="availabilityStart" type="time" required value={availabilityStart} onChange={(e) => setAvailabilityStart(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="availabilityEnd" className="text-[11px] text-muted-foreground">
-                {customAvailabilityHours ? 'Domyślnie do' : 'Do'}
-              </label>
-              <Input id="availabilityEnd" type="time" required value={availabilityEnd} onChange={(e) => setAvailabilityEnd(e.target.value)} />
-            </div>
-          </div>
-          {customAvailabilityHours && (
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] font-medium text-muted-foreground">Zakresy dla aktywnych dni</p>
-                <button
-                  type="button"
-                  onClick={applyGlobalHoursToActiveDays}
-                  className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  Ustaw domyślne
-                </button>
-              </div>
-              <div className="grid gap-2">
-                {WEEKDAYS.filter((day) => availability.includes(day.code)).map((day) => {
-                  const hours = dayHours(day.code)
-                  return (
-                    <div key={day.code} className="grid grid-cols-[3.5rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-2 rounded-lg border border-border bg-card p-2">
-                      <span className="pb-2 text-xs font-semibold text-foreground">{day.label}</span>
-                      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                        Od
-                        <Input type="time" required value={hours.start} onChange={(e) => updateDayHours(day.code, 'start', e.target.value)} />
-                      </label>
-                      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                        Do
-                        <Input type="time" required value={hours.end} onChange={(e) => updateDayHours(day.code, 'end', e.target.value)} />
-                      </label>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+      <div id="application-submit" className={styles.stepFooter}>
+        {step === lastStep && <p className={styles.footerHint}>Ogłoszenie trafi do weryfikacji przed publikacją.</p>}
+        <div className={styles.footerActions}>
+          {step > 0 ? (
+            <Button type="button" variant="outline" onClick={goBack} disabled={submitting} className={styles.backButton}>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Wstecz
+            </Button>
+          ) : <span className={styles.footerSpacer} />}
+          {step < lastStep ? (
+            <Button key="next" type="button" onClick={goNext} className={styles.submitButton}>
+              Dalej <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            </Button>
+          ) : (
+            <Button key="submit" type="submit" disabled={submitting || profileSaving} className={styles.submitButton}>
+              {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Wyślij do weryfikacji
+            </Button>
           )}
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Końcowa godzina oznacza najpóźniejszy koniec lekcji. Zapas po spotkaniu blokuje tylko kolizje z kolejnymi rezerwacjami.
-          </p>
         </div>
-      </FormSection>
-
-      <Button type="submit" disabled={submitting} className="mt-1 font-semibold">
-        {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-        Wyślij dane zawodowe do weryfikacji
-      </Button>
+      </div>
     </form>
+    </div>
   )
 }

@@ -80,13 +80,13 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
   const visiblePast = historyExpanded ? past : past.slice(0, COLLAPSED_ROWS)
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border">
-      <div className="flex flex-col gap-3 bg-muted/40 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card/60">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-3.5 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold text-foreground">Moje lekcje</h2>
         <SegmentedTabs tabs={tabs} value={tab} onChange={setTab} label="Filtruj lekcje" />
       </div>
 
-      <div className="bg-card">
+      <div>
         {tab === 'upcoming' && (
           upcoming.length === 0 ? (
             <EmptyState
@@ -108,7 +108,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
               {upcoming.map((lesson) => (
                 <li
                   key={lesson.id}
-                  className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:gap-4"
+                  className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-foreground/[0.03] sm:flex-row sm:items-center sm:gap-4"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
@@ -207,7 +207,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                   return (
                     <li
                       key={lesson.id}
-                      className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:gap-4"
+                      className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-foreground/[0.03] sm:flex-row sm:items-center sm:gap-4"
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         <Avatar className="h-10 w-10 shrink-0">

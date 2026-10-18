@@ -75,10 +75,8 @@ service cloud.firestore {
     // - Public (including signed-out visitors) only ever sees
     //   'approved' profiles, plus legacy demo docs with no `status`
     //   field at all.
-    // - An applicant can always see and edit their own doc (to
-    //   check their status or re-submit after a rejection), but can
-    //   only ever set it back to 'pending' themselves — never
-    //   'approved'.
+    // - Applicants can read their own doc and update identity fields.
+    //   Application edits/re-submission use the trusted application API.
     // - Only an admin can approve/reject (i.e. write any other
     //   status), or edit someone else's doc.
     match /teachers/{teacherId} {
@@ -88,11 +86,8 @@ service cloud.firestore {
         || isOwner(teacherId)
         || isAdmin();
 
-      allow create: if (
-        isOwner(teacherId)
-        && request.resource.data.authUserId == teacherId
-        && request.resource.data.status == 'pending'
-      ) || isAdmin(); // admin also covers the "seed demo data" button, which writes arbitrary catalog ids
+      // Applications use /api/teachers/application; identity/reviews remain client-writable below.
+      allow create: if isAdmin(); // existing admin catalog seed
 
       // A student can also update a teacher doc after a completed lesson to
       // leave a review — but only touching `reviews`/`rating`/`reviewCount`,
@@ -128,8 +123,7 @@ service cloud.firestore {
           'foundingTeacherNumber',
           'foundingTeacherPromotion'
         ])
-        && ((isOwner(teacherId) && request.resource.data.status == 'pending')
-          || (isOwner(teacherId)
+        && ((isOwner(teacherId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'initials', 'avatarColor', 'photoUrl'])
             && request.resource.data.status == resource.data.status)
           || isAdmin()
@@ -168,6 +162,13 @@ service cloud.firestore {
     // pay for themselves — the student's linked parent(s) all need update
     // access.
     match /lessons/{id} {
+      function safeChangeRequest() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pendingChange'])
+          || ((resource.data.get('pendingChange', null) == null
+              || resource.data.pendingChange.type == 'cancel')
+            && (request.resource.data.get('pendingChange', null) == null
+              || request.resource.data.pendingChange.type == 'cancel'));
+      }
       allow read: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
         resource.data.payerId == request.auth.uid ||
@@ -196,7 +197,11 @@ service cloud.firestore {
         resource.data.teacherId == request.auth.uid ||
         isAdmin() ||
         isLinkedParentOf(resource.data.studentId)
-      ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+      ) && safeChangeRequest()
+      && request.resource.data.status in ['pending', 'upcoming', 'completed', 'cancelled']
+      && !(resource.data.status in ['cancelled', 'completed'] && request.resource.data.status in ['pending', 'upcoming'])
+      && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'teacherId', 'studentId', 'payerId', 'duration', 'date', 'dateIso', 'time', 'scheduledStartAt', 'rescheduledAt',
         'lessonKind', 'paymentSource', 'packageId', 'packageCreditState',
         'paymentStatus', 'priceGrosze', 'commissionPercent', 'effectiveCommissionPercent', 'commissionSource',
         'platformFeeGrosze', 'teacherAmountGrosze',

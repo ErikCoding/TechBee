@@ -22,8 +22,8 @@ export default function BeePointsPage() {
               Program punktów i nagród dla uczniów Runbee
             </p>
 
-            <section className="animate-fade-in-up mt-6 overflow-hidden rounded-2xl border border-border bg-card">
-              <div className="border-b border-border bg-muted/30 px-5 py-4">
+            <section className="animate-fade-in-up mt-6 overflow-hidden rounded-2xl border border-border bg-card/60">
+              <div className="border-b border-border px-5 py-4">
                 <Badge variant="secondary" className="gap-1.5">
                   <Bell className="h-3.5 w-3.5" aria-hidden="true" />
                   W przygotowaniu
@@ -31,7 +31,7 @@ export default function BeePointsPage() {
               </div>
               <div className="grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_220px] md:items-center">
                 <div>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Award className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <h2 className="mt-5 text-xl font-semibold text-foreground">

@@ -22,7 +22,7 @@ export default async function TeacherDashboardPage() {
       <Navbar />
       <main id="main-content" className="bg-background">
         <RequireAuth role="teacher">
-          <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8">
             <TeacherDashboardClient
               initialData={dashboardData}
               initialLessons={lessons}

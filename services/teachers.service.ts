@@ -1,11 +1,8 @@
-import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore'
+import { buildTeacherFromApplication } from '@/lib/teacher-application-core'
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, updateDoc, where } from 'firebase/firestore'
 import { teachersData } from '@/data/teachers.data'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
-import { normalizeLessonDurations } from '@/lib/lesson-durations'
-import { normalizeOfferedLessonPackageSizes } from '@/lib/lesson-packages-core'
-import { resolveTeacherTrialLessonConfig } from '@/lib/trial-lessons'
-import { getTeacherCategoryIds, normalizeTeacherCategoryIds, normalizeTeacherCustomSubjects, teacherMatchesCategory } from '@/lib/teacher-categories'
-import { normalizeTeachingLevels } from '@/lib/teaching-levels'
+import { teacherMatchesCategory } from '@/lib/teacher-categories'
 import { teacherIsPublicMarketplaceVisible } from '@/lib/teacher-visibility'
 import type { ReviewItem, Teacher, TeacherApplicationInput, TeacherProfileSnapshot } from '@/lib/types'
 
@@ -153,38 +150,6 @@ function syncReviewsWithPublicIdentity(reviews: ReviewItem[], profile: TeacherPu
   return { reviews: next, changed }
 }
 
-function snapshotTeacherProfile(teacher: Teacher): TeacherProfileSnapshot {
-  return {
-    name: teacher.name,
-    initials: teacher.initials,
-    avatarColor: teacher.avatarColor,
-    ...(teacher.photoUrl ? { photoUrl: teacher.photoUrl } : {}),
-    specialty: teacher.specialty,
-    categoryId: teacher.categoryId,
-    categoryIds: getTeacherCategoryIds(teacher),
-    customSubjects: normalizeTeacherCustomSubjects(teacher.customSubjects),
-    teachingLevels: normalizeTeachingLevels(teacher.teachingLevels),
-    hourlyRate: teacher.hourlyRate,
-    location: teacher.location,
-    experience: teacher.experience,
-    bio: teacher.bio,
-    shortBio: teacher.shortBio,
-    skills: teacher.skills,
-    languages: teacher.languages,
-    lessonDurations: normalizeLessonDurations(teacher.lessonDurations),
-    trialLessonEnabled: teacher.trialLessonEnabled === true,
-    ...(teacher.trialLessonEnabled === true && teacher.trialLessonDuration ? { trialLessonDuration: teacher.trialLessonDuration } : {}),
-    ...(teacher.trialLessonEnabled === true && teacher.trialLessonPriceGrosze ? { trialLessonPriceGrosze: teacher.trialLessonPriceGrosze } : {}),
-    lessonPackageSizes: normalizeOfferedLessonPackageSizes(teacher.lessonPackageSizes),
-    availability: teacher.availability,
-    ...(teacher.availabilityStart ? { availabilityStart: teacher.availabilityStart } : {}),
-    ...(teacher.availabilityEnd ? { availabilityEnd: teacher.availabilityEnd } : {}),
-    ...(teacher.availabilityHours ? { availabilityHours: teacher.availabilityHours } : {}),
-    featured: teacher.featured,
-    responseTime: teacher.responseTime,
-    completionRate: teacher.completionRate,
-  }
-}
 
 function restoreProfileFromSnapshot(teacher: Teacher, previous: TeacherProfileSnapshot): Teacher {
   const {
@@ -228,74 +193,6 @@ function writeApplicationsMock(list: Teacher[]) {
   window.localStorage.setItem(APPLICATIONS_KEY, JSON.stringify(list))
 }
 
-function buildTeacherFromApplication(
-  input: TeacherApplicationInput,
-  authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
-  existing?: Teacher,
-): Teacher {
-  const photoUrl = 'photoUrl' in input
-    ? input.photoUrl?.trim()
-    : authUser.photoUrl ?? existing?.photoUrl
-  const previousProfile = existing?.previousProfile
-    ?? (existing && (existing.status ?? 'approved') === 'approved' ? snapshotTeacherProfile(existing) : undefined)
-  const selectedCategoryIds = normalizeTeacherCategoryIds(input.categoryId, input.categoryIds)
-  const primaryCategoryId = selectedCategoryIds.includes(input.categoryId)
-    ? input.categoryId
-    : selectedCategoryIds[0] ?? input.categoryId
-  const customSubjects = normalizeTeacherCustomSubjects(input.customSubjects)
-  const teachingLevels = normalizeTeachingLevels(input.teachingLevels)
-  const trialConfig = resolveTeacherTrialLessonConfig(input)
-  const lessonPackageSizes = normalizeOfferedLessonPackageSizes(input.lessonPackageSizes)
-  if (input.trialLessonEnabled === true && !trialConfig.enabled) {
-    throw new Error('Lekcja próbna wymaga poprawnej długości i ceny.')
-  }
-
-  return {
-    id: authUser.id,
-    name: authUser.name,
-    initials: authUser.initials,
-    avatarColor: authUser.avatarColor,
-    ...(photoUrl ? { photoUrl } : {}),
-    specialty: input.specialty,
-    categoryId: primaryCategoryId,
-    categoryIds: selectedCategoryIds,
-    customSubjects,
-    teachingLevels,
-    rating: existing?.rating ?? 0,
-    reviewCount: existing?.reviewCount ?? 0,
-    hourlyRate: input.hourlyRate,
-    location: input.location,
-    experience: input.experience,
-    students: existing?.students ?? 0,
-    lessons: existing?.lessons ?? 0,
-    bio: input.bio,
-    shortBio: input.shortBio,
-    skills: input.skills,
-    languages: input.languages,
-    lessonDurations: normalizeLessonDurations(input.lessonDurations),
-    trialLessonEnabled: trialConfig.enabled,
-    ...(trialConfig.enabled ? {
-      trialLessonDuration: trialConfig.duration,
-      trialLessonPriceGrosze: trialConfig.priceGrosze,
-    } : {}),
-    lessonPackageSizes,
-    education: existing?.education ?? [],
-    reviews: existing?.reviews ?? [],
-    availability: input.availability,
-    availabilityStart: input.availabilityStart,
-    availabilityEnd: input.availabilityEnd,
-    ...(input.availabilityHours ? { availabilityHours: input.availabilityHours } : {}),
-    verified: false,
-    featured: existing?.featured ?? false,
-    responseTime: existing?.responseTime ?? '< 24 godz.',
-    completionRate: existing?.completionRate ?? 100,
-    status: 'pending',
-    authUserId: authUser.id,
-    submittedAt: Date.now(),
-    verificationKind: previousProfile ? 'profile_update' : 'new_profile',
-    ...(previousProfile ? { previousProfile } : {}),
-  }
-}
 
 // ── Mock (localStorage) ──────────────────────────────────────
 
@@ -448,21 +345,14 @@ async function submitApplicationFirebase(
   authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
   input: TeacherApplicationInput,
 ): Promise<Teacher> {
-  if (!db) throw new Error('Firebase nie jest skonfigurowane.')
-  const ref = doc(db, collections.teachers, authUser.id)
-  const existingSnap = await getDoc(ref)
-  const existing = existingSnap.exists() ? (existingSnap.data() as Teacher) : undefined
-  const teacher = buildTeacherFromApplication(input, authUser, existing)
-  // Merge keeps server-owned fields such as `stripe` intact. A full
-  // overwrite would try to remove them and Firestore rules correctly block
-  // that when a teacher resubmits a profile/rate change from the client.
-  await setDoc(ref, {
-    ...teacher,
-    availabilityHours: input.availabilityHours ?? deleteField(),
-    trialLessonDuration: teacher.trialLessonEnabled ? teacher.trialLessonDuration : deleteField(),
-    trialLessonPriceGrosze: teacher.trialLessonEnabled ? teacher.trialLessonPriceGrosze : deleteField(),
-  }, { merge: true })
-  return teacher
+  const idToken = await auth?.currentUser?.getIdToken()
+  const response = await fetch('/api/teachers/application', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, input }),
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.error ?? 'Nie udało się zapisać zgłoszenia.')
+  return result.teacher as Teacher
 }
 
 async function getApplicationForUserFirebase(authUserId: string): Promise<Teacher | undefined> {

@@ -1,12 +1,14 @@
+import { lessonSlotLockIds as slotLockIds } from '@/lib/lesson-slot-locks'
+import { fitsAvailability, isBookableDate } from '@/lib/availability-core'
 import 'server-only'
 import { createHash } from 'node:crypto'
 import type { Firestore } from 'firebase-admin/firestore'
 import { collections } from '@/lib/firebase'
-import { BOOKING_WINDOW_DAYS, getAvailabilityHoursForWeekday } from '@/lib/availability'
-import { buildWeeklyLessonOccurrences, LESSON_BUFFER_MINUTES, minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { BOOKING_WINDOW_DAYS } from '@/lib/availability-core'
+import { buildWeeklyLessonOccurrences, slotOverlapsBookedLesson } from '@/lib/lesson-time'
 import { packageSubjectKey, reservePackageCredits, validatePackageForBooking } from '@/lib/lesson-packages-core'
 import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
-import type { BookedLessonSlot, Lesson, LessonPackage, WeekdayCode } from '@/lib/types'
+import type { BookedLessonSlot, Lesson, LessonPackage } from '@/lib/types'
 
 const MAX_PACKAGE_BOOKING_OCCURRENCES = 10
 
@@ -16,15 +18,6 @@ export function normalizePackageBookingOccurrenceCount(value: unknown): number |
   return value
 }
 
-function slotLockIds(teacherId: string, dateIso: string, time: string, duration: number): string[] {
-  const start = timeToMinutes(time)
-  if (start === null) return []
-  const ids: string[] = []
-  for (let m = start; m < start + duration + LESSON_BUFFER_MINUTES; m += 15) {
-    ids.push(`${teacherId}__${dateIso}__${minutesToTime(m).replace(':', '-')}`)
-  }
-  return ids
-}
 
 function validationMessage(error: ReturnType<typeof validatePackageForBooking>): string {
   switch (error) {
@@ -104,39 +97,10 @@ export async function bookLessonWithPackageCreditServer(input: {
   const occurrences = buildWeeklyLessonOccurrences({ firstDateIso: input.dateIso, time: input.time, count: occurrenceCount })
   if (!occurrences) return { ok: false, status: 400, error: 'Nieprawidłowy termin lekcji.', code: 'invalid_request' }
 
-  const requestedStart = timeToMinutes(input.time)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const latestDate = new Date(today)
-  latestDate.setDate(today.getDate() + BOOKING_WINDOW_DAYS)
-  const teacherAvailability = teacher.availability ?? []
   for (const [index, occurrence] of occurrences.entries()) {
-    const requestedDate = new Date(`${occurrence.dateIso}T12:00:00`)
-    const weekdayCode = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][requestedDate.getDay()] as WeekdayCode
-    const dayHours = getAvailabilityHoursForWeekday(
-      weekdayCode,
-      { start: teacher.availabilityStart ?? '09:00', end: teacher.availabilityEnd ?? '17:00' },
-      teacher.availabilityHours,
-    )
-    const availabilityStart = timeToMinutes(dayHours.start)
-    const availabilityEnd = timeToMinutes(dayHours.end)
-    if (
-      requestedStart === null ||
-      availabilityStart === null ||
-      availabilityEnd === null ||
-      Number.isNaN(requestedDate.getTime()) ||
-      requestedDate <= today ||
-      (index === 0 && requestedDate > latestDate) ||
-      !teacherAvailability.includes(weekdayCode) ||
-      requestedStart < availabilityStart ||
-      requestedStart + input.duration > availabilityEnd
-    ) {
-      return {
-        ok: false,
-        status: 409,
-        error: `Termin ${occurrence.date} o ${occurrence.time} nie mieści się już w dostępności nauczyciela.`,
-        code: 'slot_conflict',
-      }
+    if (!isBookableDate(occurrence.dateIso, Date.now(), BOOKING_WINDOW_DAYS + index * 7)
+      || !fitsAvailability(teacher, occurrence.dateIso, input.time, input.duration)) {
+      return { ok: false, status: 409, error: 'Ten termin nie mieści się już w dostępności nauczyciela.', code: 'slot_conflict' }
     }
   }
 
@@ -180,6 +144,17 @@ export async function bookLessonWithPackageCreditServer(input: {
       }
     }
 
+    const freshTeacher = await tx.get(input.database.collection(collections.teachers).doc(input.teacherId))
+    const freshSchedule = freshTeacher.data()
+    if (!freshSchedule || (freshSchedule.status && freshSchedule.status !== 'approved')
+      || occurrences.some((occurrence) => !fitsAvailability(freshSchedule, occurrence.dateIso, input.time, input.duration))) {
+      return { ok: false, status: 409, error: 'Dostępność nauczyciela zmieniła się. Wybierz termin ponownie.', code: 'slot_conflict' }
+    }
+    // Also covers legacy lessons whose lock documents were never created or moved.
+    const active = await tx.get(input.database.collection(collections.lessons).where('teacherId', '==', input.teacherId).where('status', 'in', ['pending', 'upcoming']))
+    if (occurrences.some((occurrence) => slotOverlapsBookedLesson({ dateIso: occurrence.dateIso, time: input.time, duration: input.duration, booked: active.docs.map((doc) => doc.data() as BookedLessonSlot) }))) {
+      return { ok: false, status: 409, error: 'Termin jest już zajęty.', code: 'slot_conflict' }
+    }
     const packageSnap = await tx.get(packageRef)
     if (!packageSnap.exists) return { ok: false, status: 404, error: 'Nie znaleziono pakietu.', code: 'package_unavailable' }
     const pkg = { id: packageSnap.id, ...packageSnap.data() } as LessonPackage

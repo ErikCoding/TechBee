@@ -25,7 +25,7 @@ export default async function StudentDashboardPage() {
       <Navbar />
       <main id="main-content" className="bg-background">
         <RequireAuth role="student">
-          <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8">
             <StudentDashboardClient
               initialLessons={studentLessons}
               initialStats={studentStats}
