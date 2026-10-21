@@ -376,6 +376,8 @@ export type Lesson = {
   stripePaymentIntentId?: string
   /** Set once the teacher's share has actually been moved via a real Stripe Transfer (see finalizeReportConfirmation in lessons.service.ts) — this, not `paymentReleased` alone, is what "money genuinely reached the teacher" means now. */
   stripeTransferId?: string
+  /** Server-only counter bumped after a `balance_insufficient` transfer failure so the next attempt uses a fresh Stripe idempotency key. */
+  transferRetryCount?: number
   /** Set if this lesson's payment was refunded (booking rejected, or a dispute resolved for the payer). */
   stripeRefundId?: string
   /**

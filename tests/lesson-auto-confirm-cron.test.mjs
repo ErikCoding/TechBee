@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { authorizeCronRequest, AUTO_CONFIRM_BATCH_SIZE, isLessonReleaseEligible, isReportAutoConfirmEligible, REPORT_AUTO_CONFIRM_MS, selectAutoConfirmCronBatch } from '../lib/lesson-report-auto-confirm.ts'
-import { lessonTeacherTransferIdempotencyKey } from '../lib/lesson-release-core.ts'
+import { lessonTeacherTransferIdempotencyKey, lessonTeacherTransferAttemptIdempotencyKey } from '../lib/lesson-release-core.ts'
 
 const now = new Date('2026-09-24T12:00:00.000Z').getTime()
 
@@ -104,6 +104,13 @@ test('retry and concurrent release attempts share one Stripe idempotency key per
   assert.equal(first, retry)
   assert.notEqual(first, otherLesson)
   assert.equal(first, 'lesson:lesson_123:teacher-release:v1')
+})
+
+test('attempt-based idempotency key is stable per attempt and changes after a bump', () => {
+  assert.equal(lessonTeacherTransferAttemptIdempotencyKey('l1'), 'lesson:l1:teacher-release:v2:a0')
+  assert.equal(lessonTeacherTransferAttemptIdempotencyKey('l1', 0), lessonTeacherTransferAttemptIdempotencyKey('l1', undefined))
+  assert.notEqual(lessonTeacherTransferAttemptIdempotencyKey('l1', 1), lessonTeacherTransferAttemptIdempotencyKey('l1', 0))
+  assert.equal(lessonTeacherTransferAttemptIdempotencyKey('l1', 2), 'lesson:l1:teacher-release:v2:a2')
 })
 
 test('cron authorization requires configured CRON_SECRET and matching bearer token', () => {

@@ -3,7 +3,7 @@ import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import { stripe, isStripeConfigured } from '@/lib/stripe'
 import { STRIPE_CURRENCY } from '@/lib/stripe-config'
-import { lessonTeacherTransferIdempotencyKey } from '@/lib/lesson-release-core'
+import { lessonTeacherTransferAttemptIdempotencyKey } from '@/lib/lesson-release-core'
 import { isLessonReleaseEligible } from '@/lib/lesson-report-auto-confirm'
 import { runbeeAppUrl, sendProductNotificationEmail } from '@/lib/email/product-notifications.server'
 import type { Lesson } from '@/lib/types'
@@ -41,14 +41,38 @@ export async function releaseLessonTeacherPayment(lessonId: string, now = Date.n
   const amount = lesson.teacherAmountGrosze!
 
   try {
+    // Safety net: a transfer for this lesson may already exist at Stripe (e.g. created under the old
+    // v1 key but the Firestore write failed). Reuse it instead of paying twice.
+    const existing = await stripe.transfers.list({ transfer_group: `lesson_${lessonId}`, limit: 10 })
+    const alreadyPaid = existing.data.find((t) => t.metadata?.lessonId === lessonId && !t.reversed)
+    if (alreadyPaid) {
+      await lessonRef.update({ stripeTransferId: alreadyPaid.id, reportConfirmedAt: now, paymentReleased: true })
+      return { ok: true, transferId: alreadyPaid.id, alreadyTransferred: true }
+    }
+
+    // Fund the transfer from this lesson's own charge: works while the payment is still in
+    // Stripe's *pending* balance (no dependency on the platform's available balance).
+    let sourceTransaction: string | undefined
+    if (lesson.stripePaymentIntentId) {
+      try {
+        const pi = await stripe.paymentIntents.retrieve(lesson.stripePaymentIntentId)
+        const charge = pi.latest_charge
+        sourceTransaction = typeof charge === 'string' ? charge : charge?.id
+      } catch (piErr) {
+        console.error('[lesson-release] Could not resolve charge for source_transaction, falling back to balance:', piErr)
+      }
+    }
+
     const transfer = await stripe.transfers.create({
       amount,
       currency: STRIPE_CURRENCY,
       destination: teacherAccountId,
       transfer_group: `lesson_${lessonId}`,
       metadata: { lessonId, teacherId: lesson.teacherId },
+      ...(sourceTransaction ? { source_transaction: sourceTransaction } : {}),
     }, {
-      idempotencyKey: lessonTeacherTransferIdempotencyKey(lessonId),
+      idempotencyKey: lessonTeacherTransferAttemptIdempotencyKey(lessonId, lesson.transferRetryCount ?? 0)
+        + (sourceTransaction ? '' : ':nosrc'),
     })
 
     await lessonRef.update({ stripeTransferId: transfer.id, reportConfirmedAt: now, paymentReleased: true })
@@ -70,6 +94,10 @@ export async function releaseLessonTeacherPayment(lessonId: string, now = Date.n
     return { ok: true, transferId: transfer.id, alreadyTransferred: false }
   } catch (err) {
     console.error('[lesson-release] Failed to release teacher payment:', err)
+    if ((err as { code?: string })?.code === 'balance_insufficient') {
+      // Stripe caches the failure per idempotency key for ~24h; bump the attempt so the next try is a fresh request.
+      try { await lessonRef.update({ transferRetryCount: (lesson.transferRetryCount ?? 0) + 1 }) } catch { /* best effort */ }
+    }
     return { ok: false, status: 500, error: 'Nie udało się zwolnić płatności. Spróbuj ponownie.', code: 'transfer_failed' }
   }
 }
