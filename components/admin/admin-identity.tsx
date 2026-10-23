@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/lib/auth-context'
 
 export function AdminIdentity() {
@@ -15,13 +16,12 @@ export function AdminIdentity() {
 
   return (
     <div className="flex items-center gap-2">
-      <div
-        className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
-        style={{ backgroundColor: user?.avatarColor ?? '#F4B400' }}
-        aria-hidden="true"
-      >
-        {user?.initials ?? 'TB'}
-      </div>
+      <Avatar className="h-8 w-8" aria-hidden="true">
+        {user?.photoUrl && <AvatarImage src={user.photoUrl} alt="" />}
+        <AvatarFallback color={user?.avatarColor ?? '#F4B400'} className="text-xs">
+          {user?.initials ?? 'TB'}
+        </AvatarFallback>
+      </Avatar>
       <button
         type="button"
         onClick={handleLogout}
