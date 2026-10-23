@@ -11,6 +11,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
+import { canEditChatMessage, sanitizeEditedChatText } from '@/lib/chat-message-edit-core'
 import type { ChatConversation, ChatMessage, ChatParticipant, LessonReportCard, LessonReportCardStatus } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -400,6 +401,42 @@ export function subscribeToMessages(conversationId: string, callback: (list: Cha
 export async function sendMessage(conversationId: string, sender: ChatParticipant, text: string, attachment?: ChatMessage['attachment']): Promise<void> {
   if (isFirebaseConfigured) return sendMessageFirebase(conversationId, sender, text, attachment)
   sendMessageMock(conversationId, sender, text, attachment)
+}
+
+async function editMessageFirebase(conversationId: string, messageId: string, text: string) {
+  if (!db) throw new Error('Firebase nie jest skonfigurowane.')
+  const idToken = await auth?.currentUser?.getIdToken().catch(() => undefined)
+  const res = await fetch('/api/chat/messages/edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, conversationId, messageId, text }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(data.error || 'Nie udało się zapisać zmian.')
+  }
+}
+
+function editMessageMock(conversationId: string, messageId: string, senderId: string, text: string) {
+  const list = readAllMock()
+  const idx = list.findIndex((c) => c.id === conversationId)
+  if (idx === -1) throw new Error('Nie znaleziono wiadomości.')
+  const conv = list[idx]
+  const target = conv.messages.find((m) => m.id === messageId)
+  if (!target || !canEditChatMessage(target, senderId)) throw new Error('Tej wiadomości nie można już edytować (limit 5 minut).')
+  const editedAt = Date.now()
+  const messages = conv.messages.map((m) => (m.id === messageId ? { ...m, text, editedAt } : m))
+  const isLast = conv.lastMessageAt === target.createdAt
+  list[idx] = { ...conv, messages, ...(isLast ? { lastMessage: text } : {}) }
+  writeAllMock(list)
+}
+
+/** Edits the text of the sender's own message within the edit window (5 minutes) — marks it as edited. Throws with a user-facing message if it is no longer editable. */
+export async function editMessage(conversationId: string, messageId: string, sender: ChatParticipant, text: string): Promise<void> {
+  const next = sanitizeEditedChatText(text)
+  if (!next) throw new Error('Wiadomość nie może być pusta.')
+  if (isFirebaseConfigured) return editMessageFirebase(conversationId, messageId, next)
+  editMessageMock(conversationId, messageId, sender.id, next)
 }
 
 export async function markConversationRead(conversationId: string, viewerId: string): Promise<void> {

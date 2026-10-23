@@ -1,6 +1,8 @@
 'use client'
 
-import { FileText, FileArchive, Image as ImageIcon, Download, MessageSquare } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { FileText, FileArchive, Image as ImageIcon, Download, MessageSquare, Pencil } from 'lucide-react'
+import { canEditChatMessage } from '@/lib/chat-message-edit-core'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ReportCardMessage } from '@/components/chat/report-card-message'
@@ -19,6 +21,8 @@ interface Props {
   me: ChatParticipant
   participant: ChatParticipant
   viewerRole?: UserRole
+  /** Saves an edited text message (own, within the edit window). Rejects with a user-facing message on failure. */
+  onEdit?: (messageId: string, text: string) => Promise<void>
 }
 
 /** Day bucket for the separators — compares calendar days, not elapsed time. */
@@ -56,7 +60,52 @@ function clockTime(ts: number): string {
  * message thread the card *is* the right representation, and its
  * confirm/dispute actions are unchanged.
  */
-export function ChatMessageList({ messages, me, participant, viewerRole }: Props) {
+export function ChatMessageList({ messages, me, participant, viewerRole, onEdit }: Props) {
+  // Re-evaluated on a timer so the "Edytuj" action disappears on its own once the window closes.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  function startEdit(id: string, text: string) {
+    setEditingId(id)
+    setEditDraft(text)
+    setEditError(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditError(null)
+  }
+
+  async function saveEdit(original: ChatMessage) {
+    const next = editDraft.trim()
+    if (!onEdit) return
+    if (!next) {
+      setEditError('Wiadomość nie może być pusta.')
+      return
+    }
+    if (next === original.text.trim()) {
+      cancelEdit()
+      return
+    }
+    setEditSaving(true)
+    setEditError(null)
+    try {
+      await onEdit(original.id, next)
+      setEditingId(null)
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Nie udało się zapisać zmian.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   if (messages === null) {
     return (
       <div className="flex flex-col gap-4 px-4 py-4">
@@ -110,6 +159,7 @@ export function ChatMessageList({ messages, me, participant, viewerRole }: Props
           Boolean(m.reportCard)
 
         const AttachmentIcon = m.attachment ? attachmentIconMap[m.attachment.kind] : null
+        const canEdit = Boolean(onEdit) && mine && canEditChatMessage(m, me.id, now)
 
         return (
           <div key={m.id}>
@@ -162,7 +212,48 @@ export function ChatMessageList({ messages, me, participant, viewerRole }: Props
                       : cn('rounded-2xl rounded-bl-md', continuesRun && 'rounded-tl-md'),
                   )}
                 >
-                  {m.text && <p className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</p>}
+                  {editingId === m.id ? (
+                    <div className="min-w-[200px] space-y-2">
+                      <textarea
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') cancelEdit()
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            void saveEdit(m)
+                          }
+                        }}
+                        rows={Math.min(8, Math.max(2, editDraft.split('\n').length))}
+                        maxLength={4000}
+                        autoFocus
+                        aria-label="Edytuj wiadomość"
+                        disabled={editSaving}
+                        className="w-full resize-none rounded-lg border border-border bg-background px-2.5 py-1.5 text-base text-foreground outline-none focus:border-ring md:text-sm"
+                      />
+                      {editError && <p className="text-xs font-medium text-red-900">{editError}</p>}
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          disabled={editSaving}
+                          className="rounded-md px-2.5 py-1 text-xs font-semibold text-primary-foreground/80 hover:bg-primary-foreground/10"
+                        >
+                          Anuluj
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void saveEdit(m)}
+                          disabled={editSaving || !editDraft.trim()}
+                          className="rounded-md bg-primary-foreground px-2.5 py-1 text-xs font-semibold text-primary disabled:opacity-60"
+                        >
+                          {editSaving ? 'Zapisywanie…' : 'Zapisz'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    m.text && <p className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</p>
+                  )}
 
                   {m.attachment && AttachmentIcon && (
                     <div className="mt-2 overflow-hidden rounded-xl border border-border bg-background/70">
@@ -197,10 +288,22 @@ export function ChatMessageList({ messages, me, participant, viewerRole }: Props
                     </div>
                   )}
 
-                  {/* One timestamp per run instead of one per message. */}
-                  {endsRun && (
-                    <p className={cn('mt-1 text-[10px]', mine ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
-                      {clockTime(m.createdAt)}
+                  {/* One timestamp per run instead of one per message; edited / editable messages always get a footer. */}
+                  {(endsRun || m.editedAt || canEdit) && editingId !== m.id && (
+                    <p className={cn('mt-1 flex items-center gap-1.5 text-[10px]', mine ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+                      {endsRun && <span>{clockTime(m.createdAt)}</span>}
+                      {m.editedAt && <span title={`Edytowano o ${clockTime(m.editedAt)}`}>{endsRun ? '· ' : ''}edytowano</span>}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(m.id, m.text)}
+                          className="ml-1 inline-flex items-center gap-1 rounded px-1 py-0.5 font-semibold text-primary-foreground/80 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground"
+                          aria-label="Edytuj wiadomość"
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden="true" />
+                          Edytuj
+                        </button>
+                      )}
                     </p>
                   )}
                 </div>

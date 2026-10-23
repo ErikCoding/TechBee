@@ -919,6 +919,8 @@ export type ChatMessage = {
   text: string
   time: string
   createdAt: number
+  /** Set when the author edited the text within the edit window (see lib/chat-message-edit-core.ts). */
+  editedAt?: number
   attachment?: { name: string; size: string; kind: 'pdf' | 'image' | 'zip' | 'doc'; url?: string; storagePath?: string; contentType?: string }
   /** Present instead of (rendered in place of) a normal text bubble — see components/chat/report-card-message.tsx. */
   reportCard?: LessonReportCard

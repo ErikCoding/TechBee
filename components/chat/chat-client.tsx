@@ -9,7 +9,7 @@ import { ChatMessageList } from '@/components/chat/chat-message-list'
 import { ChatComposer } from '@/components/chat/chat-composer'
 import { useAuth } from '@/lib/auth-context'
 import {
-  markConversationRead, sendMessage, subscribeToConversations, subscribeToMessages, toParticipant,
+  editMessage, markConversationRead, sendMessage, subscribeToConversations, subscribeToMessages, toParticipant,
 } from '@/services/chat.service'
 import { getParentLessons, getStudentLessons, getTeacherLessons } from '@/services/lessons.service'
 import { cn } from '@/lib/utils'
@@ -98,7 +98,7 @@ export function ChatClient() {
 
   // Keep the latest message in view when the shell resizes (keyboard open/close).
   useEffect(() => {
-    if (shellHeight && nearBottomRef.current) bottomRef.current?.scrollIntoView({ block: 'end' })
+    if (shellHeight && nearBottomRef.current) scrollThreadToBottom(false)
   }, [shellHeight])
 
   // Live conversation list for the signed-in user.
@@ -156,12 +156,21 @@ export function ChatClient() {
     const isMine = lastMessage.senderId === me?.id
 
     if (threadChanged) {
-      bottomRef.current?.scrollIntoView({ block: 'end' })
+      scrollThreadToBottom(false)
       nearBottomRef.current = true
     } else if (grew && (nearBottomRef.current || isMine)) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      scrollThreadToBottom(true)
     }
   }, [messages, activeId, me?.id])
+
+  // Scrolls only the thread's own scroller. `scrollIntoView` also scrolls every
+  // ancestor — including the overflow-hidden shell, which shoved the whole
+  // conversation rail partly off to the left.
+  function scrollThreadToBottom(smooth: boolean) {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  }
 
   function handleThreadScroll() {
     const el = scrollRef.current
@@ -207,6 +216,11 @@ export function ChatClient() {
     await sendMessage(active.id, me, text, attachment)
   }
 
+  async function handleEdit(messageId: string, text: string) {
+    if (!active || !me) return
+    await editMessage(active.id, messageId, me, text)
+  }
+
   async function handleAttach(file: File) {
     if (!active || !me) return
     setUploadingAttachment(true)
@@ -232,11 +246,11 @@ export function ChatClient() {
       thread grows the container instead of scrolling inside it, which is
       what used to push the composer off-screen.
     */
-    <div ref={shellRef} style={shellHeight ? { height: shellHeight } : undefined} className="grid h-[calc(100dvh-3.5rem)] min-h-0 grid-cols-1 overflow-hidden rounded-none border-border bg-card md:h-[calc(100vh-13rem)] md:min-h-[540px] md:grid-cols-[300px_1fr] md:rounded-2xl md:border lg:grid-cols-[340px_1fr]">
+    <div ref={shellRef} style={shellHeight ? { height: shellHeight } : undefined} className="grid h-[calc(100dvh-3.5rem)] min-h-0 grid-cols-1 overflow-hidden rounded-none border-border bg-card md:h-[calc(100vh-13rem)] md:min-h-[540px] md:grid-cols-[300px_minmax(0,1fr)] md:rounded-2xl md:border lg:grid-cols-[340px_minmax(0,1fr)]">
       {/* ── Conversation rail ── */}
       <div
         className={cn(
-          'flex min-h-0 flex-col border-border md:border-r',
+          'flex min-h-0 min-w-0 flex-col overflow-x-hidden border-border md:border-r',
           mobileShowThread && 'hidden md:flex',
         )}
       >
@@ -251,7 +265,7 @@ export function ChatClient() {
       </div>
 
       {/* ── Thread ── */}
-      <div className={cn('flex min-h-0 flex-col bg-muted/20', !mobileShowThread && 'hidden md:flex')}>
+      <div className={cn('flex min-h-0 min-w-0 flex-col bg-muted/20', !mobileShowThread && 'hidden md:flex')}>
         {active ? (
           <>
             <ChatThreadHeader
@@ -266,6 +280,7 @@ export function ChatClient() {
                 me={me}
                 participant={active.participant}
                 viewerRole={user?.role}
+                onEdit={handleEdit}
               />
               <div ref={bottomRef} />
             </div>
