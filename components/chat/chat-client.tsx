@@ -62,6 +62,45 @@ export function ChatClient() {
 
   const me: ChatParticipant | null = user ? toParticipant(user) : null
 
+  // Fits the shell to what is *actually* visible. The CSS fallback heights
+  // (dvh/vh minus magic numbers) drift from the real page chrome, and on
+  // phones dvh ignores the on-screen keyboard — which is what clipped the
+  // composer. visualViewport tracks the keyboard and browser toolbars.
+  const shellRef = useRef<HTMLDivElement>(null)
+  const [shellHeight, setShellHeight] = useState<number | null>(null)
+  useEffect(() => {
+    const el = shellRef.current
+    if (!el) return
+    const vv = window.visualViewport
+    function measure() {
+      if (!el) return
+      const top = el.getBoundingClientRect().top
+      const visibleTop = vv?.offsetTop ?? 0
+      const visibleHeight = vv?.height ?? window.innerHeight
+      const isDesktop = window.matchMedia('(min-width: 768px)').matches
+      const bottomGap = isDesktop ? 24 : 0 // md:py-6 bottom padding on the page wrapper
+      const next = Math.floor(visibleTop + visibleHeight - top - bottomGap)
+      setShellHeight(Math.max(next, 320))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    vv?.addEventListener('resize', measure)
+    vv?.addEventListener('scroll', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+      vv?.removeEventListener('resize', measure)
+      vv?.removeEventListener('scroll', measure)
+    }
+    // The shell only mounts once the user is known.
+  }, [Boolean(me)])
+
+  // Keep the latest message in view when the shell resizes (keyboard open/close).
+  useEffect(() => {
+    if (shellHeight && nearBottomRef.current) bottomRef.current?.scrollIntoView({ block: 'end' })
+  }, [shellHeight])
+
   // Live conversation list for the signed-in user.
   useEffect(() => {
     if (!me) return
@@ -193,7 +232,7 @@ export function ChatClient() {
       thread grows the container instead of scrolling inside it, which is
       what used to push the composer off-screen.
     */
-    <div className="grid h-[calc(100dvh-3.5rem)] min-h-0 grid-cols-1 overflow-hidden rounded-none border-border bg-card md:h-[calc(100vh-13rem)] md:min-h-[540px] md:grid-cols-[300px_1fr] md:rounded-2xl md:border lg:grid-cols-[340px_1fr]">
+    <div ref={shellRef} style={shellHeight ? { height: shellHeight } : undefined} className="grid h-[calc(100dvh-3.5rem)] min-h-0 grid-cols-1 overflow-hidden rounded-none border-border bg-card md:h-[calc(100vh-13rem)] md:min-h-[540px] md:grid-cols-[300px_1fr] md:rounded-2xl md:border lg:grid-cols-[340px_1fr]">
       {/* ── Conversation rail ── */}
       <div
         className={cn(
