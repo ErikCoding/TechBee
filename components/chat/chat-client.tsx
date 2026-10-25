@@ -72,26 +72,53 @@ export function ChatClient() {
     const el = shellRef.current
     if (!el) return
     const vv = window.visualViewport
+    const phone = window.matchMedia('(max-width: 767px)')
+
+    // On phones the chat is a full screen with its own scrollers. If the
+    // document can scroll as well, a flick past the end of a list scrolls the
+    // page, the browser collapses/expands its address bar, the viewport
+    // resizes and the shell height jumps — the glitch seen while scrolling.
+    // Locking the document while the chat is open keeps the viewport stable.
+    const root = document.documentElement
+    const previousOverflow = root.style.overflow
+    const previousOverscroll = root.style.overscrollBehavior
+    if (phone.matches) {
+      window.scrollTo(0, 0)
+      root.style.overflow = 'hidden'
+      root.style.overscrollBehavior = 'none'
+    }
+
+    let frame = 0
     function measure() {
       if (!el) return
       const top = el.getBoundingClientRect().top
       const visibleTop = vv?.offsetTop ?? 0
       const visibleHeight = vv?.height ?? window.innerHeight
-      const isDesktop = window.matchMedia('(min-width: 768px)').matches
-      const bottomGap = isDesktop ? 24 : 0 // md:py-6 bottom padding on the page wrapper
+      const bottomGap = phone.matches ? 0 : 24 // md:py-6 bottom padding on the page wrapper
       const next = Math.floor(visibleTop + visibleHeight - top - bottomGap)
       setShellHeight(Math.max(next, 320))
     }
+    // Coalesce bursts of resize events into one measurement per frame.
+    function scheduleMeasure() {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        measure()
+      })
+    }
     measure()
-    window.addEventListener('resize', measure)
-    window.addEventListener('orientationchange', measure)
-    vv?.addEventListener('resize', measure)
-    vv?.addEventListener('scroll', measure)
+    window.addEventListener('resize', scheduleMeasure)
+    window.addEventListener('orientationchange', scheduleMeasure)
+    vv?.addEventListener('resize', scheduleMeasure)
+    vv?.addEventListener('scroll', scheduleMeasure)
     return () => {
-      window.removeEventListener('resize', measure)
-      window.removeEventListener('orientationchange', measure)
-      vv?.removeEventListener('resize', measure)
-      vv?.removeEventListener('scroll', measure)
+      if (frame) window.cancelAnimationFrame(frame)
+      root.style.overflow = previousOverflow
+      root.style.overscrollBehavior = previousOverscroll
+      window.removeEventListener('resize', scheduleMeasure)
+      window.removeEventListener('orientationchange', scheduleMeasure)
+      vv?.removeEventListener('resize', scheduleMeasure)
+      vv?.removeEventListener('scroll', scheduleMeasure)
     }
     // The shell only mounts once the user is known.
   }, [Boolean(me)])
@@ -274,7 +301,7 @@ export function ChatClient() {
               onBack={() => setMobileShowThread(false)}
             />
 
-            <div ref={scrollRef} onScroll={handleThreadScroll} className="min-h-0 flex-1 overflow-y-auto">
+            <div ref={scrollRef} onScroll={handleThreadScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <ChatMessageList
                 messages={messages}
                 me={me}
