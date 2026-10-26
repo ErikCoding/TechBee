@@ -510,9 +510,27 @@ function computeTeacherEarnings(lessons: Lesson[]) {
   return { totalEarnings, monthlyEarnings, lessonsThisMonth, studentsThisMonth, earningsChart }
 }
 
+function emptyTeacherDashboardData(): TeacherDashboardData {
+  return {
+    name: '',
+    initials: '',
+    avatarColor: teacherDashboardDataMock.avatarColor,
+    specialty: '',
+    rating: 0,
+    reviewCount: 0,
+    completionRate: 0,
+    responseRate: 0,
+    ...computeTeacherEarnings([]),
+  }
+}
+
 /** Rating/earnings summary only — the lesson list is fetched separately via getTeacherLessons. */
 export async function getTeacherDashboard(teacherName?: string, userId?: string): Promise<TeacherDashboardData> {
-  if (!isFirebaseConfigured || !userId) return teacherDashboardDataMock
+  if (!isFirebaseConfigured) return teacherDashboardDataMock
+  // Real mode without a user id (the server-rendered first paint of the dashboard
+  // page has no session): never fall back to the fictional demo teacher's numbers —
+  // show honest zeros until the signed-in teacher's real data arrives.
+  if (!userId) return emptyTeacherDashboardData()
   // Real rating/reviewCount/completionRate come from the teacher's own
   // Firestore application doc — the shared mock dataset's numbers belong to
   // a fictional "Marek Kowalski" character. Earnings/activity figures are
@@ -522,15 +540,15 @@ export async function getTeacherDashboard(teacherName?: string, userId?: string)
   const lessons = await autoConfirmOverdueReports(await getTeacherLessonsFirebase(userId))
   const earnings = computeTeacherEarnings(lessons)
   return {
-    name: application?.name ?? teacherDashboardDataMock.name,
-    initials: application?.initials ?? teacherDashboardDataMock.initials,
+    name: application?.name ?? teacherName ?? '',
+    initials: application?.initials ?? '',
     avatarColor: application?.avatarColor ?? teacherDashboardDataMock.avatarColor,
     ...(application?.photoUrl ? { photoUrl: application.photoUrl } : {}),
-    specialty: application?.specialty ?? teacherDashboardDataMock.specialty,
+    specialty: application?.specialty ?? '',
     rating: application?.rating ?? 0,
     reviewCount: application?.reviewCount ?? 0,
     completionRate: application?.completionRate ?? 0,
-    responseRate: application ? teacherDashboardDataMock.responseRate : 0,
+    responseRate: application ? teacherDashboardDataMock.responseRate : 0, // TODO: no real response-rate source yet
     ...earnings,
   }
 }
