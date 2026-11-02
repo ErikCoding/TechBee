@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Search, SlidersHorizontal, X, SearchX, ChevronDown } from 'lucide-react'
+import { Search, SlidersHorizontal, X, SearchX, ChevronDown, LayoutGrid, List } from 'lucide-react'
 import { TeacherCard } from '@/components/shared/teacher-card'
+import { TeacherRow } from '@/components/shared/teacher-row'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { MarketplaceFilterPanel } from '@/components/marketplace/marketplace-filter-panel'
@@ -49,6 +50,8 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
   const [liveTeachers, setLiveTeachers] = useState<Teacher[]>(teachers)
   const [filters, setFilters] = useState<MarketplaceFilters>(initialFilters)
   const [sheetOpen, setSheetOpen] = useState(false)
+  // Presentation only: tiles (default) or a one-per-row list. Not part of the filter state / URL.
+  const [view, setView] = useState<'grid' | 'list'>('grid')
 
   useEffect(() => subscribeTeachers(setLiveTeachers), [])
 
@@ -276,6 +279,28 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                 {results.length === 1 ? 'nauczyciel' : 'nauczycieli'}
                 {activeCategory ? ` w dziedzinie ${activeCategory.name}` : ''}
               </p>
+              <div className="flex items-center gap-2">
+              <div role="group" aria-label="Widok wyników" className="flex rounded-lg border border-border bg-card p-0.5">
+                {([
+                  { value: 'grid', label: 'Kafelki', Icon: LayoutGrid },
+                  { value: 'list', label: 'Lista', Icon: List },
+                ] as const).map(({ value, label, Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setView(value)}
+                    aria-pressed={view === value}
+                    aria-label={label}
+                    title={label}
+                    className={
+                      'flex h-8 w-8 items-center justify-center rounded-md transition-colors ' +
+                      (view === value ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
               {/* Sort is hidden in the band on the narrowest screens — surfaced here instead. */}
               <div className="relative sm:hidden">
                 <label htmlFor="marketplace-sort-mobile" className="sr-only">
@@ -297,6 +322,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                   className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
+              </div>
               </div>
             </div>
 
@@ -333,8 +359,20 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                   Wyczyść wszystkie filtry
                 </Button>
               </div>
+            ) : view === 'list' ? (
+              <div className="flex flex-col divide-y divide-border/60 border-y border-border/60">
+                {results.map((teacher, i) => (
+                  <div
+                    key={teacher.id}
+                    className="min-w-0 animate-fade-in-up"
+                    style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                  >
+                    <TeacherRow teacher={teacher} featured={teacher.featured} bookingFor={bookingFor} />
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
                 {results.map((teacher, i) => (
                   <div
                     key={teacher.id}
