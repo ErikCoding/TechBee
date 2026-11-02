@@ -280,7 +280,8 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                 {activeCategory ? ` w dziedzinie ${activeCategory.name}` : ''}
               </p>
               <div className="flex items-center gap-2">
-              <div role="group" aria-label="Widok wyników" className="flex rounded-lg border border-border bg-card p-0.5">
+              {/* Phones always get tiles — the list looks nearly the same there, so the switch is desktop/tablet only. */}
+              <div role="group" aria-label="Widok wyników" className="hidden rounded-lg border border-border bg-card p-0.5 md:flex">
                 {([
                   { value: 'grid', label: 'Kafelki', Icon: LayoutGrid },
                   { value: 'list', label: 'Lista', Icon: List },
@@ -359,20 +360,22 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                   Wyczyść wszystkie filtry
                 </Button>
               </div>
-            ) : view === 'list' ? (
-              <div className="flex flex-col divide-y divide-border/60 border-y border-border/60">
-                {results.map((teacher, i) => (
-                  <div
-                    key={teacher.id}
-                    className="min-w-0 animate-fade-in-up"
-                    style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
-                  >
-                    <TeacherRow teacher={teacher} featured={teacher.featured} bookingFor={bookingFor} />
-                  </div>
-                ))}
-              </div>
             ) : (
-              <div className="grid gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
+              <>
+              {view === 'list' && (
+                <div className="hidden flex-col divide-y divide-border/60 border-y border-border/60 md:flex">
+                  {results.map((teacher, i) => (
+                    <div
+                      key={teacher.id}
+                      className="min-w-0 animate-fade-in-up"
+                      style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                    >
+                      <TeacherRow teacher={teacher} featured={teacher.featured} bookingFor={bookingFor} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className={'grid gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3' + (view === 'list' ? ' md:hidden' : '')}>
                 {results.map((teacher, i) => (
                   <div
                     key={teacher.id}
@@ -383,6 +386,7 @@ export function MarketplaceClient({ teachers, categories, initialFilters, bookin
                   </div>
                 ))}
               </div>
+              </>
             )}
 
             {subjectLinks.length > 0 && (
