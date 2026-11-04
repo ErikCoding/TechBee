@@ -14,7 +14,7 @@ export default function CookiesPage() {
   return (
     <LegalPage
       title="Polityka cookies"
-      updated="10 października 2026"
+      updated="3 listopada 2026"
       intro="Ta polityka wyjaśnia, jakich plików cookies i podobnych technologii (np. pamięci przeglądarki) używa Runbee, do czego służą i jak możesz nimi zarządzać."
     >
       <section>
@@ -28,7 +28,7 @@ export default function CookiesPage() {
           <li><strong>Logowanie i sesja (niezbędne).</strong> Firebase Authentication zapisuje w pamięci przeglądarki dane sesji, dzięki którym pozostajesz zalogowany(-a). Bez nich logowanie nie działa.</li>
           <li><strong>Wybory w trakcie rezerwacji (niezbędne do działania funkcji).</strong> Wybrany przedmiot, termin, temat i sposób płatności zapisujemy w pamięci sesji przeglądarki (sessionStorage), żeby nie zniknęły po odświeżeniu strony. Nie zapisujemy tam danych płatniczych.</li>
           <li><strong>Płatności (Stripe).</strong> Płatność odbywa się na stronie Stripe, który może zapisywać własne pliki cookies służące bezpieczeństwu i przeciwdziałaniu oszustwom. Zasady określa Stripe.</li>
-          <li><strong>Statystyki odwiedzin (Vercel Analytics).</strong> Zbieramy zagregowane informacje o odwiedzinach (np. wyświetlane strony, typ urządzenia) za pomocą Vercel Analytics. Nie wykorzystuje ono plików cookies do identyfikowania Cię na różnych stronach.</li>
+          <li><strong>Statystyki odwiedzin (Vercel Analytics) — tylko za zgodą.</strong> Po pierwszej wizycie pytamy, czy możemy zbierać zagregowane informacje o odwiedzinach (np. wyświetlane strony, typ urządzenia). Bez Twojej zgody narzędzie statystyk w ogóle się nie uruchamia. Wybór zapisujemy w pamięci przeglądarki (localStorage) i możesz go zmienić w każdej chwili przyciskiem „Ustawienia cookies” w stopce serwisu.</li>
         </ul>
         <p>Runbee nie używa reklamowych ani marketingowych plików cookies i nie wspiera narzędzi śledzących innych firm poza wymienionymi powyżej.</p>
       </section>

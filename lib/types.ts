@@ -120,6 +120,9 @@ export type ReviewItem = {
 
 export type Teacher = {
   id: string
+  /** Akceptacja Warunków dla Nauczycieli (czas zapisu po stronie serwera + wersja treści). */
+  teacherTermsAcceptedAt?: number
+  teacherTermsVersion?: string
   name: string
   initials: string
   avatarColor: string
@@ -229,7 +232,11 @@ export type SupportMessage = {
   updatedAt: number
   readAt?: number
   archivedAt?: number
-  source: 'contact-page'
+  source: 'contact-page' | 'report-problem'
+  /** Tylko dla zgłoszeń problemów (source = 'report-problem'). */
+  category?: string
+  target?: string
+  priority?: boolean
 }
 
 /**
@@ -306,6 +313,9 @@ export type Lesson = {
   /** Missing/undefined on legacy lessons means a regular paid lesson. */
   lessonKind?: LessonKind
   paymentSource?: 'stripe_checkout' | 'package'
+  /** Zgoda na rozpoczęcie usługi przed upływem 14 dni (art. 38 pkt 1 ustawy o prawach konsumenta) — czas zapisu po stronie serwera i wersja treści. */
+  withdrawalConsentAt?: number
+  withdrawalConsentVersion?: string
   packageId?: string
   packageCreditState?: 'reserved' | 'used' | 'returned'
   recurringSeriesId?: string
@@ -313,6 +323,10 @@ export type Lesson = {
   price: number
   topic: string
   pendingChange?: LessonChangeRequest
+  /** Natychmiastowe odwołanie (≥48 h przed lekcją albo przez korepetytora) — kto, kiedy i dlaczego. */
+  cancelledBy?: 'student' | 'teacher'
+  cancelledAt?: number
+  cancellationNote?: string
   /** Real timestamps (unlike `date`/`time`, which are display-only strings) — what monthly earnings/lesson-count stats actually filter on. */
   createdAt?: number
   completedAt?: number
@@ -422,6 +436,8 @@ export type LessonPackageFirstBookingStatus = 'not_requested' | 'pending' | 'boo
 
 export type LessonPackage = {
   id: string
+  withdrawalConsentAt?: number
+  withdrawalConsentVersion?: string
   teacherId: string
   teacherName: string
   teacherInitials: string
@@ -475,6 +491,8 @@ export type LessonPackagePurchaseIntentStatus = 'pending_payment' | 'package_cre
 
 export type LessonPackagePurchaseIntent = {
   id: string
+  withdrawalConsentAt?: number
+  withdrawalConsentVersion?: string
   purchaseMode: LessonPackagePurchaseMode
   status: LessonPackagePurchaseIntentStatus
   stripeCheckoutSessionId?: string
@@ -827,6 +845,8 @@ export type AdminStats = {
   pendingVerifications: number
   revenueChart: { month: string; amount: number; platformFee?: number; teacherAmount?: number; netPlatformRevenue?: number | null; netPlatformRevenueComplete?: boolean }[]
   usersByRole: { role: string; count: number; color: string }[]
+  /** Uczniowie wg oświadczenia o wieku z rejestracji ('unknown' = konta założone przed wprowadzeniem deklaracji). */
+  studentAgeBands?: { band: 'adult' | 'teen_16_17' | 'child_under_16' | 'unknown'; label: string; count: number; color: string }[]
 }
 
 export type AdminUserRow = {

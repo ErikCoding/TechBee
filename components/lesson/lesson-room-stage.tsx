@@ -12,8 +12,9 @@ import {
   VideoTrack,
 } from '@livekit/components-react'
 import { ConnectionState, Track } from 'livekit-client'
-import { CheckCircle2, Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Send, X, ScreenShare, ScreenShareOff } from 'lucide-react'
+import { CheckCircle2, Flag, Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Send, X, ScreenShare, ScreenShareOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { reportProblemHref } from '@/lib/problem-report-core'
 import { Input } from '@/components/ui/input'
 import { formatDurationClock, LESSON_END_WARNING_MINUTES } from '@/lib/lesson-time'
 import type { LiveKitDisconnectSource } from '@/lib/livekit-diagnostics'
@@ -222,8 +223,11 @@ export function LessonRoomStage({
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col overflow-hidden text-white">
+    <div className="relative flex h-[calc(100vh-64px)] flex-col overflow-hidden text-white">
       <RoomAudioRenderer />
+      <a href={reportProblemHref({ kind: 'lesson', id: lessonId })} target="_blank" rel="noopener" className="absolute right-3 top-[72px] z-10 inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-[11px] text-white/60 transition-colors hover:text-white">
+        <Flag className="h-3 w-3" aria-hidden="true" /> Zgłoś problem
+      </a>
 
       {/* Status bar */}
       <div className="flex shrink-0 items-center justify-between px-4 py-3 text-sm">

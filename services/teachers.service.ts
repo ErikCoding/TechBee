@@ -344,11 +344,12 @@ function subscribeTeachersFirebase(callback: (teachers: Teacher[]) => void): () 
 async function submitApplicationFirebase(
   authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
   input: TeacherApplicationInput,
+  acceptTeacherTerms = false,
 ): Promise<Teacher> {
   const idToken = await auth?.currentUser?.getIdToken()
   const response = await fetch('/api/teachers/application', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken, input }),
+    body: JSON.stringify({ idToken, input, acceptTeacherTerms }),
   })
   const result = await response.json()
   if (!response.ok) throw new Error(result.error ?? 'Nie udało się zapisać zgłoszenia.')
@@ -530,8 +531,9 @@ export async function getTeacherApplication(authUserId: string): Promise<Teacher
 export async function submitTeacherApplication(
   authUser: { id: string; name: string; initials: string; avatarColor: string; photoUrl?: string },
   input: TeacherApplicationInput,
+  acceptTeacherTerms = false,
 ): Promise<Teacher> {
-  return isFirebaseConfigured ? submitApplicationFirebase(authUser, input) : submitApplicationMock(authUser, input)
+  return isFirebaseConfigured ? submitApplicationFirebase(authUser, input, acceptTeacherTerms) : submitApplicationMock(authUser, input)
 }
 
 /** Admin-only: every application currently awaiting review. */

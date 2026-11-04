@@ -1,13 +1,14 @@
 import 'server-only'
 
 import { Resend } from 'resend'
+import { operatorConfig } from '@/config/operator'
 
 const RUNBEE_HOME_URL = 'https://runbee.pl'
 const RUNBEE_LOGO_URL = `${RUNBEE_HOME_URL}/icon.png`
 const BRAND_YELLOW = '#F4B400'
 
 export const TRANSACTIONAL_EMAIL_FROM = 'Runbee <noreply@mail.runbee.pl>'
-export const TRANSACTIONAL_EMAIL_REPLY_TO = 'kontakt@runbee.pl'
+export const TRANSACTIONAL_EMAIL_REPLY_TO: string = operatorConfig.email
 
 let resendClient: Resend | null = null
 

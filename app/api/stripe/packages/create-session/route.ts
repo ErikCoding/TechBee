@@ -8,6 +8,7 @@ import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { resolveEffectiveCommission } from '@/lib/founding-teacher-core'
 import { buildStudentPaymentBreakdown } from '@/lib/service-fees'
 import { collections } from '@/lib/firebase'
+import { WITHDRAWAL_CONSENT_VERSION, hasWithdrawalConsent } from '@/lib/withdrawal-consent'
 import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
 import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-durations'
@@ -40,6 +41,7 @@ interface PackageCheckoutRequestBody {
   studentId?: string
   studentName?: string
   payer?: { id: string; role: 'student' | 'parent' }
+  withdrawalConsent?: boolean
   purchaseMode?: string
   booking?: {
     date?: string
@@ -70,6 +72,10 @@ export async function POST(request: Request) {
   }
   if (!ALLOWED_DURATIONS.includes(duration)) {
     return NextResponse.json({ error: 'Nieprawidłowa długość lekcji.' }, { status: 400 })
+  }
+
+  if (!hasWithdrawalConsent(body.withdrawalConsent)) {
+    return NextResponse.json({ error: 'Potwierdź zgodę na rozpoczęcie usługi przed upływem 14 dni, aby przejść do płatności.' }, { status: 400 })
   }
 
   const uid = await verifyCaller(body.idToken)
@@ -212,6 +218,8 @@ export async function POST(request: Request) {
           bookingRequestId,
         },
       } : {}),
+      withdrawalConsentAt: now,
+      withdrawalConsentVersion: WITHDRAWAL_CONSENT_VERSION,
       livemode: process.env.NODE_ENV === 'production',
       createdAt: now,
       updatedAt: now,

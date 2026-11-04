@@ -112,6 +112,7 @@ export async function ensureLessonForCheckoutSession(session: Stripe.Checkout.Se
     } : {}),
     stripeCheckoutSessionId: session.id,
     ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+    ...(Number(m.withdrawalConsentAt) > 0 ? { withdrawalConsentAt: Number(m.withdrawalConsentAt), withdrawalConsentVersion: m.withdrawalConsentVersion ?? '' } : {}),
     // See the Lesson.livemode doc comment (lib/types.ts) — this is what
     // lets the admin wallet panel separate real revenue from sandbox
     // testing without needing a second Firebase project.

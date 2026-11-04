@@ -17,6 +17,7 @@ import { LESSON_DURATION_OPTIONS, normalizeLessonDurations } from '@/lib/lesson-
 import { toGrosze, fromGrosze } from '@/lib/stripe-config'
 import { getCategories } from '@/services/categories.service'
 import { getTeacherApplication, submitTeacherApplication } from '@/services/teachers.service'
+import { TEACHER_TERMS_LABEL } from '@/lib/teacher-terms'
 import { toParticipant } from '@/services/chat.service'
 import { normalizeTeacherApplicationCategoryIds } from '@/lib/teacher-application-categories'
 import { normalizeTeacherCustomSubjects } from '@/lib/teacher-categories'
@@ -106,6 +107,7 @@ export function TeacherApplicationForm() {
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -258,6 +260,7 @@ export function TeacherApplicationForm() {
       if (trialLessonEnabled && !selectedTrialPriceGrosze) {
         throw new Error('Podaj poprawną cenę lekcji próbnej.')
       }
+      if (!termsAccepted) throw new Error('Zaakceptuj Warunki dla Nauczycieli, aby wysłać ogłoszenie.')
       const selectedAvailabilityHours = normalizeAvailability({ availability, availabilityStart, availabilityEnd, availabilityHours })
       await submitTeacherApplication(toParticipant(profileUser), {
         photoUrl: trimmedPhotoUrl || undefined,
@@ -282,7 +285,7 @@ export function TeacherApplicationForm() {
         availabilityStart,
         availabilityEnd,
         availabilityHours: selectedAvailabilityHours,
-      })
+      }, termsAccepted)
       setSubmitted(true)
       router.refresh()
     } catch (error) {
@@ -693,6 +696,12 @@ export function TeacherApplicationForm() {
       </div>
 
       <div id="application-submit" className={styles.stepFooter}>
+        {step === lastStep && (
+          <label className="mb-3 flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-muted-foreground">
+            <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} disabled={submitting} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+            <span>{TEACHER_TERMS_LABEL} <a href="/teacher-terms" target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-foreground">Warunki dla Nauczycieli</a></span>
+          </label>
+        )}
         {step === lastStep && <p className={styles.footerHint}>Ogłoszenie trafi do weryfikacji przed publikacją.</p>}
         <div className={styles.footerActions}>
           {step > 0 ? (
@@ -705,7 +714,7 @@ export function TeacherApplicationForm() {
               Dalej <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
           ) : (
-            <Button key="submit" type="submit" disabled={submitting || profileSaving} className={styles.submitButton}>
+            <Button key="submit" type="submit" disabled={submitting || profileSaving || !termsAccepted} className={styles.submitButton}>
               {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
               Wyślij do weryfikacji
             </Button>

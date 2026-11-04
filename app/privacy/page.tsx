@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/legal/legal-page'
 import { pageMetadata } from '@/lib/seo'
+import { operatorConfig } from '@/config/operator'
 
 export const metadata: Metadata = pageMetadata({
   title: 'Polityka prywatności',
@@ -14,18 +15,20 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Polityka prywatności"
-      updated="10 października 2026"
+      updated="3 listopada 2026"
       intro="Polityka wyjaśnia, jakie dane osobowe przetwarzamy w związku z platformą Runbee, po co, na jakiej podstawie, komu je przekazujemy, jak długo je przechowujemy i jak możesz skorzystać ze swoich praw, w tym usunąć konto."
     >
       <section>
         <h2>1. Administrator danych</h2>
-        <p>Administratorem danych osobowych jest Bartosz Prokop, Operator platformy Runbee (runbee.pl), wskazany w <a href="/terms" className={link}>Regulaminie</a>. We wszystkich sprawach dotyczących danych osobowych, w tym wykonywania praw opisanych w pkt 9, możesz napisać na adres <a href="mailto:kontakt@runbee.pl" className={link}>kontakt@runbee.pl</a>.</p>
+        <p>Administratorem danych osobowych jest {operatorConfig.name} (osoba fizyczna prowadząca działalność nierejestrowaną), Operator platformy Runbee (runbee.pl), adres do korespondencji: {operatorConfig.correspondenceAddress}. Szczegóły w <a href="/terms" className={link}>Regulaminie</a>. We wszystkich sprawach dotyczących danych osobowych, w tym wykonywania praw opisanych w pkt 9, możesz napisać na adres <a href={`mailto:${operatorConfig.email}`} className={link}>{operatorConfig.email}</a>.</p>
       </section>
 
       <section>
         <h2>2. Jakie dane przetwarzamy</h2>
         <ul>
           <li><strong>Konto i profil:</strong> imię i nazwisko, adres e-mail, rola (Uczeń, Rodzic, Nauczyciel), hasło (przechowywane wyłącznie w postaci zabezpieczonej przez Firebase Authentication), zdjęcie profilowe, ustawienia i preferencje powiadomień.</li>
+          <li><strong>Wiek i zgody:</strong> oświadczenie o wieku złożone przy rejestracji (pełnoletni, 16–17 lat albo poniżej 16 lat z potwierdzeniem zgody rodzica lub opiekuna), data i wersja akceptacji Regulaminu, data i wersja zgody na rozpoczęcie usługi przed upływem 14 dni oraz data akceptacji Warunków dla Nauczycieli.</li>
+          <li><strong>Zgłoszenia problemów:</strong> treść zgłoszenia, wskazanie profilu lub lekcji, kategoria (w tym bezpieczeństwo dziecka) oraz dane zgłaszającego.</li>
           <li><strong>Powiązanie Rodzic–Uczeń:</strong> kody powiązania oraz informacja o połączonych kontach.</li>
           <li><strong>Profil Nauczyciela:</strong> dane ze zgłoszenia i profilu, takie jak przedmioty, doświadczenie, opis, umiejętności, języki, stawki, dostępność, lokalizacja, zdjęcie, oraz opinie o Nauczycielu.</li>
           <li><strong>Lekcje:</strong> termin, przedmiot, temat, czas trwania, cena, status, Raporty i spory (w tym opisy wpisane przez strony), historia zmian terminu i odwołań.</li>
@@ -33,9 +36,10 @@ export default function PrivacyPage() {
           <li><strong>Płatności i wypłaty:</strong> identyfikatory i statusy transakcji, kwoty, opłaty, zwroty, przelewy, wypłaty, Pakiety i ich wykorzystanie. Numerów kart płatniczych nie przechowujemy, przetwarza je Stripe. Dane weryfikacyjne Nauczycieli potrzebne do wypłat (tożsamość, rachunek bankowy) zbiera i przetwarza Stripe jako odrębny podmiot.</li>
           <li><strong>Wideolekcje:</strong> dane techniczne połączenia (identyfikator pokoju i uczestnika, stan mikrofonu i kamery). Lekcji nie nagrywamy.</li>
           <li><strong>BeePoints:</strong> saldo i historia przyznanych punktów.</li>
-          <li><strong>Dane techniczne:</strong> adres IP, dane o urządzeniu i przeglądarce, znaczniki czasu, logi bezpieczeństwa i ograniczania liczby prób (np. przy resecie hasła), statystyki odwiedzin (zob. <a href="/cookies" className={link}>Polityka cookies</a>).</li>
+          <li><strong>Dane techniczne:</strong> adres IP, dane o urządzeniu i przeglądarce, znaczniki czasu, logi bezpieczeństwa i ograniczania liczby prób (np. przy resecie hasła) oraz, tylko za Twoją zgodą, statystyki odwiedzin (zob. <a href="/cookies" className={link}>Polityka cookies</a>).</li>
           <li><strong>Wnioski o usunięcie konta:</strong> przebieg wniosku, decyzje i notatki administratora, wynik kontroli zobowiązań.</li>
         </ul>
+        <p><strong>Dane dzieci.</strong> Z Platformy mogą korzystać osoby niepełnoletnie. Poniżej 16 lat konto zakładane jest za zgodą rodzica lub opiekuna, którą uczeń potwierdza oświadczeniem przy rejestracji; rodzic może powiązać swoje konto z kontem dziecka, widzieć jego rezerwacje i raporty oraz za nie płacić. Zbieramy tylko dane potrzebne do lekcji i bezpieczeństwa. Rodzic lub opiekun może zażądać dostępu do danych dziecka, ich poprawienia lub usunięcia konta, pisząc na adres z pkt 1. Zasady bezpiecznego kontaktu opisują <a href="/ochrona-maloletnich" className={link}>Standardy ochrony małoletnich</a>.</p>
         <p>Dane podajesz sam(a), powstają one podczas korzystania z Platformy albo pochodzą od innych Użytkowników (np. Raport napisany przez Nauczyciela, opinia Ucznia) i od Stripe (status płatności i konta wypłat).</p>
         <p>Wiadomości i załączniki w czacie oraz Raporty są widoczne dla uczestników rozmowy lub Lekcji. W uzasadnionych przypadkach (obsługa zgłoszenia, spór, reklamacja, bezpieczeństwo) mogą się z nimi zapoznać upoważnione osoby po stronie Operatora.</p>
       </section>
@@ -44,6 +48,7 @@ export default function PrivacyPage() {
         <h2>3. Cele i podstawy prawne</h2>
         <ul>
           <li><strong>Założenie i prowadzenie konta, umożliwienie rezerwacji Lekcji, Pakietów, czatu i wideolekcji, obsługa płatności i rozliczeń</strong> – wykonanie umowy (art. 6 ust. 1 lit. b RODO).</li>
+          <li><strong>Zgłoszenia problemów, ochrona małoletnich, rozpatrywanie zgłoszeń o nielegalnych treściach</strong> – prawnie uzasadniony interes Administratora i obowiązek prawny (art. 6 ust. 1 lit. f i c RODO). Zapis zgody na rozpoczęcie usługi i akceptacji Regulaminu służy wykazaniu spełnienia obowiązków wobec konsumenta.</li>
           <li><strong>Księgowość, podatki, obsługa zwrotów i reklamacji, wykonanie obowiązków wynikających z przepisów</strong> – obowiązek prawny (art. 6 ust. 1 lit. c RODO).</li>
           <li><strong>Bezpieczeństwo Platformy, zapobieganie nadużyciom i obchodzeniu płatności, rozstrzyganie sporów, dochodzenie i obrona roszczeń, podstawowe statystyki i rozwój Platformy</strong> – prawnie uzasadniony interes Administratora (art. 6 ust. 1 lit. f RODO).</li>
           <li><strong>Powiadomienia e-mail niezbędne do działania konta i bezpieczeństwa</strong> (potwierdzenie adresu, reset hasła, zmiana e-mail lub hasła, status wniosku o usunięcie konta, płatności, spory, wypłaty) – wykonanie umowy i prawnie uzasadniony interes. Pozostałe powiadomienia (przypomnienia o Lekcjach, nowe wiadomości) wysyłamy zgodnie z ustawieniami konta, a informacje o nowościach Runbee tylko po ich włączeniu – zgoda (art. 6 ust. 1 lit. a RODO), którą możesz cofnąć w każdej chwili w ustawieniach.</li>
@@ -61,7 +66,7 @@ export default function PrivacyPage() {
           <li><strong>Stripe</strong> (Stripe Payments Europe, Ltd. i podmioty z grupy Stripe) – płatności, zwroty, konta Stripe Connect i wypłaty Nauczycieli.</li>
           <li><strong>Resend</strong> – wysyłka wiadomości e-mail z Platformy.</li>
           <li><strong>LiveKit</strong> – transmisja audio i wideo podczas Lekcji.</li>
-          <li><strong>Vercel</strong> – statystyki odwiedzin Platformy (Vercel Analytics).</li>
+          <li><strong>Vercel</strong> – statystyki odwiedzin Platformy (Vercel Analytics), uruchamiane tylko po Twojej zgodzie.</li>
           <li><strong>Dostawca hostingu aplikacji</strong> – udostępnianie Platformy w Internecie.</li>
           <li><strong>Doradcy i podmioty obsługujące Operatora</strong> – księgowość, obsługa prawna i techniczna, o ile jest to potrzebne.</li>
           <li><strong>Organy publiczne i inne podmioty uprawnione z mocy prawa</strong> – gdy obowiązek przekazania wynika z przepisów.</li>
@@ -106,7 +111,7 @@ export default function PrivacyPage() {
 
       <section>
         <h2>9. Twoje prawa</h2>
-        <p>Masz prawo do: dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania, przenoszenia danych, sprzeciwu wobec przetwarzania opartego na prawnie uzasadnionym interesie oraz cofnięcia zgody w dowolnym momencie (bez wpływu na zgodność z prawem przetwarzania przed jej cofnięciem). Większość danych poprawisz w ustawieniach konta, a usunięcie konta zgłosisz według pkt 7. W pozostałych sprawach napisz na <a href="mailto:kontakt@runbee.pl" className={link}>kontakt@runbee.pl</a>. Odpowiemy bez zbędnej zwłoki, co do zasady w ciągu miesiąca.</p>
+        <p>Masz prawo do: dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania, przenoszenia danych, sprzeciwu wobec przetwarzania opartego na prawnie uzasadnionym interesie oraz cofnięcia zgody w dowolnym momencie (bez wpływu na zgodność z prawem przetwarzania przed jej cofnięciem). Większość danych poprawisz w ustawieniach konta, a usunięcie konta zgłosisz według pkt 7. W pozostałych sprawach napisz na <a href={`mailto:${operatorConfig.email}`} className={link}>{operatorConfig.email}</a>. Odpowiemy bez zbędnej zwłoki, co do zasady w ciągu miesiąca.</p>
         <p>Masz prawo wnieść skargę do Prezesa Urzędu Ochrony Danych Osobowych (ul. Stawki 2, 00-193 Warszawa), jeśli uważasz, że przetwarzamy dane niezgodnie z prawem.</p>
       </section>
 

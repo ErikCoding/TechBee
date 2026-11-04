@@ -84,6 +84,7 @@ export async function ensureLessonPackageForCheckoutSession(session: Stripe.Chec
     ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
     purchaseMode,
     ...(intent ? { purchaseIntentId: intent.id } : {}),
+    ...(intent?.withdrawalConsentAt ? { withdrawalConsentAt: intent.withdrawalConsentAt, withdrawalConsentVersion: intent.withdrawalConsentVersion ?? '' } : {}),
     firstLessonBookingStatus: purchaseMode === 'package_and_book' ? 'pending' : 'not_requested',
     livemode: Boolean(session.livemode),
     status: 'active',

@@ -1,10 +1,11 @@
 import { notFound } from 'next/navigation'
+import { reportProblemHref } from '@/lib/problem-report-core'
 import { formatAvailabilityDay } from '@/lib/availability-core'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import {
   Star, MapPin, Clock, BadgeCheck, Users, BookOpen,
-  CalendarDays, GraduationCap, ArrowLeft, Sparkles, MessageCircle, ShieldCheck, Languages,
+  CalendarDays, GraduationCap, ArrowLeft, Flag, Sparkles, MessageCircle, ShieldCheck, Languages,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
@@ -185,6 +186,13 @@ export default async function TeacherProfilePage({ params, searchParams }: Props
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Powrót do giełdy nauczycieli
+            </Link>
+            <Link
+              href={reportProblemHref({ kind: 'profile', id: teacher.id, name: teacher.name })}
+              className="mb-6 ml-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground/70 transition-colors hover:text-foreground"
+            >
+              <Flag className="h-3.5 w-3.5" aria-hidden="true" />
+              Zgłoś problem
             </Link>
 
             <div className={styles.heroRow}>

@@ -12,7 +12,8 @@ import { getOrCreateConversation, sendMessage, sendReportCardMessage, toParticip
 import { getUserProfileById } from '@/services/auth.service'
 import { canManageLessonReport, computeReportManagerIds, getReportManagerIds } from '@/lib/report-permissions'
 import { isReportAutoConfirmEligible } from '@/lib/lesson-report-auto-confirm'
-import { slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
+import { lessonStartAtMs, slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
+import { cancellationMode } from '@/lib/cancellation-policy-core'
 import type { BookedLessonSlot, Lesson, LessonBookingInput, LessonChangeRequest, LessonDispute, LessonDisputeReason, LessonReport, LessonReportCard, LessonReportCardStatus, StudentStats, TeacherDashboardData } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
@@ -601,6 +602,32 @@ async function sendReschedule(lesson: Lesson, payload: Record<string, unknown>) 
   if (!response.ok) throw new Error(result.error ?? 'Nie udało się zmienić terminu.')
 }
 
+/**
+ * Odwołanie bez zgody drugiej strony: korepetytor zawsze, uczeń/rodzic co najmniej 48 h przed lekcją.
+ * Najpierw zwrot (błąd zwrotu przerywa operację, żeby lekcja nie została odwołana bez oddania pieniędzy;
+ * zwrot jest idempotentny, więc ponowna próba jest bezpieczna), potem zmiana statusu.
+ */
+async function cancelLessonImmediately(lesson: Lesson, requestedBy: 'student' | 'teacher', note: string): Promise<void> {
+  if (lesson.status === 'cancelled' || lesson.status === 'completed') throw new Error('Ta lekcja nie może już zostać odwołana.')
+  if (lesson.paymentSource === 'package') {
+    await returnPackageCredit(lesson.id)
+  } else {
+    await stripeRefund(lesson.id)
+    await updateLessonDoc(lesson.id, {
+      status: 'cancelled', pendingChange: null, cancelledBy: requestedBy, cancelledAt: Date.now(), cancellationNote: note,
+    })
+  }
+  void notifyLessonEvent(lesson.id, 'cancelled')
+  const recipientId = requestedBy === 'student' ? lesson.teacherId : lesson.studentId
+  const requesterLabel = requestedBy === 'student' ? lesson.studentName : lesson.teacherName
+  createNotification({
+    userId: recipientId,
+    type: 'lesson',
+    title: 'Lekcja odwołana',
+    description: `${requesterLabel} odwołał(a) lekcję „${lesson.topic}" (${lesson.date} o ${lesson.time}).${note ? ` Powód: ${note}` : ''}${requestedBy === 'teacher' ? ' Środki zostały zwrócone.' : ''}`,
+  })
+}
+
 export async function requestLessonChange(lesson: Lesson, requestedBy: 'student' | 'teacher', change: Omit<LessonChangeRequest, 'requestedBy'>): Promise<void> {
   if (isFirebaseConfigured && change.type === 'reschedule') {
     const fingerprint = JSON.stringify([lesson.id, lesson.dateIso, lesson.time, lesson.pendingChange?.requestedAt ?? 0, change.newDateIso, change.newTime, change.note ?? ''])
@@ -610,6 +637,10 @@ export async function requestLessonChange(lesson: Lesson, requestedBy: 'student'
   }
   if (change.type === 'cancel' && (!change.note || change.note.trim().length < 8)) {
     throw new Error('Podaj powód odwołania lekcji.')
+  }
+  if (isFirebaseConfigured && change.type === 'cancel'
+    && cancellationMode({ requestedBy, startAtMs: lessonStartAtMs(lesson), now: Date.now() }) === 'immediate') {
+    return cancelLessonImmediately(lesson, requestedBy, change.note?.trim() ?? '')
   }
   if (change.type === 'reschedule') {
     if (!change.newDate || !change.newDateIso || !change.newTime) {

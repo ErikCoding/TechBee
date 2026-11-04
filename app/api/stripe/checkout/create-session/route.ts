@@ -8,6 +8,7 @@ import { splitPayment, toGrosze, STRIPE_CURRENCY } from '@/lib/stripe-config'
 import { getPlatformPaymentSettings } from '@/lib/platform-payment-settings'
 import { resolveEffectiveCommission } from '@/lib/founding-teacher-core'
 import { buildStudentPaymentBreakdown } from '@/lib/service-fees'
+import { WITHDRAWAL_CONSENT_VERSION, hasWithdrawalConsent } from '@/lib/withdrawal-consent'
 import { collections } from '@/lib/firebase'
 import { categoriesData } from '@/data/categories.data'
 import { getTeacherCategoryIds, getTeacherCustomSubjects } from '@/lib/teacher-categories'
@@ -71,6 +72,7 @@ interface CheckoutRequestBody {
   studentId?: string
   studentName?: string
   payer?: { id: string; role: 'student' | 'parent' }
+  withdrawalConsent?: boolean
 }
 
 export async function POST(request: Request) {
@@ -94,6 +96,10 @@ export async function POST(request: Request) {
   }
   if (!ALLOWED_DURATIONS.includes(duration)) {
     return NextResponse.json({ error: 'Nieprawidłowa długość lekcji.' }, { status: 400 })
+  }
+
+  if (!hasWithdrawalConsent(body.withdrawalConsent)) {
+    return NextResponse.json({ error: 'Potwierdź zgodę na rozpoczęcie usługi przed upływem 14 dni, aby przejść do płatności.' }, { status: 400 })
   }
 
   const uid = await verifyCaller(body.idToken)
@@ -272,6 +278,8 @@ export async function POST(request: Request) {
         commissionSource,
         platformFeeGrosze: String(platformFeeGrosze),
         teacherAmountGrosze: String(teacherAmountGrosze),
+        withdrawalConsentAt: String(Date.now()),
+        withdrawalConsentVersion: WITHDRAWAL_CONSENT_VERSION,
       },
       success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/teacher/${teacherId}/book`,

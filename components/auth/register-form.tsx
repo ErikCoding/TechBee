@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context'
 import { requireEmailVerification } from '@/lib/email-verification'
 import { cn, dashboardPathForRole } from '@/lib/utils'
 import type { PublicUserRole } from '@/lib/types'
+import { AGE_BAND_OPTIONS, type AgeBand } from '@/lib/registration-consent-core'
 
 const roleOptions: { value: PublicUserRole; label: string; description: string; icon: React.ElementType }[] = [
   { value: 'student', label: 'Jestem uczniem', description: 'Chcę uczyć się od ekspertów', icon: GraduationCap },
@@ -29,6 +30,8 @@ export function RegisterForm() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [ageBand, setAgeBand] = useState<AgeBand | ''>('')
+  const [acceptTerms, setAcceptTerms] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [verificationSentTo, setVerificationSentTo] = useState<string | null>(null)
   const [verificationSendFailed, setVerificationSendFailed] = useState(false)
@@ -43,7 +46,7 @@ export function RegisterForm() {
     }
     setLoading(true)
     try {
-      const user = await register({ name, email, password, role })
+      const user = await register({ name, email, password, role, acceptTerms, ageBand: ageBand || undefined })
       if (requireEmailVerification && user.emailVerified === false) {
         setVerificationSentTo(user.email)
         setVerificationSendFailed(user.verificationEmailSent === false)
@@ -100,7 +103,7 @@ export function RegisterForm() {
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setRole(opt.value)}
+                  onClick={() => { setRole(opt.value); setAgeBand('') }}
                   aria-pressed={active}
                   className={cn(
                     'flex flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all',
@@ -131,6 +134,34 @@ export function RegisterForm() {
           <Input id="reg-password" type="password" required autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 znaków" />
         </div>
 
+        {role === 'student' ? (
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="mb-1 text-xs font-medium text-foreground">Twój wiek</legend>
+            {AGE_BAND_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex cursor-pointer items-start gap-2.5 text-xs leading-snug text-muted-foreground">
+                <input type="radio" name="ageBand" value={opt.value} checked={ageBand === opt.value} onChange={() => setAgeBand(opt.value)} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+            {ageBand && ageBand !== 'adult' && (
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Za lekcje osoby niepełnoletniej płaci rodzic lub opiekun: najlepiej z konta rodzica powiązanego z Twoim kontem (kod powiązania w panelu ucznia).
+              </p>
+            )}
+          </fieldset>
+        ) : (
+          <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-snug text-muted-foreground">
+            <input type="checkbox" checked={ageBand === 'adult'} onChange={(e) => setAgeBand(e.target.checked ? 'adult' : '')} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+            <span>Mam co najmniej 18 lat.</span>
+          </label>
+        )}
+        <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-snug text-muted-foreground">
+          <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+          <span>
+            Akceptuję <a href="/terms" target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-foreground">Regulamin</a> i zapoznałem(-am) się z <a href="/privacy" target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-foreground">Polityką prywatności</a>.
+          </span>
+        </label>
+
         {error && (
           <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -138,7 +169,7 @@ export function RegisterForm() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} className="mt-1 font-semibold">
+        <Button type="submit" disabled={loading || !acceptTerms || !ageBand} className="mt-1 font-semibold">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
           Utwórz konto
         </Button>

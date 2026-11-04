@@ -71,8 +71,10 @@ export function AdminSupportMessagesPanel() {
       })
       .filter((message) => {
         if (!q) return true
-        return [message.name, message.email, message.subject, message.message].some((value) => value.toLowerCase().includes(q))
+        return [message.name, message.email, message.subject, message.message, message.target ?? ''].some((value) => value.toLowerCase().includes(q))
       })
+      // Pilne zgłoszenia (bezpieczeństwo dziecka) zawsze na górze; reszta wg daty (lista przyszła już posortowana).
+      .sort((a, b) => Number(b.priority === true) - Number(a.priority === true))
   }, [messages, filter, query])
 
   async function setStatus(message: SupportMessage, status: SupportMessageStatus) {
@@ -110,7 +112,7 @@ export function AdminSupportMessagesPanel() {
               <h2 className="text-base font-semibold text-foreground">Wiadomości ze strony</h2>
               {counts.unread > 0 && <Badge>{counts.unread} nowych</Badge>}
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">Wiadomości wysłane z formularza kontaktowego do supportu Runbee.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Wiadomości z formularza kontaktowego oraz zgłoszenia problemów („Zgłoś problem”) trafiają tutaj. Pilne zgłoszenia (bezpieczeństwo dziecka) są na górze.</p>
           </div>
           <Button variant="outline" size="sm" onClick={load} disabled={!messages}>
             <RefreshCw className="h-3.5 w-3.5" />
@@ -167,6 +169,11 @@ export function AdminSupportMessagesPanel() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-foreground">{message.subject}</p>
+                        {message.source === 'report-problem' && (
+                          <StatusBadge tone={message.priority ? 'error' : 'info'} dot={false} className="px-2 py-0.5 text-[10px]">
+                            {message.priority ? 'PILNE · zgłoszenie' : 'Zgłoszenie problemu'}
+                          </StatusBadge>
+                        )}
                         <StatusBadge tone={status.tone} dot={false} className="px-2 py-0.5 text-[10px]">{status.label}</StatusBadge>
                       </div>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{message.name} · {message.email}</p>
@@ -203,6 +210,7 @@ export function AdminSupportMessagesPanel() {
                           <p><span className="font-medium text-foreground">Od: </span>{message.name}</p>
                           <p className="mt-1 break-all"><span className="font-medium text-foreground">Email: </span>{message.email}</p>
                           <p className="mt-1"><span className="font-medium text-foreground">Dodano: </span>{formatDate(message.createdAt)}</p>
+                          {message.target && <p className="mt-1 break-words"><span className="font-medium text-foreground">Dotyczy: </span>{message.target}</p>}
                         </div>
                       </div>
                     </div>

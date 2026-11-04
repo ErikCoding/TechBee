@@ -9,6 +9,7 @@ import {
   updatePassword,
   updateProfile as updateFirebaseProfile,
 } from 'firebase/auth'
+import { buildRegistrationConsent, validateRegistrationConsent, type AgeBand } from '@/lib/registration-consent-core'
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { auth, collections, db, isFirebaseConfigured } from '@/lib/firebase'
 import { requireEmailVerification } from '@/lib/email-verification'
@@ -86,6 +87,10 @@ export interface RegisterInput {
   email: string
   password: string
   role: PublicUserRole
+  /** Akceptacja Regulaminu i Polityki prywatności (wymagana). */
+  acceptTerms?: boolean
+  /** Oświadczenie o wieku (wymagane). */
+  ageBand?: AgeBand
 }
 
 export interface LoginInput {
@@ -329,7 +334,7 @@ async function registerFirebase(input: RegisterInput): Promise<AuthUser> {
     // app needs it on the client user object) but it's written to the doc
     // so the admin panel can show real "joined" dates and weekly-signup
     // counts instead of static demo numbers.
-    setDoc(doc(db, collections.users, credential.user.uid), { ...profile, createdAt: Date.now() }),
+    setDoc(doc(db, collections.users, credential.user.uid), { ...profile, createdAt: Date.now(), registrationConsent: buildRegistrationConsent(input.ageBand!) }),
     updateFirebaseProfile(credential.user, { displayName: profile.name }),
   ])
   let verificationEmailSent: boolean | undefined
@@ -468,6 +473,8 @@ async function requestAccountDeletionFirebase(input: RequestAccountDeletionInput
 // ── Public API ────────────────────────────────────────────────
 
 export async function registerUser(input: RegisterInput): Promise<AuthUser> {
+  const consentError = validateRegistrationConsent(input)
+  if (consentError) throw new Error(consentError)
   return isFirebaseConfigured ? registerFirebase(input) : registerMock(input)
 }
 

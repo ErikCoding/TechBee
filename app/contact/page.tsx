@@ -4,6 +4,7 @@ import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { ContactForm } from '@/components/contact/contact-form'
 import { pageMetadata } from '@/lib/seo'
+import { operatorConfig } from '@/config/operator'
 
 export const metadata: Metadata = pageMetadata({
   title: 'Kontakt',
@@ -13,7 +14,7 @@ export const metadata: Metadata = pageMetadata({
 })
 
 const contactInfo = [
-  { icon: Mail, label: 'E-mail', value: 'kontakt@runbee.pl' },
+  { icon: Mail, label: 'E-mail', value: operatorConfig.email },
   { icon: MapPin, label: 'Obsługiwany obszar', value: 'Polska · lekcje online' },
   { icon: Clock, label: 'Czas odpowiedzi', value: 'Zwykle w ciągu 1 dnia roboczego' },
 ]

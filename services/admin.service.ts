@@ -124,3 +124,14 @@ export async function listAdminConversations(): Promise<AdminConversationRow[]> 
 export async function deleteAdminConversation(conversationId: string): Promise<{ deletedMessages: number }> {
   return adminJson(`/api/admin/conversations/${conversationId}`, 'DELETE')
 }
+
+export type RevenueLedgerResponse = {
+  summary: import('@/lib/revenue-ledger-core').QuarterSummary
+  csv?: string
+  filename?: string
+}
+
+/** Kwartalny licznik limitu + (opcjonalnie) CSV ewidencji sprzedaży. `quarter` w formacie "2026-Q4"; domyślnie bieżący. */
+export async function getRevenueLedger(options: { quarter?: string; format?: 'csv' } = {}): Promise<RevenueLedgerResponse> {
+  return adminJson('/api/admin/revenue-ledger', 'POST', options)
+}

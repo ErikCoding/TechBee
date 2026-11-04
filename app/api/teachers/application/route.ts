@@ -4,12 +4,14 @@ import { adminDb } from '@/lib/firebase-admin'
 import { verifyCaller } from '@/lib/stripe-server-auth'
 import { buildTeacherFromApplication, validateTeacherApplicationInput } from '@/lib/teacher-application-core'
 import type { Teacher } from '@/lib/types'
+import { TEACHER_TERMS_VERSION } from '@/lib/teacher-terms'
 
 export async function POST(request: Request) {
   if (!adminDb) return NextResponse.json({ error: 'Zapis zgłoszeń jest chwilowo niedostępny.' }, { status: 503 })
   const body = await request.json().catch(() => null)
   const uid = await verifyCaller(typeof body?.idToken === 'string' ? body.idToken : undefined)
   if (!uid) return NextResponse.json({ error: 'Zaloguj się ponownie.' }, { status: 401 })
+  if (body?.acceptTeacherTerms !== true) return NextResponse.json({ error: 'Zaakceptuj Warunki dla Nauczycieli, aby wysłać ogłoszenie.' }, { status: 400 })
   let input
   try { input = validateTeacherApplicationInput(body?.input) } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Nieprawidłowe zgłoszenie.' }, { status: 400 })
@@ -30,6 +32,8 @@ export async function POST(request: Request) {
         availabilityHours: teacher.availabilityHours ?? FieldValue.delete(),
         trialLessonDuration: teacher.trialLessonEnabled ? teacher.trialLessonDuration : FieldValue.delete(),
         trialLessonPriceGrosze: teacher.trialLessonEnabled ? teacher.trialLessonPriceGrosze : FieldValue.delete(),
+        teacherTermsAcceptedAt: Date.now(),
+        teacherTermsVersion: TEACHER_TERMS_VERSION,
       }, { merge: true })
       return teacher
     })

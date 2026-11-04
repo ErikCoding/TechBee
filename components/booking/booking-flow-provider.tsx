@@ -74,6 +74,9 @@ interface BookingFlowValue {
   clearError: () => void
   completed: { lessonId: string; count: number } | null
   confirm: () => Promise<void>
+  /** Zgoda na rozpoczęcie usługi przed upływem 14 dni — wymagana tylko przy płatności Stripe. */
+  withdrawalConsent: boolean
+  setWithdrawalConsent: (value: boolean) => void
 }
 
 const BookingFlowContext = createContext<BookingFlowValue | null>(null)
@@ -127,6 +130,7 @@ export function BookingFlowProvider({ teacher, subjects, children }: { teacher: 
   const [loadingSlots, setLoadingSlots] = useState(true)
   const [loadingPackages, setLoadingPackages] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [withdrawalConsent, setWithdrawalConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [completed, setCompleted] = useState<{ lessonId: string; count: number } | null>(null)
   const submittingRef = useRef(false)
@@ -287,6 +291,8 @@ export function BookingFlowProvider({ teacher, subjects, children }: { teacher: 
     if (submittingRef.current) return
     if (!user || !selectedSubject) return
     if (!stepValid(1) || !stepValid(2)) return
+    // Płatność Stripe wymaga jawnej zgody (rezerwacja z posiadanego pakietu nie jest płatnością).
+    if (isFirebaseConfigured && selections.paymentChoice !== 'existing_package' && !withdrawalConsent) return
     const day = selectedDay
     const slot = selections.slot
     const topic = selections.topic.trim()
@@ -344,6 +350,7 @@ export function BookingFlowProvider({ teacher, subjects, children }: { teacher: 
             studentId: forId,
             studentName: forName,
             payer,
+            withdrawalConsent,
             purchaseMode: selections.packageMode,
             ...(selections.packageMode === 'package_and_book' && day && slot ? {
               booking: { date: day.dayLabel, dateIso: day.isoDate, time: slot, scheduledStartAt: startAt, topic, bookingRequestId: requestId },
@@ -367,6 +374,7 @@ export function BookingFlowProvider({ teacher, subjects, children }: { teacher: 
           studentId: forId,
           studentName: forName,
           payer,
+          withdrawalConsent,
         })
         redirected = true
         window.location.href = url
@@ -404,7 +412,7 @@ export function BookingFlowProvider({ teacher, subjects, children }: { teacher: 
     }
   }, [
     user, selectedSubject, stepValid, selectedDay, selections, bookingFor, teacher, matchingPackage,
-    selectedSubjectCategoryId, bookingDuration, recurringCount, lessonSubtotalGrosze,
+    selectedSubjectCategoryId, bookingDuration, recurringCount, lessonSubtotalGrosze, withdrawalConsent,
   ])
 
   // A finished in-app booking (package credit / mock mode) must not leave a
@@ -420,6 +428,7 @@ export function BookingFlowProvider({ teacher, subjects, children }: { teacher: 
     singlePayment, packagePayment, firstRegularPayment, firstRegularDuration, trialPayment, lessonSubtotalGrosze,
     matchingPackages, matchingPackage, canBuyPackages, recurringCount, recurringMax, summaryKind, hasTerm,
     stepValid, guardedStep, stepHref, submitting, error, clearError: () => setError(null), completed, confirm,
+    withdrawalConsent, setWithdrawalConsent,
   }
   return <BookingFlowContext.Provider value={value}>{children}</BookingFlowContext.Provider>
 }

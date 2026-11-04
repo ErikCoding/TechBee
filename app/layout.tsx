@@ -1,7 +1,7 @@
-import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context'
+import { CookieConsent } from '@/components/layout/cookie-consent'
 import { siteConfig } from '@/config/site'
 import { absoluteUrl, defaultSeoDescription, seoKeywords, siteUrl } from '@/lib/seo'
 import './globals.css'
@@ -117,7 +117,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
         <AuthProvider>{children}</AuthProvider>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <CookieConsent />
       </body>
     </html>
   )

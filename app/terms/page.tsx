@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/legal/legal-page'
 import { pageMetadata } from '@/lib/seo'
+import { operatorConfig } from '@/config/operator'
 
 export const metadata: Metadata = pageMetadata({
   title: 'Regulamin',
-  description: 'Regulamin korzystania z platformy Runbee: konta, rezerwacje lekcji, pakiety, płatności, raporty, spory i usuwanie konta.',
+  description: 'Regulamin korzystania z platformy Runbee: rola pośrednika, konta, rezerwacje lekcji, pakiety, płatności, raporty, spory, opinie, zgłaszanie treści i usuwanie konta.',
   path: '/terms',
 })
 
@@ -15,12 +16,12 @@ export default function TermsPage() {
     <LegalPage
       title="Regulamin serwisu Runbee"
       updated="10 października 2026"
-      intro="Regulamin opisuje, jak działa platforma Runbee, jakie prawa i obowiązki mają Uczniowie, Rodzice i Nauczyciele oraz jak rozliczamy lekcje, pakiety, zwroty i usuwanie kont."
+      intro="Regulamin opisuje, jak działa platforma Runbee, jakie prawa i obowiązki mają Uczniowie, Rodzice i Nauczyciele oraz jak rozliczamy lekcje, pakiety, zwroty i usuwanie kont. Runbee jest pośrednikiem: łączy Uczniów z niezależnymi Nauczycielami i dostarcza narzędzia do rezerwacji, komunikacji i płatności."
     >
       <section>
         <h2>§1. Postanowienia ogólne i definicje</h2>
         <p>1. Regulamin określa rodzaj i zakres usług świadczonych drogą elektroniczną przez Operatora, warunki ich świadczenia, warunki zawierania i rozwiązywania umów o świadczenie tych usług oraz tryb postępowania reklamacyjnego, zgodnie z art. 8 ustawy z dnia 18 lipca 2002 r. o świadczeniu usług drogą elektroniczną.</p>
-        <p>2. Operatorem platformy Runbee dostępnej pod adresem runbee.pl („Platforma”) jest Bartosz Prokop („Operator”). Kontakt z Operatorem, w tym w sprawach reklamacyjnych i dotyczących danych osobowych, jest możliwy pod adresem <a href="mailto:kontakt@runbee.pl" className={link}>kontakt@runbee.pl</a>.</p>
+        <p>2. Operatorem platformy Runbee dostępnej pod adresem runbee.pl („Platforma”) jest {operatorConfig.name}, osoba fizyczna prowadząca działalność nierejestrowaną („Operator”), adres do korespondencji: {operatorConfig.correspondenceAddress}. Kontakt z Operatorem, w tym w sprawach reklamacyjnych i dotyczących danych osobowych, jest możliwy pod adresem <a href={`mailto:${operatorConfig.email}`} className={link}>{operatorConfig.email}</a>.</p>
         <p>3. Użyte w Regulaminie określenia oznaczają:</p>
         <ul>
           <li><strong>Użytkownik</strong> – każda osoba korzystająca z Platformy, w tym Uczeń, Rodzic i Nauczyciel,</li>
@@ -48,7 +49,7 @@ export default function TermsPage() {
           <li>otrzymywanie powiadomień w Platformie i wiadomości e-mail dotyczących konta, Lekcji i płatności,</li>
           <li>udział w programie lojalnościowym BeePoints.</li>
         </ul>
-        <p>2. Operator jest pośrednikiem technologicznym. Umowa o przeprowadzenie Lekcji zawierana jest między Płatnikiem (Uczniem lub Rodzicem) a Nauczycielem. Operator nie jest stroną tej umowy i nie odpowiada za merytoryczną treść Lekcji, z zastrzeżeniem postanowień o płatnościach, Raportach, sporach i reklamacjach zawartych w Regulaminie.</p>
+        <p>2. Operator jest pośrednikiem: dostarcza narzędzia (profile, kalendarz, rezerwacje, czat, pokój wideo) i obsługę płatności. Nauczyciel jest niezależnym usługodawcą, działa we własnym imieniu i na własny rachunek, sam ustala treść, formę i cenę Lekcji w ramach Platformy, a Operator nie jest jego pracodawcą ani zleceniodawcą. Umowa o przeprowadzenie Lekcji zawierana jest między Płatnikiem (Uczniem lub Rodzicem) a Nauczycielem. Operator nie jest stroną tej umowy i nie odpowiada za merytoryczną treść Lekcji, z zastrzeżeniem postanowień o płatnościach, Raportach, sporach i reklamacjach zawartych w Regulaminie. Zasady współpracy z Nauczycielami (status, podatki, prowizja, wypłaty) opisują <a href="/teacher-terms" className={link}>Warunki dla Nauczycieli</a>.</p>
         <p>3. Platforma nie nagrywa Lekcji. Użytkownik nie może samodzielnie nagrywać Lekcji ani rozmów bez zgody pozostałych uczestników.</p>
       </section>
 
@@ -59,7 +60,8 @@ export default function TermsPage() {
         <p>3. Użytkownik podaje dane zgodne z prawdą, dba o poufność danych logowania i odpowiada za działania wykonane na swoim koncie. Podejrzenie nieuprawnionego dostępu należy niezwłocznie zgłosić Operatorowi. Zmiana adresu e-mail i hasła oraz złożenie wniosku o usunięcie konta wymagają ponownego uwierzytelnienia.</p>
         <p>4. Konto Rodzica można powiązać z kontem Ucznia za pomocą krótkotrwałego, jednorazowego kodu wygenerowanego przez Ucznia. Powiązanie umożliwia Rodzicowi rezerwowanie i opłacanie Lekcji dla Ucznia oraz zarządzanie Raportami. Rodzic może zdecydować, czy Uczeń również może potwierdzać Raporty.</p>
         <p>5. Zgłoszenie Nauczyciela jest sprawdzane przez Operatora przed opublikowaniem profilu. Operator może odmówić publikacji profilu lub poprosić o uzupełnienie danych. Wypłaty wynagrodzenia wymagają połączenia konta Nauczyciela z usługą Stripe Connect i przejścia weryfikacji prowadzonej przez Stripe.</p>
-        <p>6. Operator może zablokować lub zawiesić konto w przypadku naruszenia Regulaminu, podejrzenia nadużycia albo na żądanie uprawnionego organu. O zablokowaniu konta Operator może poinformować Użytkownika drogą elektroniczną, o ile przepisy lub względy bezpieczeństwa tego nie wykluczają.</p>
+        <p>6. Operator może zablokować lub zawiesić konto, ograniczyć widoczność profilu Nauczyciela albo usunąć treść w przypadku naruszenia Regulaminu, podejrzenia nadużycia, naruszenia bezpieczeństwa małoletnich albo na żądanie uprawnionego organu. O takiej decyzji Operator informuje Użytkownika drogą elektroniczną i podaje jej uzasadnienie (podstawę, fakty i zakres), o ile przepisy lub względy bezpieczeństwa tego nie wykluczają. Użytkownik może odwołać się od decyzji, pisząc na adres z §1 ust. 2; Operator odpowiada w terminie 14 dni.</p>
+        <p>7. Przy rejestracji Użytkownik akceptuje Regulamin i składa oświadczenie o wieku. Konta Nauczyciela i Rodzica mogą zakładać tylko osoby pełnoletnie. Konto Ucznia może założyć także osoba niepełnoletnia, która oświadcza, że ma zgodę rodzica lub opiekuna (w przypadku osoby poniżej 16 lat jest to zgoda na założenie konta). Za Lekcje osoby niepełnoletniej płaci rodzic lub opiekun, najlepiej z konta Rodzica powiązanego z kontem Ucznia. Operator zapisuje wersję i datę akceptacji.</p>
       </section>
 
       <section>
@@ -74,7 +76,7 @@ export default function TermsPage() {
         <p>1. Płatnik wybiera Nauczyciela, przedmiot, długość i termin Lekcji spośród dostępnych terminów, podaje temat zajęć i opłaca rezerwację. Rezerwacja powstaje po potwierdzeniu płatności przez Stripe. Wolne terminy są pokazywane w Platformie na bieżąco, a Operator nie gwarantuje, że wybrany termin pozostanie dostępny do chwili zakończenia płatności.</p>
         <p>2. Nauczyciel potwierdza lub odrzuca rezerwację. Do czasu potwierdzenia Lekcja ma status oczekującej. Odrzucenie rezerwacji skutkuje zwrotem płatności zgodnie z §7 ust. 6.</p>
         <p>3. Lekcja próbna może być dostępna u Nauczycieli, którzy ją włączyli. Dla jednej pary Uczeń–Nauczyciel można wykorzystać jedną płatną lekcję próbną.</p>
-        <p>4. Odwołanie lub przełożenie potwierdzonej Lekcji wymaga prośby złożonej w Platformie i akceptacji drugiej strony. Zasady zwrotu opisuje §7.</p>
+        <p>4. Odwołanie Lekcji przez Ucznia lub Rodzica co najmniej 48 godzin przed jej rozpoczęciem następuje od razu, bez zgody Nauczyciela, z pełnym zwrotem (§7 ust. 6). Odwołanie przez Nauczyciela jest możliwe w każdej chwili przed Lekcją i również skutkuje pełnym zwrotem dla Płatnika. Odwołanie przez Ucznia lub Rodzica później niż 48 godzin przed Lekcją wymaga prośby w Platformie i akceptacji Nauczyciela. Zmiana terminu jest możliwa najpóźniej 2 godziny przed rozpoczęciem Lekcji, a nowy termin potwierdza druga strona.</p>
         <p>5. Do pokoju wideo można dołączyć w oknie czasowym wskazanym w Platformie. Użytkownik odpowiada za sprawność własnego sprzętu i łącza. Operator nie odpowiada za przerwy w Lekcji spowodowane przyczynami po stronie Użytkownika.</p>
         <p>6. Nauczyciel prowadzi Lekcje z należytą starannością, w uzgodnionym terminie i zakresie. Uczeń lub Rodzic stawia się na Lekcję punktualnie. Nieobecność jednej ze stron może zostać zgłoszona jako spór (§8).</p>
       </section>
@@ -84,7 +86,7 @@ export default function TermsPage() {
         <p>1. Pakiet obejmuje 5 lub 10 lekcji i jest przypisany do wybranego Nauczyciela, przedmiotu oraz długości Lekcji. Pakiet można kupić samodzielnie albo razem z rezerwacją pierwszej Lekcji.</p>
         <p>2. Rezerwacja Lekcji z Pakietu rezerwuje jeden kredyt, a po przeprowadzeniu Lekcji kredyt zostaje wykorzystany. Nie powoduje to naliczenia kolejnej opłaty serwisowej. Lekcje z Pakietu można rezerwować także cyklicznie.</p>
         <p>3. Kredyt wraca do Pakietu, gdy rezerwacja zostanie odrzucona lub gdy anulowanie Lekcji zostanie zaakceptowane.</p>
-        <p>4. Pakiet nie ma w Platformie ustalonego terminu ważności. Zwroty zakupionych Pakietów wymagają kontaktu z Operatorem pod adresem <a href="mailto:kontakt@runbee.pl" className={link}>kontakt@runbee.pl</a> do czasu wprowadzenia automatycznego procesu zwrotów.</p>
+        <p>4. Pakiet nie ma w Platformie ustalonego terminu ważności. Zwroty zakupionych Pakietów wymagają kontaktu z Operatorem pod adresem <a href={`mailto:${operatorConfig.email}`} className={link}>{operatorConfig.email}</a> do czasu wprowadzenia automatycznego procesu zwrotów.</p>
       </section>
 
       <section>
@@ -94,7 +96,7 @@ export default function TermsPage() {
         <p>3. W przypadku Pakietu opłata serwisowa jest naliczana jednorazowo od wartości całego Pakietu.</p>
         <p>4. Z wynagrodzenia Nauczyciela Operator potrąca prowizję. Jej wysokość oraz cennik są prezentowane Nauczycielowi w panelu Nauczyciela przed aktywacją profilu, a w programach promocyjnych także w warunkach danego programu.</p>
         <p>5. Środki za Lekcję są pobierane z góry. Operator przekazuje należność Nauczycielowi (po potrąceniu prowizji) na jego konto Stripe Connect po potwierdzeniu Raportu, po jego automatycznym potwierdzeniu albo po rozstrzygnięciu sporu na korzyść Nauczyciela (§8). Wypłata środków z konta Stripe Connect na rachunek bankowy Nauczyciela odbywa się na zasadach Stripe i może zależeć od ukończenia weryfikacji.</p>
-        <p>6. Pełny zwrot płatności za pojedynczą Lekcję następuje w szczególności po odrzuceniu rezerwacji, po zaakceptowaniu prośby o odwołanie oraz po rozstrzygnięciu sporu na korzyść Płatnika. Zwracana jest cała rzeczywiście zapłacona kwota, w tym opłata serwisowa. Zwrot jest realizowany tą samą metodą płatności przez Stripe, a czas jego zaksięgowania zależy od banku.</p>
+        <p>6. Pełny zwrot płatności za pojedynczą Lekcję następuje w szczególności po odrzuceniu rezerwacji, po odwołaniu Lekcji przez Nauczyciela, po odwołaniu przez Ucznia lub Rodzica co najmniej 48 godzin przed Lekcją albo po zaakceptowaniu późniejszej prośby o odwołanie, a także po rozstrzygnięciu sporu na korzyść Płatnika. Zwracana jest cała rzeczywiście zapłacona kwota, w tym opłata serwisowa. Zwrot jest realizowany tą samą metodą płatności przez Stripe niezwłocznie, nie później niż w ciągu 14 dni, a czas jego zaksięgowania zależy od banku.</p>
         <p>7. Operator może wstrzymać przekazanie środków albo wypłatę w razie podejrzenia nadużycia, otwartego sporu lub żądania uprawnionego organu.</p>
       </section>
 
@@ -112,6 +114,22 @@ export default function TermsPage() {
         <p>2. Zabronione jest przesyłanie treści bezprawnych, naruszających prawa osób trzecich lub szkodliwych oraz nakłanianie do zawierania płatności poza Platformą w celu obejścia opłat.</p>
         <p>3. Operator nie monitoruje rozmów na bieżąco. Uprawniony pracownik lub współpracownik Operatora może zapoznać się z rozmową, gdy jest to niezbędne do obsługi zgłoszenia, rozpatrzenia sporu lub reklamacji albo zapewnienia bezpieczeństwa Użytkowników.</p>
         <p>4. Uczeń lub Rodzic może wystawić jedną opinię o Nauczycielu, z którym odbył Lekcję, i może ją później zmienić. Opinie są publikowane przy profilu Nauczyciela. Treści opinii nie mogą naruszać prawa ani dóbr osobistych.</p>
+        <p>5. Opinię może wystawić wyłącznie osoba, która odbyła Lekcję z danym Nauczycielem; Platforma sprawdza ten warunek automatycznie przed zapisaniem opinii. Operator nie weryfikuje prawdziwości treści opinii poza tym warunkiem, nie płaci i nie przyjmuje zapłaty za opinie i nie zmienia ich ocen. Operator może usunąć opinię naruszającą prawo lub Regulamin. Ocena i liczba opinii są podstawą sortowania „Najwyżej oceniani” (§9a). Szersze wyjaśnienie zasad sortowania i opinii znajduje się na stronie <a href="/zasady-rankingu" className={link}>Jak sortujemy nauczycieli</a>.</p>
+      </section>
+
+      <section>
+        <h2>§9a. Zasady wyświetlania i kolejności Nauczycieli</h2>
+        <p>1. Domyślna kolejność na giełdzie to „Wyróżnieni”: najpierw profile z oznaczeniem „Wyróżniony” nadanym przez Operatora, potem pozostałe. Użytkownik może zmienić kolejność na: najwyżej oceniani (według średniej oceny), cena rosnąco lub malejąco oraz najwięcej lekcji (według liczby przeprowadzonych Lekcji).</p>
+        <p>2. Oznaczenia „Wyróżniony” i „Pierwsza 50” ustawia Operator. „Pierwsza 50” oznacza udział w programie promocyjnym dla pierwszych Nauczycieli (preferencyjna prowizja przez ograniczony czas). Oznaczenia te są wyraźnie widoczne przy profilu. Pozycja Nauczyciela nie jest sprzedawana w formie płatnej reklamy.</p>
+        <p>3. Użytkownik może filtrować Nauczycieli według przedmiotu, poziomu nauczania i ceny. Dostępność terminów jest widoczna dopiero w kalendarzu rezerwacji.</p>
+      </section>
+
+      <section>
+        <h2>§9b. Zgłaszanie nielegalnych treści, punkt kontaktowy (DSA)</h2>
+        <p>1. Punktem kontaktowym dla Użytkowników i organów, zgodnie z rozporządzeniem (UE) 2022/2065 (akt o usługach cyfrowych), jest adres <a href={`mailto:${operatorConfig.dsaContactEmail}`} className={link}>{operatorConfig.dsaContactEmail}</a>. Komunikacja odbywa się w języku polskim.</p>
+        <p>2. Każdy może zgłosić treść lub profil, które uważa za niezgodne z prawem lub Regulaminem, wysyłając wiadomość na ten adres. Zgłoszenie powinno zawierać: wskazanie treści lub profilu (adres lub nazwę), uzasadnienie, dlaczego jest niezgodny z prawem lub Regulaminem, oraz imię, nazwisko i adres e-mail zgłaszającego (chyba że zgłoszenie dotyczy treści o wykorzystywaniu seksualnym dzieci).</p>
+        <p>3. Operator potwierdza przyjęcie zgłoszenia, rozpatruje je niezwłocznie i informuje zgłaszającego oraz autora treści o decyzji wraz z uzasadnieniem i możliwością odwołania zgodnie z §3 ust. 6.</p>
+        <p>4. Zgłoszenia dotyczące bezpieczeństwa dzieci, w tym niewłaściwego zachowania Nauczyciela, można kierować na adres <a href={`mailto:${operatorConfig.safeguardingContactEmail}`} className={link}>{operatorConfig.safeguardingContactEmail}</a>. Operator traktuje je priorytetowo.</p>
       </section>
 
       <section>
@@ -138,15 +156,15 @@ export default function TermsPage() {
 
       <section>
         <h2>§12. Reklamacje</h2>
-        <p>1. Reklamacje dotyczące działania Platformy lub przeprowadzonych Lekcji można zgłaszać na adres <a href="mailto:kontakt@runbee.pl" className={link}>kontakt@runbee.pl</a>, podając opis problemu oraz dane pozwalające zidentyfikować konto i rezerwację.</p>
+        <p>1. Reklamacje dotyczące działania Platformy lub przeprowadzonych Lekcji można zgłaszać na adres <a href={`mailto:${operatorConfig.email}`} className={link}>{operatorConfig.email}</a>, podając opis problemu oraz dane pozwalające zidentyfikować konto i rezerwację.</p>
         <p>2. Operator rozpatruje reklamację w terminie 14 dni kalendarzowych od jej otrzymania i informuje o wyniku na adres e-mail zgłaszającego.</p>
         <p>3. Zgłoszenie sporu do Raportu (§8) nie wyłącza prawa do reklamacji.</p>
       </section>
 
       <section>
-        <h2>§13. Odstąpienie od umowy (konsumenci)</h2>
-        <p>1. Konsument może odstąpić od umowy zawartej na odległość w terminie 14 dni bez podania przyczyny, zgodnie z ustawą z dnia 30 maja 2014 r. o prawach konsumenta. Oświadczenie można wysłać na adres <a href="mailto:kontakt@runbee.pl" className={link}>kontakt@runbee.pl</a>.</p>
-        <p>2. Prawo odstąpienia nie przysługuje w zakresie, w jakim przed upływem 14 dni Lekcja została w pełni wykonana za wyraźną zgodą konsumenta, który został poinformowany o utracie tego prawa.</p>
+        <h2 id="odstapienie">§13. Odstąpienie od umowy (konsumenci)</h2>
+        <p>1. Konsument może odstąpić od umowy zawartej na odległość w terminie 14 dni bez podania przyczyny, zgodnie z ustawą z dnia 30 maja 2014 r. o prawach konsumenta. Oświadczenie można wysłać na adres <a href={`mailto:${operatorConfig.email}`} className={link}>{operatorConfig.email}</a>.</p>
+        <p>2. Przed płatnością konsument zaznacza w Platformie oświadczenie (pole „Zgoda na start lekcji”), w którym wyraźnie żąda rozpoczęcia świadczenia usługi w wybranym terminie, także przed upływem 14 dni na odstąpienie, i potwierdza, że wie o utracie prawa odstąpienia po pełnym wykonaniu usługi. Bez zaznaczenia tego oświadczenia płatność nie jest możliwa. Operator zapisuje datę i wersję oświadczenia. Prawo odstąpienia nie przysługuje w zakresie, w jakim przed upływem 14 dni Lekcja została w pełni wykonana za wyraźną zgodą konsumenta, który został poinformowany o utracie tego prawa. Jeśli konsument odstąpi od umowy po rozpoczęciu wykonywania usługi, a przed jej pełnym wykonaniem, zapłaci za dotychczas wykonane świadczenie proporcjonalnie do jego zakresu.</p>
         <p>3. Konsument może skorzystać z pozasądowych sposobów rozpatrywania reklamacji i dochodzenia roszczeń, np. zwrócić się do miejskiego lub powiatowego rzecznika konsumentów albo do wojewódzkiego inspektoratu Inspekcji Handlowej.</p>
       </section>
 
@@ -165,7 +183,7 @@ export default function TermsPage() {
       <section>
         <h2>§16. Postanowienia końcowe</h2>
         <p>1. W sprawach nieuregulowanych Regulaminem stosuje się przepisy prawa polskiego, w tym Kodeksu cywilnego, ustawy o świadczeniu usług drogą elektroniczną i ustawy o prawach konsumenta.</p>
-        <p>2. Spory z Użytkownikami będącymi konsumentami rozstrzyga sąd właściwy według przepisów ogólnych. Spory z pozostałymi Użytkownikami rozstrzyga sąd właściwy dla siedziby Operatora.</p>
+        <p>2. Spory z Użytkownikami będącymi konsumentami rozstrzyga sąd właściwy według przepisów ogólnych. Spory z pozostałymi Użytkownikami rozstrzyga sąd właściwy dla miejsca zamieszkania Operatora.</p>
         <p>3. Operator może zmienić Regulamin z ważnych przyczyn, takich jak zmiana przepisów, funkcji Platformy lub zasad płatności. O zmianach Użytkownicy zostaną poinformowani drogą elektroniczną z 14-dniowym wyprzedzeniem. Zmiana nie wpływa na Lekcje i Pakiety opłacone przed jej wejściem w życie. Użytkownik, który jej nie akceptuje, może usunąć konto zgodnie z §11.</p>
       </section>
     </LegalPage>

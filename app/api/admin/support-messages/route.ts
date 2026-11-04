@@ -27,7 +27,10 @@ function row(id: string, data: Record<string, unknown>): SupportMessage {
     updatedAt: Number(data.updatedAt ?? 0),
     ...(typeof data.readAt === 'number' ? { readAt: data.readAt } : {}),
     ...(typeof data.archivedAt === 'number' ? { archivedAt: data.archivedAt } : {}),
-    source: 'contact-page',
+    source: data.source === 'report-problem' ? 'report-problem' : 'contact-page',
+    ...(typeof data.category === 'string' ? { category: data.category } : {}),
+    ...(typeof data.target === 'string' && data.target ? { target: data.target } : {}),
+    ...(data.priority === true ? { priority: true } : {}),
   }
 }
 

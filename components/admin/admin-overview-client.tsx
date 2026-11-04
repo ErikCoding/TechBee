@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { getAdminStats } from '@/services/admin.service'
 import { AdminPendingSummary } from '@/components/admin/admin-pending-summary'
 import { AdminPlatformWallet } from '@/components/admin/admin-platform-wallet'
+import { AdminRevenueLimitPanel } from '@/components/admin/admin-revenue-limit-panel'
 import type { AdminStats } from '@/lib/types'
 
 interface Props {
@@ -152,6 +153,8 @@ export function AdminOverviewClient({ initialStats }: Props) {
           <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Link>
       </div>
+
+      <AdminRevenueLimitPanel />
 
       <AdminPlatformWallet />
 
@@ -317,6 +320,7 @@ export function AdminOverviewClient({ initialStats }: Props) {
           </div>
         </section>
 
+        <div className="flex flex-col gap-6">
         {/* Users by role */}
         <section className="overflow-hidden rounded-2xl border border-border">
           <div className="bg-muted/40 px-6 py-3.5">
@@ -339,6 +343,41 @@ export function AdminOverviewClient({ initialStats }: Props) {
             ))}
           </div>
         </section>
+
+        {stats.studentAgeBands && (() => {
+          const total = stats.studentAgeBands.reduce((sum, row) => sum + row.count, 0)
+          return (
+            <section className="overflow-hidden rounded-2xl border border-border">
+              <div className="bg-muted/40 px-6 py-3.5">
+                <h2 className="text-sm font-semibold text-foreground">Uczniowie wg wieku</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">Oświadczenie przy rejestracji, bez weryfikacji</p>
+              </div>
+              <div className="bg-card p-6">
+                {/* Pasek skumulowany */}
+                <div className="flex overflow-hidden rounded-full bg-muted" style={{ height: 10 }} role="img" aria-label="Podział uczniów wg przedziałów wieku">
+                  {total > 0 && stats.studentAgeBands.map((row) => (
+                    row.count > 0 ? <div key={row.band} style={{ width: `${(row.count / total) * 100}%`, background: row.color }} /> : null
+                  ))}
+                </div>
+                <ul className="mt-5 flex flex-col" style={{ gap: 14 }}>
+                  {stats.studentAgeBands.map((row) => (
+                    <li key={row.band} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                        <span aria-hidden="true" className="shrink-0 rounded-full" style={{ width: 8, height: 8, background: row.color }} />
+                        <span className="truncate">{row.label}</span>
+                      </span>
+                      <span className="shrink-0 font-semibold text-foreground">
+                        {row.count.toLocaleString('pl-PL')}
+                        <span className="ml-1.5 font-normal text-muted-foreground">{total > 0 ? `${Math.round((row.count / total) * 100)}%` : '—'}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )
+        })()}
+        </div>
       </div>
     </div>
   )

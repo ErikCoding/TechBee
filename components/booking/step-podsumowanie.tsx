@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { bookingCtaLabel } from '@/lib/booking-wizard-core'
 import { useAuth } from '@/lib/auth-context'
 import { isFirebaseConfigured } from '@/lib/firebase'
 import { dashboardPathForRole } from '@/lib/utils'
+import { WITHDRAWAL_CONSENT_LABEL, WITHDRAWAL_CONSENT_TITLE } from '@/lib/withdrawal-consent'
 import { useBookingFlow } from './booking-flow-provider'
 import { PriceBreakdown, Section, StepHeader, StepSkeleton, useStepGuard } from './booking-ui'
 
@@ -55,7 +56,8 @@ export function StepPodsumowanie() {
     : summaryKind === 'package_and_book' ? `Pakiet ${s.packageSize} lekcji + pierwsza lekcja`
     : 'Pojedyncza lekcja'
   const cta = isFirebaseConfigured ? bookingCtaLabel(summaryKind) : 'Wyślij prośbę o rezerwację'
-  const canSubmit = Boolean(user) && !flow.submitting && flow.stepValid(1) && flow.stepValid(2)
+  const needsConsent = isFirebaseConfigured && summaryKind !== 'existing_package'
+  const canSubmit = Boolean(user) && !flow.submitting && flow.stepValid(1) && flow.stepValid(2) && (!needsConsent || flow.withdrawalConsent)
 
   return (
     <div>
@@ -100,11 +102,58 @@ export function StepPodsumowanie() {
                 : `Termin zostanie zarezerwowany tylko, jeśli nadal będzie wolny, a ${teacher.name} musi go zaakceptować. W przeciwnym razie zachowasz pełne ${s.packageSize}/${s.packageSize} lekcji.`}
             </p>
           )}
+          {needsConsent && (
+            <label
+              htmlFor="withdrawal-consent"
+              className="flex cursor-pointer items-start rounded-xl border transition-colors"
+              style={{
+                marginTop: 20,
+                padding: 16,
+                gap: 14,
+                borderColor: flow.withdrawalConsent ? 'var(--primary)' : 'var(--border)',
+                background: flow.withdrawalConsent ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : 'transparent',
+                opacity: flow.submitting ? 0.7 : 1,
+                pointerEvents: flow.submitting ? 'none' : 'auto',
+              }}
+            >
+              <input
+                id="withdrawal-consent"
+                type="checkbox"
+                checked={flow.withdrawalConsent}
+                onChange={(e) => flow.setWithdrawalConsent(e.target.checked)}
+                disabled={flow.submitting}
+                className="peer sr-only"
+              />
+              <span
+                aria-hidden="true"
+                className="flex shrink-0 items-center justify-center rounded-md border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring/60"
+                style={{
+                  width: 22,
+                  height: 22,
+                  marginTop: 1,
+                  borderColor: flow.withdrawalConsent ? 'var(--primary)' : 'var(--muted-foreground)',
+                  background: flow.withdrawalConsent ? 'var(--primary)' : 'transparent',
+                  color: 'var(--primary-foreground)',
+                }}
+              >
+                {flow.withdrawalConsent && <Check style={{ width: 14, height: 14 }} strokeWidth={3.5} />}
+              </span>
+              <span className="min-w-0" style={{ display: 'block' }}>
+                <span className="block text-sm font-semibold text-foreground">{WITHDRAWAL_CONSENT_TITLE}</span>
+                <span className="block text-xs leading-relaxed text-muted-foreground" style={{ marginTop: 6 }}>
+                  {WITHDRAWAL_CONSENT_LABEL}{' '}
+                  <Link href="/terms#odstapienie" target="_blank" className="whitespace-nowrap underline underline-offset-2 hover:text-foreground">Szczegóły w Regulaminie</Link>
+                </span>
+              </span>
+            </label>
+          )}
           <Button type="button" onClick={() => void flow.confirm()} disabled={!canSubmit} className="mt-5 h-11 w-full font-semibold">
             {flow.submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
             {cta}
           </Button>
-          <p className="mt-3 text-center text-xs text-muted-foreground">Nic nie zostanie pobrane przed kliknięciem.</p>
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            {needsConsent && !flow.withdrawalConsent ? 'Zaznacz zgodę powyżej, aby przejść do płatności.' : 'Nic nie zostanie pobrane przed kliknięciem.'}
+          </p>
         </aside>
       </div>
     </div>

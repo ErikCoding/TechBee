@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminDb, isAdminConfigured } from '@/lib/firebase-admin'
 import { collections } from '@/lib/firebase'
 import type { SupportMessage } from '@/lib/types'
+import { PROBLEM_CATEGORIES, isProblemCategory, problemCategoryLabel } from '@/lib/problem-report-core'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -39,16 +40,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Wiadomość musi mieć co najmniej 10 znaków.' }, { status: 400 })
   }
 
+  const isReport = (body as { source?: unknown }).source === 'report-problem'
+  const rawCategory = (body as { category?: unknown }).category
+  if (isReport && !isProblemCategory(rawCategory)) {
+    return NextResponse.json({ error: 'Wybierz rodzaj zgłoszenia.' }, { status: 400 })
+  }
+  const category = isReport && isProblemCategory(rawCategory) ? rawCategory : undefined
+  const target = isReport ? clean((body as { target?: unknown }).target, 200) : ''
+  const priority = category ? PROBLEM_CATEGORIES.find((c) => c.id === category && 'priority' in c) !== undefined : false
+
   const now = Date.now()
   const record: Omit<SupportMessage, 'id'> = {
     name,
     email,
-    subject,
+    subject: category ? `Zgłoszenie${priority ? ' PILNE' : ''}: ${problemCategoryLabel(category)}` : subject,
     message,
     status: 'unread',
     createdAt: now,
     updatedAt: now,
-    source: 'contact-page',
+    source: isReport ? 'report-problem' : 'contact-page',
+    ...(category ? { category, ...(target ? { target } : {}), priority } : {}),
   }
 
   const ref = await adminDb.collection(collections.supportMessages).add(record)

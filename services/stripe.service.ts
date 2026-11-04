@@ -82,6 +82,8 @@ export async function startLessonCheckout(input: {
   studentId: string
   studentName: string
   payer?: { id: string; role: 'student' | 'parent' }
+  /** Zgoda na rozpoczęcie usługi przed upływem 14 dni; serwer odrzuca żądanie bez niej. */
+  withdrawalConsent?: boolean
 }): Promise<string> {
   const { url } = await postJson<{ url: string }>('/api/stripe/checkout/create-session', input)
   return url
@@ -97,6 +99,7 @@ export async function startLessonPackageCheckout(input: {
   studentId: string
   studentName: string
   payer?: { id: string; role: 'student' | 'parent' }
+  withdrawalConsent?: boolean
   purchaseMode?: LessonPackagePurchaseMode
   booking?: {
     date?: string

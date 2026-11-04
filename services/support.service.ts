@@ -7,6 +7,10 @@ export type ContactMessageInput = {
   subject: string
   message: string
   website?: string
+  /** Zgłoszenie problemu zamiast zwykłej wiadomości. */
+  source?: 'report-problem'
+  category?: string
+  target?: string
 }
 
 async function getIdToken(): Promise<string | undefined> {

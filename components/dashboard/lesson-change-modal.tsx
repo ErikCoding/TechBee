@@ -10,6 +10,8 @@ import { buildAvailability } from '@/lib/availability'
 import { getTeacherById } from '@/services/teachers.service'
 import { getTeacherBookedLessonSlots, requestLessonChange } from '@/services/lessons.service'
 import { cn } from '@/lib/utils'
+import { lessonStartAtMs } from '@/lib/lesson-time'
+import { FREE_CANCELLATION_HOURS, RESCHEDULE_CUTOFF_HOURS, canRequestReschedule, cancellationMode } from '@/lib/cancellation-policy-core'
 import type { BookedLessonSlot, Lesson, Teacher } from '@/lib/types'
 
 interface Props {
@@ -36,6 +38,9 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const startAtMs = useMemo(() => lessonStartAtMs(lesson), [lesson])
+  const instantCancel = cancellationMode({ requestedBy, startAtMs, now: Date.now() }) === 'immediate'
+  const rescheduleOpen = canRequestReschedule(startAtMs, Date.now())
   const otherParty = requestedBy === 'student' ? lesson.teacherName : lesson.studentName
   const usableBookedSlots = useMemo(() => bookedSlots.filter((slot) => slot.id !== lesson.id), [bookedSlots, lesson.id])
   const days = useMemo(
@@ -94,8 +99,8 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
         ...change,
       })
       onRequested()
-    } catch {
-      setError('Nie udało się wysłać prośby. Spróbuj ponownie.')
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Nie udało się wysłać prośby. Spróbuj ponownie.')
     } finally {
       setSubmitting(false)
     }
@@ -124,7 +129,7 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
             <button
               type="button"
               onClick={() => setTab('reschedule')}
-              disabled={submitting}
+              disabled={submitting || !rescheduleOpen}
               className={cn('flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors', tab === 'reschedule' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground')}
             >
               Przełóż
@@ -134,7 +139,11 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
           {tab === 'cancel' ? (
             <div className="flex flex-col gap-2">
               <p className="text-sm text-muted-foreground">
-                Wyślemy prośbę o odwołanie do {otherParty}. Lekcja zostanie odwołana dopiero po jej potwierdzeniu.
+                {instantCancel
+                  ? requestedBy === 'teacher'
+                    ? `Lekcja zostanie odwołana od razu, a ${otherParty} otrzyma pełny zwrot (100%).`
+                    : `Do lekcji zostało ponad ${FREE_CANCELLATION_HOURS} godzin, więc odwołasz ją od razu i dostaniesz pełny zwrot (100%).`
+                  : `Do lekcji zostało mniej niż ${FREE_CANCELLATION_HOURS} godzin. Wyślemy prośbę o odwołanie do ${otherParty}; lekcja zostanie odwołana dopiero po jej potwierdzeniu.`}
               </p>
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="cancelNote" className="text-xs font-medium text-foreground">Powód odwołania</label>
@@ -151,6 +160,7 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
             </div>
           ) : (
             <div className="flex flex-col gap-4">
+              <p className="text-xs text-muted-foreground">Termin można zmienić najpóźniej {RESCHEDULE_CUTOFF_HOURS} godziny przed lekcją. Nowy termin potwierdza druga strona.</p>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Wybierz nowy termin z dostępności nauczyciela. Zajęte godziny i zbyt krótkie okna są zablokowane.
               </p>
@@ -233,7 +243,7 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
         <DialogFooter>
           <Button onClick={handleSubmit} disabled={submitting || (tab === 'reschedule' && loadingSlots)} className="w-full font-semibold">
             {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Wyślij prośbę
+            {tab === 'cancel' && instantCancel ? 'Odwołaj lekcję' : 'Wyślij prośbę'}
           </Button>
         </DialogFooter>
       </DialogContent>

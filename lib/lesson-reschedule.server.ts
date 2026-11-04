@@ -2,6 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore'
 import { fitsAvailability, isBookableDate } from './availability-core'
 import { lessonSlotLockIds } from './lesson-slot-locks'
 import { lessonStartAtMs, polishDayLabelFromDateIso, slotOverlapsBookedLesson, zonedDateTimeToMs } from './lesson-time'
+import { RESCHEDULE_CUTOFF_HOURS, canRequestReschedule } from './cancellation-policy-core'
 import type { Lesson } from './types'
 import type { LessonEmailLesson } from './email/lesson-event-emails-core'
 
@@ -47,6 +48,9 @@ export async function rescheduleLesson(database: Firestore, uid: string, input: 
       return operation.data()!.result as { event: 'change_requested' | 'rescheduled' | null; lesson: LessonEmailLesson; emailActorUid: string }
     }
     if (lesson.status !== 'upcoming' || (lessonStartAtMs(lesson) ?? 0) <= now) throw new ScheduleError('Możesz zmienić tylko przyszłą, potwierdzoną lekcję.')
+    if (input.action === 'request' && !admin && !canRequestReschedule(lessonStartAtMs(lesson), now)) {
+      throw new ScheduleError(`Termin lekcji można zmienić najpóźniej ${RESCHEDULE_CUTOFF_HOURS} godziny przed jej rozpoczęciem.`)
+    }
     const requestedBy = teacherSide ? 'teacher' : 'student'
     const change = lesson.pendingChange
     if (input.action !== 'request' && (!change || change.type !== 'reschedule' || change.requestedAt !== input.expectedRequestedAt)) {

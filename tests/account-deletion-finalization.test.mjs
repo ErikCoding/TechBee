@@ -357,8 +357,10 @@ test('legal pages: no placeholders, and the numbers they state match the code', 
   assert.equal(DELETED_USER_NAME, 'Usunięty użytkownik')
   assert.match(terms, /USUŃ KONTO|wpisaniu wymaganego potwierdzenia/)
   // operator + contact exist in both documents, and they cross-link
-  assert.match(terms, /kontakt@runbee\.pl/)
-  assert.match(privacy, /kontakt@runbee\.pl/)
+  // (dane operatora pochodzą z jednego miejsca: config/operator.ts)
+  assert.match(read('config/operator.ts'), /email: 'kontakt@runbee\.pl'/)
+  assert.match(terms, /operatorConfig\.email/)
+  assert.match(privacy, /operatorConfig\.email/)
   assert.match(terms, /href="\/privacy"/)
   assert.match(privacy, /href="\/terms"/)
   assert.match(privacy, /href="\/cookies"/)

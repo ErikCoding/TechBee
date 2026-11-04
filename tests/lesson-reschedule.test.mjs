@@ -116,3 +116,12 @@ test('package booking versus reschedule: only one obtains the new slot', async (
   assert.equal(occupied.length, 1)
   assert.ok(results.some((r) => r.status === 'fulfilled'))
 })
+
+test('reschedule request is refused less than 2 hours before the lesson', async () => {
+  const state = initial()
+  const soon = new Date(now + 60 * 60 * 1000)
+  state['lessons/lesson1'].scheduledStartAt = soon.getTime()
+  state['lessons/lesson1'].dateIso = undefined
+  const db = transactionStore(state)
+  await assert.rejects(rescheduleLesson(db, 'student', request(), now), /najpóźniej 2 godziny/)
+})
