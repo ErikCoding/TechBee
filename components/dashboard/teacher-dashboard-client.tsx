@@ -16,6 +16,7 @@ import { TeacherSchedulePanel } from '@/components/dashboard/teacher-schedule-pa
 import { TeacherEarningsPanel } from '@/components/dashboard/teacher-earnings-panel'
 import { NotificationsPanel } from '@/components/dashboard/notifications-panel'
 import { LessonReportModal } from '@/components/dashboard/lesson-report-modal'
+import { LessonChangeModal } from '@/components/dashboard/lesson-change-modal'
 import { DashboardMessagesTab } from '@/components/dashboard/dashboard-messages-tab'
 import { TeacherWalletTile } from '@/components/dashboard/teacher-wallet-tile'
 import type { ChatConversation, Lesson, LessonReport, Notification, Teacher, TeacherDashboardData } from '@/lib/types'
@@ -55,6 +56,14 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
   const [tab, setTab] = useState<'overview' | 'schedule' | 'earnings' | 'messages'>('overview')
   const [actingOn, setActingOn] = useState<string | null>(null)
   const [reportModalFor, setReportModalFor] = useState<Lesson | null>(null)
+  const [changeModalFor, setChangeModalFor] = useState<Lesson | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 8000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
 
   const refresh = useCallback(async () => {
     if (!user) return
@@ -90,12 +99,18 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
   const handleApplicationLoaded = useCallback((app: Teacher | null) => setApplication(app), [])
 
   const buckets = useMemo(() => {
-    const upcomingAll = lessons.filter((l) => l.status === 'upcoming' && !l.pendingChange)
+    // Lessons waiting on the *student's* answer to a teacher-initiated change
+    // stay in the schedule (labelled) — only student requests need the teacher.
+    const upcomingAll = lessons.filter(
+      (l) => l.status === 'upcoming' && (!l.pendingChange || l.pendingChange.requestedBy === 'teacher'),
+    )
     return {
       nextLesson: upcomingAll[0] ?? null,
       laterSchedule: upcomingAll.slice(1),
       bookingRequests: lessons.filter((l) => l.status === 'pending'),
-      changeRequests: lessons.filter((l) => l.status === 'upcoming' && l.pendingChange),
+      changeRequests: lessons.filter(
+        (l) => l.status === 'upcoming' && l.pendingChange && l.pendingChange.requestedBy !== 'teacher',
+      ),
       // Newest-first: once reported, a lesson's status lives in its chat
       // report card, so this stays a pure to-do list.
       needsReport: lessons
@@ -216,6 +231,19 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
         <TeacherReadinessPanel onApplicationLoaded={handleApplicationLoaded} />
       </div>
 
+      {notice && (
+        <div
+          role="status"
+          className="mt-4 flex items-start gap-2.5 rounded-xl border border-border bg-success-surface px-4 py-3 text-sm text-success-on-surface"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">{notice}</p>
+          <button type="button" onClick={() => setNotice(null)} className="text-xs font-semibold underline underline-offset-2">
+            Zamknij
+          </button>
+        </div>
+      )}
+
       <div className="mt-5">
         <DashboardTabs
           label="Sekcje panelu nauczyciela"
@@ -235,7 +263,7 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
           <DashboardColumns
             main={
               <>
-                <TeacherNextLesson lesson={buckets.nextLesson} requestCount={buckets.bookingRequests.length} />
+                <TeacherNextLesson lesson={buckets.nextLesson} requestCount={buckets.bookingRequests.length} onManage={setChangeModalFor} />
                 <TeacherWorkQueue
                   bookingRequests={buckets.bookingRequests}
                   changeRequests={buckets.changeRequests}
@@ -255,7 +283,7 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
             }
           />
         )}
-        {tab === 'schedule' && <TeacherSchedulePanel lessons={buckets.laterSchedule} />}
+        {tab === 'schedule' && <TeacherSchedulePanel lessons={buckets.laterSchedule} onManage={setChangeModalFor} />}
         {tab === 'earnings' && (
           <DashboardColumns
             main={<TeacherEarningsPanel data={data} />}
@@ -276,6 +304,24 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
           />
         )}
       </DashboardTabPanel>
+
+      {changeModalFor && (
+        <LessonChangeModal
+          lesson={changeModalFor}
+          requestedBy="teacher"
+          onClose={() => setChangeModalFor(null)}
+          onRequested={(outcome) => {
+            const name = changeModalFor.studentName
+            setChangeModalFor(null)
+            setNotice(
+              outcome === 'cancelled'
+                ? `Lekcja odwołana. ${name} dostał powiadomienie, a płatność zostanie zwrócona.`
+                : `Prośba wysłana. ${name} musi ją potwierdzić — do tego czasu lekcja zostaje w dotychczasowym terminie.`,
+            )
+            void refresh()
+          }}
+        />
+      )}
 
       {reportModalFor && (
         <LessonReportModal

@@ -1,6 +1,7 @@
 'use client'
 
-import { CalendarClock, CalendarX2, Clock3 } from 'lucide-react'
+import { CalendarClock, CalendarX2, Clock3, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Panel, PanelFooterLink } from '@/components/dashboard/dashboard-primitives'
@@ -11,6 +12,8 @@ import type { Lesson } from '@/lib/types'
 interface Props {
   /** Confirmed lessons after the one already shown in the next-lesson hero. */
   lessons: Lesson[]
+  /** Opens the "Zmień termin / odwołaj" dialog for a lesson. */
+  onManage?: (lesson: Lesson) => void
 }
 
 /**
@@ -20,7 +23,7 @@ interface Props {
  * into the "Do zrobienia" tabs would have inflated the counts a teacher
  * uses to judge whether anything actually needs them.
  */
-export function TeacherSchedulePanel({ lessons }: Props) {
+export function TeacherSchedulePanel({ lessons, onManage }: Props) {
   return (
     <Panel icon={CalendarClock} title="Dalszy grafik" count={lessons.length}>
       {lessons.length === 0 ? (
@@ -52,13 +55,21 @@ export function TeacherSchedulePanel({ lessons }: Props) {
                   {lesson.pendingChange && (
                     <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-warning">
                       <Clock3 className="h-3 w-3" aria-hidden="true" />
-                      Prośba o zmianę czeka na Twoją decyzję
+                      {lesson.pendingChange.requestedBy === 'teacher'
+                        ? `Czeka na odpowiedź ucznia (${lesson.pendingChange.type === 'cancel' ? 'odwołanie' : 'zmiana terminu'})`
+                        : 'Prośba ucznia czeka na Twoją decyzję'}
                     </p>
                   )}
                 </div>
               </div>
               <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
                 <span className="text-sm font-bold text-primary">{lesson.price} zł</span>
+                {onManage && !lesson.pendingChange && (
+                  <Button size="sm" variant="ghost" onClick={() => onManage(lesson)} aria-label={`Zmień termin lub odwołaj: ${lesson.topic}`}>
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                    Zmień termin
+                  </Button>
+                )}
                 <LessonJoinButton
                   lesson={lesson}
                   href={`/lesson/${lesson.id}/room?with=${encodeURIComponent(lesson.studentName)}&topic=${encodeURIComponent(lesson.topic)}`}

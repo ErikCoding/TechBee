@@ -126,7 +126,9 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                       {lesson.pendingChange && (
                         <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-warning">
                           <Clock3 className="h-3 w-3" aria-hidden="true" />
-                          {lesson.pendingChange.type === 'cancel' ? 'Prośba o odwołanie' : 'Prośba o przełożenie'} czeka na nauczyciela
+                          {lesson.pendingChange.requestedBy === 'teacher'
+                            ? `Nauczyciel proponuje ${lesson.pendingChange.type === 'cancel' ? 'odwołanie' : 'nowy termin'} — odpowiedz w zakładce Przegląd`
+                            : `${lesson.pendingChange.type === 'cancel' ? 'Prośba o odwołanie' : 'Prośba o przełożenie'} czeka na nauczyciela`}
                         </p>
                       )}
                     </div>

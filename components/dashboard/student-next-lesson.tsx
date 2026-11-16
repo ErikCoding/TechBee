@@ -73,7 +73,7 @@ export function StudentNextLesson({ lesson, pendingCount, onManage }: Props) {
         {lesson.pendingChange && (
           <span className="flex items-center gap-1 text-[11px] font-medium text-warning">
             <Clock3 className="h-3 w-3" aria-hidden="true" />
-            Zmiana u nauczyciela
+            {lesson.pendingChange.requestedBy === 'teacher' ? 'Nauczyciel proponuje zmianę — odpowiedz niżej' : 'Zmiana czeka na nauczyciela'}
           </span>
         )}
       </div>

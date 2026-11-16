@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { CalendarDays, Clock, Timer, Wallet, CalendarX2, Clock3, MessageSquare } from 'lucide-react'
+import { CalendarDays, Clock, Timer, Wallet, CalendarX2, Clock3, MessageSquare, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { MetaStrip } from '@/components/dashboard/dashboard-primitives'
@@ -13,6 +13,8 @@ interface Props {
   lesson: Lesson | null
   /** Booking requests still awaiting the teacher's answer — the useful next step when nothing is confirmed. */
   requestCount: number
+  /** Opens the "Zmień termin / odwołaj" dialog for this lesson. */
+  onManage?: (lesson: Lesson) => void
 }
 
 /**
@@ -28,7 +30,7 @@ interface Props {
  * the Lesson doc, no real scheduled timestamp exists), so nothing here
  * invents a countdown.
  */
-export function TeacherNextLesson({ lesson, requestCount }: Props) {
+export function TeacherNextLesson({ lesson, requestCount, onManage }: Props) {
   if (!lesson) {
     return (
       <section className="rounded-2xl border border-dashed border-border bg-card/60 px-5 py-8 text-center sm:px-8 sm:py-10">
@@ -62,7 +64,7 @@ export function TeacherNextLesson({ lesson, requestCount }: Props) {
         {lesson.pendingChange && (
           <span className="flex items-center gap-1 text-[11px] font-medium text-warning">
             <Clock3 className="h-3 w-3" aria-hidden="true" />
-            Prośba o zmianę
+            {lesson.pendingChange.requestedBy === 'teacher' ? 'Czeka na odpowiedź ucznia' : 'Prośba ucznia o zmianę'}
           </span>
         )}
       </div>
@@ -98,6 +100,12 @@ export function TeacherNextLesson({ lesson, requestCount }: Props) {
               Napisz do ucznia
             </Button>
           </Link>
+          {onManage && !lesson.pendingChange && (
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => onManage(lesson)}>
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Zmień termin / odwołaj
+            </Button>
+          )}
         </div>
       </div>
     </section>

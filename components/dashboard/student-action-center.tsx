@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { AlertCircle, ClipboardCheck, MessageSquare, ShieldAlert, Star, Clock3 } from 'lucide-react'
+import { AlertCircle, CalendarClock, ClipboardCheck, Loader2, MessageSquare, ShieldAlert, Star, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Panel, AttentionRow, AllClearBanner } from '@/components/dashboard/dashboard-primitives'
 import { formatLessonStudentTotal } from '@/lib/lesson-money'
@@ -16,6 +16,11 @@ interface Props {
   awaitingReview: Lesson[]
   /** Confirmed lessons where the student's cancel/reschedule request is still with the teacher. */
   awaitingTeacherOnChange: Lesson[]
+  /** Cancel/reschedule proposals started by the teacher — the student must accept or reject. */
+  teacherChangeProposals: Lesson[]
+  actingOn: string | null
+  actionError: string | null
+  onProposalDecision: (lesson: Lesson, decision: 'accepted' | 'rejected') => void
   unreadMessages: number
   onReview: (lesson: Lesson) => void
 }
@@ -37,6 +42,10 @@ export function StudentActionCenter({
   openDisputes,
   awaitingReview,
   awaitingTeacherOnChange,
+  teacherChangeProposals,
+  actingOn,
+  actionError,
+  onProposalDecision,
   unreadMessages,
   onReview,
 }: Props) {
@@ -45,6 +54,7 @@ export function StudentActionCenter({
     openDisputes.length +
     awaitingReview.length +
     awaitingTeacherOnChange.length +
+    teacherChangeProposals.length +
     (unreadMessages > 0 ? 1 : 0)
 
   if (total === 0) {
@@ -54,6 +64,39 @@ export function StudentActionCenter({
   return (
     <Panel icon={AlertCircle} title="Wymaga Twojej uwagi" tone="attention" count={total}>
       <ul className="flex flex-col divide-y divide-border">
+        {/* Teacher-initiated change: time-sensitive, the lesson is on hold until the student answers. */}
+        {teacherChangeProposals.map((lesson) => {
+          const change = lesson.pendingChange
+          const busy = actingOn === lesson.id
+          const isCancel = change?.type === 'cancel'
+          return (
+            <AttentionRow
+              key={`proposal-${lesson.id}`}
+              icon={CalendarClock}
+              tone="attention"
+              title={isCancel ? `${lesson.teacherName} chce odwołać lekcję` : `${lesson.teacherName} proponuje nowy termin`}
+              detail={
+                isCancel
+                  ? `${lesson.topic} · ${lesson.date} o ${lesson.time}${change?.note ? ` · Powód: ${change.note}` : ''}`
+                  : `${lesson.date} o ${lesson.time} → ${change?.newDate ?? ''} o ${change?.newTime ?? ''}${change?.note ? ` · ${change.note}` : ''}`
+              }
+              action={
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onProposalDecision(lesson, 'rejected')}>
+                    {isCancel ? 'Nie zgadzam się' : 'Zostaw stary termin'}
+                  </Button>
+                  <Button size="sm" className="h-8 text-xs font-semibold" disabled={busy} onClick={() => onProposalDecision(lesson, 'accepted')}>
+                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isCancel ? 'Zgoda, zwróć pieniądze' : 'Akceptuję nowy termin'}
+                  </Button>
+                </div>
+              }
+            />
+          )
+        })}
+        {actionError && (
+          <li className="px-5 py-2 text-xs text-destructive" role="alert">{actionError}</li>
+        )}
+
         {/* Highest stakes first: confirming a report moves real money. */}
         {awaitingReportConfirmation.map((lesson) => (
           <AttentionRow
@@ -105,7 +148,7 @@ export function StudentActionCenter({
             key={`change-${lesson.id}`}
             icon={Clock3}
             tone="default"
-            title={lesson.pendingChange?.type === 'cancel' ? 'Prośba o odwołanie u nauczyciela' : 'Prośba o przełożenie u nauczyciela'}
+            title={lesson.pendingChange?.type === 'cancel' ? 'Prośba o odwołanie czeka na nauczyciela' : 'Prośba o przełożenie czeka na nauczyciela'}
             detail={`${lesson.teacherName} · ${lesson.date} o ${lesson.time}`}
             action={<span className="shrink-0 text-xs text-muted-foreground">Czeka na odpowiedź</span>}
           />

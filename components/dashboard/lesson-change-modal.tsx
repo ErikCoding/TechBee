@@ -18,7 +18,8 @@ interface Props {
   lesson: Lesson
   requestedBy: 'student' | 'teacher'
   onClose: () => void
-  onRequested: () => void
+  /** 'cancelled' = lekcja odwołana od razu; 'requested' = wysłano prośbę do drugiej strony. */
+  onRequested: (outcome: 'cancelled' | 'requested') => void
 }
 
 /**
@@ -98,7 +99,7 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
       await requestLessonChange(lesson, requestedBy, {
         ...change,
       })
-      onRequested()
+      onRequested(tab === 'cancel' && instantCancel ? 'cancelled' : 'requested')
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Nie udało się wysłać prośby. Spróbuj ponownie.')
     } finally {
@@ -153,7 +154,7 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
                   rows={3}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Np. awaria sprzętu, choroba, konflikt w grafiku..."
+                  placeholder={requestedBy === 'teacher' ? 'Np. choroba, nagła sprawa — uczeń zobaczy ten powód.' : 'Np. awaria sprzętu, choroba, konflikt w grafiku...'}
                   disabled={submitting}
                 />
               </div>
@@ -162,7 +163,9 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
             <div className="flex flex-col gap-4">
               <p className="text-xs text-muted-foreground">Termin można zmienić najpóźniej {RESCHEDULE_CUTOFF_HOURS} godziny przed lekcją. Nowy termin potwierdza druga strona.</p>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Wybierz nowy termin z dostępności nauczyciela. Zajęte godziny i zbyt krótkie okna są zablokowane.
+                {requestedBy === 'teacher'
+                  ? `Wybierz nowy termin z Twojej dostępności. ${otherParty} dostanie powiadomienie i musi go potwierdzić — do tego czasu lekcja zostaje w dotychczasowym terminie.`
+                  : 'Wybierz nowy termin z dostępności nauczyciela. Zajęte godziny i zbyt krótkie okna są zablokowane.'}
               </p>
               {loadingSlots ? (
                 <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">

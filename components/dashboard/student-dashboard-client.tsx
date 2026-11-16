@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { CalendarDays, LayoutDashboard, MessageSquare, PackageCheck, Search, UserCog, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
-import { getStudentLessons, getStudentStats } from '@/services/lessons.service'
+import { getStudentLessons, getStudentStats, respondToLessonChange } from '@/services/lessons.service'
 import { subscribeToConversations } from '@/services/chat.service'
 import { canManageLessonReport } from '@/lib/report-permissions'
 import { getReviewedTeacherIds } from '@/services/teachers.service'
@@ -55,6 +55,8 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
   const [tab, setTab] = useState<'overview' | 'lessons' | 'packages' | 'messages' | 'account'>('overview')
   const [changeModalFor, setChangeModalFor] = useState<Lesson | null>(null)
   const [reviewModalFor, setReviewModalFor] = useState<Lesson | null>(null)
+  const [actingOn, setActingOn] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (!user) return
@@ -120,9 +122,24 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
           }, {}),
       ),
       // The next lesson's own pending change is already surfaced on its hero panel — don't say it twice.
-      awaitingTeacherOnChange: laterUpcoming.filter((l) => l.pendingChange),
+      awaitingTeacherOnChange: laterUpcoming.filter((l) => l.pendingChange && l.pendingChange.requestedBy !== 'teacher'),
+      // Changes the *teacher* proposed — the student (or linked parent) must answer. Includes the next lesson.
+      teacherChangeProposals: upcomingAll.filter((l) => l.pendingChange?.requestedBy === 'teacher'),
     }
   }, [lessons, user, reviewedTeacherIds])
+
+  async function handleProposalDecision(lesson: Lesson, decision: 'accepted' | 'rejected') {
+    setActingOn(lesson.id)
+    setActionError(null)
+    try {
+      await respondToLessonChange(lesson, decision)
+      await refresh()
+    } catch (err) {
+      setActionError(err instanceof Error && err.message ? err.message : 'Nie udało się zapisać odpowiedzi. Spróbuj ponownie.')
+    } finally {
+      setActingOn(null)
+    }
+  }
 
   const unread = conversations?.reduce((sum, c) => sum + c.unread, 0) ?? 0
 
@@ -131,6 +148,7 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
     buckets.openDisputes.length +
     buckets.awaitingReview.length +
     buckets.awaitingTeacherOnChange.length +
+    buckets.teacherChangeProposals.length +
     (unread > 0 ? 1 : 0)
 
   return (
@@ -193,6 +211,10 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
                   openDisputes={buckets.openDisputes}
                   awaitingReview={buckets.awaitingReview}
                   awaitingTeacherOnChange={buckets.awaitingTeacherOnChange}
+                  teacherChangeProposals={buckets.teacherChangeProposals}
+                  actingOn={actingOn}
+                  actionError={actionError}
+                  onProposalDecision={handleProposalDecision}
                   unreadMessages={unread}
                   onReview={setReviewModalFor}
                 />
