@@ -628,6 +628,29 @@ async function cancelLessonImmediately(lesson: Lesson, requestedBy: 'student' | 
   })
 }
 
+/**
+ * Uczeń/rodzic wycofuje rezerwację, której korepetytor jeszcze nie potwierdził.
+ * Zwrot jest pełny (tak jak przy odrzuceniu przez korepetytora); przy pakiecie wraca kredyt.
+ */
+export async function withdrawPendingBooking(lesson: Lesson): Promise<void> {
+  if (lesson.status !== 'pending') throw new Error('Tę rezerwację potwierdzono już lub zamknięto — odśwież stronę.')
+  if (lesson.paymentSource === 'package') {
+    await returnPackageCredit(lesson.id)
+  } else {
+    if (isFirebaseConfigured) await stripeRefund(lesson.id)
+    await updateLessonDoc(lesson.id, {
+      status: 'cancelled', pendingChange: isFirebaseConfigured ? null : undefined, cancelledBy: 'student', cancelledAt: Date.now(), cancellationNote: 'Rezerwacja wycofana przez ucznia przed potwierdzeniem.',
+    })
+  }
+  void notifyLessonEvent(lesson.id, 'cancelled')
+  createNotification({
+    userId: lesson.teacherId,
+    type: 'lesson',
+    title: 'Rezerwacja wycofana',
+    description: `${lesson.studentName} wycofał(a) prośbę o lekcję „${lesson.topic}" (${lesson.date} o ${lesson.time}).`,
+  })
+}
+
 export async function requestLessonChange(lesson: Lesson, requestedBy: 'student' | 'teacher', change: Omit<LessonChangeRequest, 'requestedBy'>): Promise<void> {
   if (isFirebaseConfigured && change.type === 'reschedule') {
     const fingerprint = JSON.stringify([lesson.id, lesson.dateIso, lesson.time, lesson.pendingChange?.requestedAt ?? 0, change.newDateIso, change.newTime, change.note ?? ''])

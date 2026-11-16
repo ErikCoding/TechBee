@@ -272,6 +272,7 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
                   onBookingDecision={handleBookingDecision}
                   onChangeDecision={handleChangeDecision}
                   onWriteReport={setReportModalFor}
+                  onPropose={setChangeModalFor}
                 />
               </>
             }
@@ -316,7 +317,7 @@ export function TeacherDashboardClient({ initialData, initialLessons, initialNot
             setNotice(
               outcome === 'cancelled'
                 ? `Lekcja odwołana. ${name} dostał powiadomienie, a płatność zostanie zwrócona.`
-                : `Prośba wysłana. ${name} musi ją potwierdzić — do tego czasu lekcja zostaje w dotychczasowym terminie.`,
+                : `Propozycja wysłana. ${name} musi ją potwierdzić — do tego czasu obowiązuje dotychczasowy termin.`,
             )
             void refresh()
           }}

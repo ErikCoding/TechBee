@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import {
   CalendarDays, CheckCircle2, XCircle, Circle, Clock3, RefreshCw, Star, Search,
-  ClipboardList,
+  ClipboardList, Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +52,9 @@ interface Props {
   onReview: (lesson: Lesson) => void
   /** Teachers this student already holds their single review for — switches the row action from "Oceń" to "Edytuj opinię". */
   reviewedTeacherIds: Set<string>
+  /** Wycofanie rezerwacji, której nauczyciel jeszcze nie potwierdził (pełny zwrot). */
+  onWithdraw?: (lesson: Lesson) => void
+  withdrawingId?: string | null
 }
 
 /**
@@ -67,7 +70,7 @@ interface Props {
  * panel above (StudentNextLesson); this list starts from the one after
  * it, so the same lesson never appears twice on the page.
  */
-export function StudentLessonsPanel({ upcoming, pending, past, onManage, onReview, reviewedTeacherIds }: Props) {
+export function StudentLessonsPanel({ upcoming, pending, past, onManage, onReview, reviewedTeacherIds, onWithdraw, withdrawingId }: Props) {
   const [tab, setTab] = useState<TabKey>('upcoming')
   const [historyExpanded, setHistoryExpanded] = useState(false)
 
@@ -160,8 +163,7 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
             <EmptyState
               icon={Clock3}
               title="Brak oczekujących rezerwacji"
-              description="Wszystkie Twoje rezerwacje zostały już rozpatrzone."
-              className="py-10"
+              description="Wszystkie Twoje rezerwacje zostały już rozpatrzone."              className="py-10"
             />
           ) : (
             <ul className="flex flex-col divide-y divide-border">
@@ -183,9 +185,22 @@ export function StudentLessonsPanel({ upcoming, pending, past, onManage, onRevie
                   </div>
                   <span className="flex shrink-0 items-center gap-1.5 self-start rounded-full bg-warning-surface px-2.5 py-1 text-[11px] font-medium text-warning-on-surface sm:self-auto">
                     <Clock3 className="h-3 w-3" aria-hidden="true" />
-                    Czeka na potwierdzenie
+                    {lesson.pendingChange?.requestedBy === 'teacher'
+                      ? `Nauczyciel proponuje ${lesson.pendingChange.newTime ?? 'inny termin'} — odpowiedz w Przeglądzie`
+                      : 'Czeka na potwierdzenie'}
                   </span>
                   {lesson.paymentSource === 'package' && <LessonPaymentLabel lesson={lesson} />}
+                  {onWithdraw && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 shrink-0 text-xs"
+                      disabled={withdrawingId === lesson.id}
+                      onClick={() => onWithdraw(lesson)}
+                    >
+                      {withdrawingId === lesson.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Wycofaj rezerwację'}
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>

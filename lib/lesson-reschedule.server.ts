@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore'
-import { fitsAvailability, isBookableDate } from './availability-core'
+import { fitsAvailability, isBookableDate, warsawDateIso } from './availability-core'
 import { lessonSlotLockIds } from './lesson-slot-locks'
 import { lessonStartAtMs, polishDayLabelFromDateIso, slotOverlapsBookedLesson, zonedDateTimeToMs } from './lesson-time'
 import { RESCHEDULE_CUTOFF_HOURS, canRequestReschedule } from './cancellation-policy-core'
@@ -15,6 +15,9 @@ export type RescheduleInput = {
   note?: string
   expectedRequestedAt?: number
 }
+
+/** Minimalny odstęp od "teraz" dla propozycji przełożenia na dzisiaj — musi zostać czas na odpowiedź. */
+export const SAME_DAY_LEAD_MS = 15 * 60 * 1000
 
 export class ScheduleError extends Error {
   constructor(message: string, readonly status = 409) { super(message) }
@@ -47,7 +50,15 @@ export async function rescheduleLesson(database: Firestore, uid: string, input: 
       if (operation.data()?.fingerprint !== fingerprint) throw new ScheduleError('Identyfikator był już użyty dla innej operacji.')
       return operation.data()!.result as { event: 'change_requested' | 'rescheduled' | null; lesson: LessonEmailLesson; emailActorUid: string }
     }
-    if (lesson.status !== 'upcoming' || (lessonStartAtMs(lesson) ?? 0) <= now) throw new ScheduleError('Możesz zmienić tylko przyszłą, potwierdzoną lekcję.')
+    // Niepotwierdzoną rezerwację (pending) może przełożyć tylko korepetytor — jako propozycję zamiast potwierdzenia.
+    // Gdy uczeń zaakceptuje nowy termin, rezerwacja od razu staje się potwierdzona.
+    const pendingBooking = lesson.status === 'pending'
+    if ((lesson.status !== 'upcoming' && !pendingBooking) || (lessonStartAtMs(lesson) ?? 0) <= now) {
+      throw new ScheduleError('Możesz zmienić tylko przyszłą lekcję, która nie została zakończona ani odwołana.')
+    }
+    if (pendingBooking && input.action === 'request' && !admin && !teacherSide) {
+      throw new ScheduleError('Rezerwację, której nauczyciel jeszcze nie potwierdził, możesz tylko wycofać.', 403)
+    }
     if (input.action === 'request' && !admin && !canRequestReschedule(lessonStartAtMs(lesson), now)) {
       throw new ScheduleError(`Termin lekcji można zmienić najpóźniej ${RESCHEDULE_CUTOFF_HOURS} godziny przed jej rozpoczęciem.`)
     }
@@ -66,8 +77,14 @@ export async function rescheduleLesson(database: Firestore, uid: string, input: 
       const teacher = await tx.get(database.collection('teachers').doc(lesson.teacherId))
       const schedule = teacher.data()
       if (!schedule || (schedule.status && schedule.status !== 'approved') || !dateIso || !time
-        || !isBookableDate(dateIso, now) || !fitsAvailability(schedule, dateIso, time, lesson.duration)) {
+        || !(dateIso === warsawDateIso(now) || isBookableDate(dateIso, now)) || !fitsAvailability(schedule, dateIso, time, lesson.duration)) {
         throw new ScheduleError('Wybrany termin nie mieści się w dostępności nauczyciela.')
+      }
+      // Przełożenie na dziś jest dozwolone, ale tylko na godzinę, która jeszcze nie minęła
+      // (przy wysyłaniu propozycji zostawiamy margines na odpowiedź drugiej strony).
+      const newStart = zonedDateTimeToMs(dateIso, time) ?? 0
+      if (newStart <= now + (input.action === 'request' ? SAME_DAY_LEAD_MS : 0)) {
+        throw new ScheduleError('Ten termin jest zbyt blisko lub już minął. Wybierz późniejszą godzinę.')
       }
       const active = await tx.get(database.collection('lessons').where('teacherId', '==', lesson.teacherId).where('status', 'in', ['pending', 'upcoming']))
       if (slotOverlapsBookedLesson({ dateIso, time, duration: lesson.duration, booked: active.docs.filter((doc) => doc.id !== lesson.id).map((doc) => doc.data() as Lesson) })) {
@@ -93,6 +110,7 @@ export async function rescheduleLesson(database: Firestore, uid: string, input: 
     } : input.action === 'accepted' ? {
       pendingChange: null, dateIso: dateIso!, date: polishDayLabelFromDateIso(dateIso!)!, time: time!,
       scheduledStartAt: zonedDateTimeToMs(dateIso!, time!)!, rescheduledAt: now,
+      ...(pendingBooking ? { status: 'upcoming' as const } : {}),
     } : { pendingChange: null }
     for (const ref of oldLocks) if (!nextLocks.some((next) => next.id === ref.id)) tx.delete(ref)
     for (const ref of nextLocks) tx.set(ref, { teacherId: lesson.teacherId, lessonId: lesson.id, dateIso, time, createdAt: now })
@@ -101,7 +119,7 @@ export async function rescheduleLesson(database: Firestore, uid: string, input: 
     const emailLesson: LessonEmailLesson = {
       id: lesson.id, teacherId: lesson.teacherId, studentId: lesson.studentId, payerId: lesson.payerId ?? lesson.studentId,
       teacherName: lesson.teacherName, studentName: lesson.studentName, topic: lesson.topic,
-      date: updated.date, time: updated.time, status: lesson.status,
+      date: updated.date, time: updated.time, status: updated.status,
       pendingChange: updated.pendingChange ?? null,
       ...(updated.rescheduledAt ? { rescheduledAt: updated.rescheduledAt } : {}),
     }

@@ -12,6 +12,9 @@ import { getTeacherBookedLessonSlots, requestLessonChange } from '@/services/les
 import { cn } from '@/lib/utils'
 import { lessonStartAtMs } from '@/lib/lesson-time'
 import { FREE_CANCELLATION_HOURS, RESCHEDULE_CUTOFF_HOURS, canRequestReschedule, cancellationMode } from '@/lib/cancellation-policy-core'
+
+/** Zgodne z SAME_DAY_LEAD_MS w lib/lesson-reschedule.server.ts (tam jest import serwerowy, więc stała jest powielona). */
+const SAME_DAY_LEAD_MS = 15 * 60 * 1000
 import type { BookedLessonSlot, Lesson, Teacher } from '@/lib/types'
 
 interface Props {
@@ -29,7 +32,9 @@ interface Props {
  * reject it (see respondToLessonChange in services/lessons.service.ts).
  */
 export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }: Props) {
-  const [tab, setTab] = useState<'cancel' | 'reschedule'>('cancel')
+  // Niepotwierdzona rezerwacja: korepetytor może tylko zaproponować inny termin (odrzucenie jest osobnym przyciskiem).
+  const proposeInstead = lesson.status === 'pending'
+  const [tab, setTab] = useState<'cancel' | 'reschedule'>(proposeInstead ? 'reschedule' : 'cancel')
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [bookedSlots, setBookedSlots] = useState<BookedLessonSlot[]>([])
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
@@ -50,7 +55,7 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
           teacher.availability,
           { start: teacher.availabilityStart ?? '09:00', end: teacher.availabilityEnd ?? '17:00' },
           14,
-          { duration: lesson.duration, bookedLessons: usableBookedSlots, availabilityHours: teacher.availabilityHours },
+          { duration: lesson.duration, bookedLessons: usableBookedSlots, availabilityHours: teacher.availabilityHours, includeToday: true, sameDayLeadMs: SAME_DAY_LEAD_MS },
         )
       : [],
     [teacher, lesson.duration, usableBookedSlots],
@@ -111,14 +116,19 @@ export function LessonChangeModal({ lesson, requestedBy, onClose, onRequested }:
     <Dialog open onOpenChange={(open) => { if (!open && !submitting) onClose() }}>
       <DialogContent showClose={!submitting}>
         <DialogHeader>
-          <DialogTitle>Zarządzaj lekcją</DialogTitle>
+          <DialogTitle>{proposeInstead ? 'Zaproponuj inny termin' : 'Zarządzaj lekcją'}</DialogTitle>
           <DialogDescription>
             „{lesson.topic}" z {otherParty} · {lesson.date} o {lesson.time}
           </DialogDescription>
         </DialogHeader>
 
         <DialogBody>
-          <div className="flex gap-1.5 rounded-lg bg-muted p-1">
+          {proposeInstead && (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Ten termin nie jest jeszcze potwierdzony. Zaproponuj inną godzinę — gdy {otherParty} ją zaakceptuje, lekcja zostanie od razu potwierdzona.
+            </p>
+          )}
+          <div className={cn('flex gap-1.5 rounded-lg bg-muted p-1', proposeInstead && 'hidden')}>
             <button
               type="button"
               onClick={() => setTab('cancel')}

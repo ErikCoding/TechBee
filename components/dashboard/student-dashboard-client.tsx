@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { CalendarDays, LayoutDashboard, MessageSquare, PackageCheck, Search, UserCog, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
-import { getStudentLessons, getStudentStats, respondToLessonChange } from '@/services/lessons.service'
+import { getStudentLessons, getStudentStats, respondToLessonChange, withdrawPendingBooking } from '@/services/lessons.service'
 import { subscribeToConversations } from '@/services/chat.service'
 import { canManageLessonReport } from '@/lib/report-permissions'
 import { getReviewedTeacherIds } from '@/services/teachers.service'
@@ -56,6 +56,7 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
   const [changeModalFor, setChangeModalFor] = useState<Lesson | null>(null)
   const [reviewModalFor, setReviewModalFor] = useState<Lesson | null>(null)
   const [actingOn, setActingOn] = useState<string | null>(null)
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -124,9 +125,25 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
       // The next lesson's own pending change is already surfaced on its hero panel — don't say it twice.
       awaitingTeacherOnChange: laterUpcoming.filter((l) => l.pendingChange && l.pendingChange.requestedBy !== 'teacher'),
       // Changes the *teacher* proposed — the student (or linked parent) must answer. Includes the next lesson.
-      teacherChangeProposals: upcomingAll.filter((l) => l.pendingChange?.requestedBy === 'teacher'),
+      teacherChangeProposals: lessons.filter(
+        (l) => (l.status === 'upcoming' || l.status === 'pending') && l.pendingChange?.requestedBy === 'teacher',
+      ),
     }
   }, [lessons, user, reviewedTeacherIds])
+
+  async function handleWithdraw(lesson: Lesson) {
+    if (!window.confirm('Wycofać rezerwację? Zapłacona kwota zostanie zwrócona w całości.')) return
+    setWithdrawingId(lesson.id)
+    setActionError(null)
+    try {
+      await withdrawPendingBooking(lesson)
+      await refresh()
+    } catch (err) {
+      setActionError(err instanceof Error && err.message ? err.message : 'Nie udało się wycofać rezerwacji. Spróbuj ponownie.')
+    } finally {
+      setWithdrawingId(null)
+    }
+  }
 
   async function handleProposalDecision(lesson: Lesson, decision: 'accepted' | 'rejected') {
     setActingOn(lesson.id)
@@ -236,7 +253,12 @@ export function StudentDashboardClient({ initialLessons, initialStats, initialNo
             onManage={setChangeModalFor}
             onReview={setReviewModalFor}
             reviewedTeacherIds={reviewedTeacherIds}
+            onWithdraw={handleWithdraw}
+            withdrawingId={withdrawingId}
           />
+        )}
+        {tab === 'lessons' && actionError && (
+          <p role="alert" className="mt-3 text-sm text-destructive">{actionError}</p>
         )}
         {tab === 'packages' && <StudentPackagesPanel />}
         {tab === 'messages' && (

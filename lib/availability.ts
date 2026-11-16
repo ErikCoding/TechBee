@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { AvailabilityHours, BookedLessonSlot, WeekdayCode } from '@/lib/types'
-import { minutesToTime, slotOverlapsBookedLesson, timeToMinutes } from '@/lib/lesson-time'
+import { minutesToTime, slotOverlapsBookedLesson, timeToMinutes, zonedDateTimeToMs } from '@/lib/lesson-time'
 import { addCalendarDays, availabilityIntervals, fitsAvailability, warsawDateIso } from './availability-core'
 
 const WEEKDAY_CODES: WeekdayCode[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -60,13 +60,22 @@ export function buildAvailability(
   availability: string[],
   hours: { start: string; end: string } = DEFAULT_HOURS,
   daysAhead = BOOKING_WINDOW_DAYS,
-  options: { duration?: number; bookedLessons?: BookedLessonSlot[]; availabilityHours?: AvailabilityHours } = {},
+  options: {
+    duration?: number
+    bookedLessons?: BookedLessonSlot[]
+    availabilityHours?: AvailabilityHours
+    /** Tylko przełożenie lekcji: pokaż też dzisiejszy dzień (godziny, które już minęły lub są za blisko, są zablokowane). */
+    includeToday?: boolean
+    /** Minimalny odstęp od teraz dla dzisiejszych godzin (ms). */
+    sameDayLeadMs?: number
+  } = {},
 ): AvailabilityDay[] {
   const duration = options.duration ?? 60
   const bookedLessons = options.bookedLessons ?? []
   const days: AvailabilityDay[] = []
   const today = warsawDateIso()
-  for (let i = 1; i <= daysAhead; i++) {
+  const nowMs = Date.now()
+  for (let i = options.includeToday ? 0 : 1; i <= daysAhead; i++) {
     const isoDate = addCalendarDays(today, i)
     const date = new Date(`${isoDate}T12:00:00Z`)
     const code = WEEKDAY_CODES[date.getUTCDay()]
@@ -76,7 +85,8 @@ export function buildAvailability(
     try { ranges = availabilityIntervals(code, schedule) } catch { continue }
     const allSlots = [...new Set(ranges.flatMap((range) => generatePotentialSlots(range.start, range.end)))].sort()
     const slots = allSlots.map((time) => {
-      const fitsWorkingWindow = fitsAvailability(schedule, isoDate, time, duration)
+      const tooSoon = i === 0 && (zonedDateTimeToMs(isoDate, time) ?? 0) <= nowMs + (options.sameDayLeadMs ?? 0)
+      const fitsWorkingWindow = !tooSoon && fitsAvailability(schedule, isoDate, time, duration)
       const booked = fitsWorkingWindow && slotOverlapsBookedLesson({
         dateIso: isoDate,
         time,

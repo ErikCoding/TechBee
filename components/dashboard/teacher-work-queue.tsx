@@ -19,6 +19,8 @@ interface Props {
   onBookingDecision: (lesson: Lesson, decision: 'accepted' | 'rejected') => void
   onChangeDecision: (lesson: Lesson, decision: 'accepted' | 'rejected') => void
   onWriteReport: (lesson: Lesson) => void
+  /** Zaproponuj inny termin zamiast potwierdzać zapytanie. */
+  onPropose?: (lesson: Lesson) => void
 }
 
 /**
@@ -46,6 +48,7 @@ export function TeacherWorkQueue({
   onBookingDecision,
   onChangeDecision,
   onWriteReport,
+  onPropose,
 }: Props) {
   const firstWithWork: QueueKey = needsReport.length > 0
     ? 'reports'
@@ -172,7 +175,7 @@ export function TeacherWorkQueue({
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2 sm:ml-4">
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-4">
                     <Button
                       size="sm"
                       variant="outline"
@@ -182,6 +185,24 @@ export function TeacherWorkQueue({
                     >
                       Odrzuć
                     </Button>
+                    {req.pendingChange?.requestedBy === 'teacher' ? (
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-warning">
+                        Czeka na odpowiedź ucznia: {req.pendingChange.newTime}
+                      </span>
+                    ) : (
+                      <>
+                    {onPropose && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 flex-1 text-xs sm:flex-none"
+                        disabled={actingOn === req.id}
+                        onClick={() => onPropose(req)}
+                      >
+                        <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                        Inny termin
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       className="h-8 flex-1 text-xs font-semibold sm:flex-none"
@@ -190,6 +211,8 @@ export function TeacherWorkQueue({
                     >
                       {actingOn === req.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Akceptuj'}
                     </Button>
+                      </>
+                    )}
                   </div>
                 </li>
               ))}
